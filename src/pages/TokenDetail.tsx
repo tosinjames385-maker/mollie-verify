@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useParams, useLocation } from 'react-router-dom'
 import { useWallet } from '@solana/wallet-adapter-react'
 import {
   Copy,
@@ -18,6 +19,7 @@ import { AddMetadataModal } from '../components/AddMetadataModal'
 import { VerifyTokenModal } from '../components/VerifyTokenModal'
 import { AddNewsModal } from '../components/AddNewsModal'
 import { ConnectWalletSidebar } from '../components/ConnectWalletSidebar'
+import { getTokenByMint, LiveToken } from '../services/tokenService'
 
 const DEMO_TOKEN = {
   name: 'Mollie The Runner',
@@ -37,12 +39,83 @@ const DEMO_TOKEN = {
 
 export const TokenDetail = () => {
   const { publicKey } = useWallet()
+  const { mintAddress } = useParams<{ mintAddress: string }>()
+  const location = useLocation() as { state?: { selectedToken?: LiveToken } }
   const [token, setToken] = useState(DEMO_TOKEN)
+  const [liveLogo, setLiveLogo] = useState<string | null>(null)
+  const [loadingLive, setLoadingLive] = useState(false)
   const [showAddMetadata, setShowAddMetadata] = useState(false)
   const [showVerify, setShowVerify] = useState(false)
   const [showAddNews, setShowAddNews] = useState(false)
   const [submissionHistoryOpen, setSubmissionHistoryOpen] = useState(false)
   const [showConnectWallet, setShowConnectWallet] = useState(false)
+
+  // Load live token when mintAddress changes (search selector) – mintAddress is canonical id
+  useEffect(() => {
+    const stateToken = location.state?.selectedToken
+    // If navigated with live token in state, use it immediately
+    if (stateToken && stateToken.mintAddress === mintAddress) {
+      setToken({
+        name: stateToken.name,
+        symbol: stateToken.symbol,
+        mintAddress: `${stateToken.mintAddress.slice(0, 4)}...${stateToken.mintAddress.slice(-4)}`,
+        fullMintAddress: stateToken.mintAddress,
+        likes: 0,
+        userLiked: false,
+        verificationStatus: stateToken.verified ? 'verified' : 'unverified',
+        organicActivity: stateToken.verified ? 'high' : 'low',
+        warningsCount: stateToken.verified ? 0 : 2,
+        circulatingSupply: stateToken.price ? `$${stateToken.price}` : '—',
+        website: '—',
+        twitterUrl: '',
+        description: null,
+      })
+      setLiveLogo(stateToken.logo)
+      return
+    }
+    if (!mintAddress) {
+      setToken(DEMO_TOKEN)
+      setLiveLogo(null)
+      return
+    }
+    // Don't fetch for demo MOLLIE short mint; only for real 32-44 length mints
+    if (mintAddress.length < 30) {
+      setToken(DEMO_TOKEN)
+      setLiveLogo(null)
+      return
+    }
+    let cancelled = false
+    setLoadingLive(true)
+    getTokenByMint(mintAddress)
+      .then((live) => {
+        if (cancelled) return
+        setToken({
+          name: live.name,
+          symbol: live.symbol,
+          mintAddress: `${live.mintAddress.slice(0, 4)}...${live.mintAddress.slice(-4)}`,
+          fullMintAddress: live.mintAddress,
+          likes: 0,
+          userLiked: false,
+          verificationStatus: live.verified ? 'verified' : 'unverified',
+          organicActivity: live.verified ? 'high' : 'low',
+          warningsCount: live.verified ? 0 : 2,
+          circulatingSupply: live.price ? `$${live.price}` : '—',
+          website: '—',
+          twitterUrl: '',
+          description: null,
+        })
+        setLiveLogo(live.logo)
+      })
+      .catch(() => {
+        if (!cancelled) toast.error('Live token not found, showing MOLLIE')
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingLive(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [mintAddress, location.state])
 
   const handleLike = () => {
     setToken((prev) => ({
@@ -64,9 +137,24 @@ export const TokenDetail = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 mb-4 pt-4">
         {/* Left: Avatar & Title Info */}
         <div className="flex items-center gap-3.5">
-          {/* Avatar */}
+          {/* Avatar – live logo with fallback */}
           <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-[#101822] border border-[#1C2838] flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm p-0.5">
-            <img src="https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png" alt="MOLLIE" className="w-full h-full rounded-full object-cover" />
+            {liveLogo ? (
+              <img
+                src={liveLogo}
+                alt={token.symbol}
+                className="w-full h-full rounded-full object-cover"
+                onError={(e) => {
+                  ;(e.currentTarget as HTMLImageElement).style.display = 'none'
+                }}
+              />
+            ) : (
+              <img
+                src="https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png"
+                alt={token.symbol}
+                className="w-full h-full rounded-full object-cover"
+              />
+            )}
           </div>
 
           <div>

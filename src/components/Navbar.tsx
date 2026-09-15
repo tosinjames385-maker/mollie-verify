@@ -1,57 +1,18 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Search, BarChart2, Menu, X, MessageSquare, PlaySquare, HelpCircle, Code } from 'lucide-react'
-import { searchTokens } from '../lib/api'
-
-interface SearchResult {
-  id: string
-  name: string
-  symbol: string
-  mintAddress: string
-  imageUrl?: string
-}
+import { TokenSelector } from './TokenSelector'
+import type { LiveToken } from '../services/tokenService'
 
 export const Navbar = () => {
   const navigate = useNavigate()
-  const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
-  const [showResults, setShowResults] = useState(false)
+  const [showSelector, setShowSelector] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const searchRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
-        setShowResults(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  useEffect(() => {
-    const performSearch = async () => {
-      if (searchQuery.length < 2) {
-        setSearchResults([])
-        return
-      }
-      try {
-        const results = await searchTokens(searchQuery)
-        setSearchResults(results)
-        setShowResults(true)
-      } catch (error) {
-        console.error('Search failed:', error)
-      }
-    }
-    const debounce = setTimeout(performSearch, 300)
-    return () => clearTimeout(debounce)
-  }, [searchQuery])
-
-  const handleSelectToken = (mintAddress: string) => {
-    navigate(`/token/${mintAddress}`)
-    setSearchQuery('')
-    setSearchResults([])
-    setShowResults(false)
+  const handleSelectLiveToken = (token: LiveToken) => {
+    setShowSelector(false)
+    // mintAddress is canonical id – navigate to token detail, Dashboard/TokenDetail will load real data
+    navigate(`/token/${token.mintAddress}`, { state: { selectedToken: token } })
   }
 
   // Handle body scroll locking
@@ -112,74 +73,17 @@ export const Navbar = () => {
               </a>
             </div>
 
-            {/* Search Bar - Fake input that opens modal */}
+            {/* Search Bar - LIVE Solana Token Selector */}
             <div className="flex-1 max-w-[130px] sm:max-w-sm md:max-w-md lg:max-w-xl relative">
-              <div className="relative cursor-text" onClick={() => setShowResults(true)}>
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
-                <div className="w-full bg-[#0F151E] border border-[#1A2332] rounded-full pl-9 pr-4 py-1.5 lg:py-2 text-xs lg:text-sm text-gray-500 hover:border-[#B7F34A] transition-colors flex items-center">
-                  Search
-                </div>
-              </div>
-
-              {/* Search Modal Backdrop & Dialog */}
-              {showResults && (
-                <div className="fixed inset-0 z-[120] flex justify-center sm:items-start sm:pt-24 items-start pt-4 px-2 sm:px-4 transition-opacity">
-                  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowResults(false)} />
-                  
-                  <div className="relative w-full max-w-[600px] bg-[#0A1017] border border-[#1C2838] rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
-                    <div className="p-4 border-b border-[#1C2838] relative flex items-center">
-                      <Search className="absolute left-7 w-5 h-5 text-gray-400" />
-                      <input
-                        autoFocus
-                        type="text"
-                        placeholder="Submit metadata and insights for a token"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full bg-[#101822] border border-[#1C2838] rounded-lg pl-12 pr-12 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#B7F34A] transition-colors"
-                      />
-                      <button 
-                        onClick={() => setShowResults(false)}
-                        className="absolute right-7 bg-[#1A2636] border border-[#2C3B4E] text-gray-400 text-[10px] font-bold px-2 py-1 rounded"
-                      >
-                        Esc
-                      </button>
-                    </div>
-
-                    <div className="overflow-y-auto flex-1 p-2">
-                      <div className="px-3 py-2 text-xs font-semibold text-gray-400">Suggested tokens</div>
-                      
-                      <button className="w-full flex items-center justify-between px-3 py-3 hover:bg-[#152030] rounded-lg transition-colors group text-left">
-                        <div className="flex items-center gap-3">
-                          <img src="https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png" alt="SOL" className="w-8 h-8 rounded-full" />
-                          <div>
-                            <div className="text-sm font-bold text-white flex items-center gap-1">SOL <div className="w-3.5 h-3.5 bg-[#B7F34A] rounded-full flex items-center justify-center"><svg className="w-2.5 h-2.5 text-black" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div></div>
-                            <div className="text-[11px] text-gray-400">Wrapped SOL</div>
-                          </div>
-                        </div>
-                        <div className="text-[11px] text-gray-400 flex items-center gap-1.5 group-hover:text-gray-300">
-                          So11...1112 <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                        </div>
-                      </button>
-
-                      <button className="w-full flex items-center justify-between px-3 py-3 hover:bg-[#152030] rounded-lg transition-colors group text-left">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-[#2775CA] flex items-center justify-center text-white font-bold">$</div>
-                          <div>
-                            <div className="text-sm font-bold text-white flex items-center gap-1">USDC <div className="w-3.5 h-3.5 bg-[#B7F34A] rounded-full flex items-center justify-center"><svg className="w-2.5 h-2.5 text-black" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div></div>
-                            <div className="text-[11px] text-gray-400">USD Coin</div>
-                          </div>
-                        </div>
-                        <div className="text-[11px] text-gray-400 flex items-center gap-1.5 group-hover:text-gray-300">
-                          EPjF...Dt1v <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                        </div>
-                      </button>
-
-                      {/* We could render real search results here if searchQuery is not empty */}
-                    </div>
-                  </div>
-                </div>
-              )}
+              <button
+                onClick={() => setShowSelector(true)}
+                className="relative w-full text-left bg-[#0F151E] border border-[#1A2332] rounded-full pl-9 pr-4 py-1.5 lg:py-2 text-xs lg:text-sm text-gray-500 hover:border-[#B7F34A]/50 hover:text-gray-400 transition-colors flex items-center"
+              >
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
+                Search token, symbol or mint...
+              </button>
             </div>
+            <TokenSelector isOpen={showSelector} onClose={() => setShowSelector(false)} onSelect={handleSelectLiveToken} />
 
             {/* Right Actions */}
             <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">

@@ -5,6 +5,7 @@ import { tokenRoutes } from './routes/tokens'
 import { submissionRoutes } from './routes/submissions'
 import { newsRoutes } from './routes/news'
 import { adminRoutes } from './routes/admin'
+import { liveTokensRouter } from './routes/liveTokens'
 
 dotenv.config()
 
@@ -16,6 +17,7 @@ app.use(express.json())
 
 // Routes
 app.use('/api/tokens', tokenRoutes)
+app.use('/api/live-tokens', liveTokensRouter)
 app.use('/api/submissions', submissionRoutes)
 app.use('/api/news', newsRoutes)
 app.use('/api/admin', adminRoutes)
