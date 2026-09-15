@@ -73,15 +73,14 @@ export const Navbar = () => {
               </a>
             </div>
 
-            {/* Search Bar - LIVE Solana Token Selector */}
+            {/* Search Bar - LIVE Solana Token Selector (restored to original size) */}
             <div className="flex-1 max-w-[130px] sm:max-w-sm md:max-w-md lg:max-w-xl relative">
-              <button
-                onClick={() => setShowSelector(true)}
-                className="relative w-full text-left bg-[#0F151E] border border-[#1A2332] rounded-full pl-9 pr-4 py-1.5 lg:py-2 text-xs lg:text-sm text-gray-500 hover:border-[#B7F34A]/50 hover:text-gray-400 transition-colors flex items-center"
-              >
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
-                Search token, symbol or mint...
-              </button>
+              <div className="relative cursor-text" onClick={() => setShowSelector(true)}>
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
+                <div className="w-full bg-[#0F151E] border border-[#1A2332] rounded-full pl-9 pr-4 py-1.5 lg:py-2 text-xs lg:text-sm text-gray-500 hover:border-[#B7F34A] transition-colors flex items-center">
+                  Search
+                </div>
+              </div>
             </div>
             <TokenSelector isOpen={showSelector} onClose={() => setShowSelector(false)} onSelect={handleSelectLiveToken} />
 
