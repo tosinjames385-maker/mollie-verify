@@ -1,0 +1,108 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Token {
+  id                  String                    @id @default(cuid())
+  name                String
+  symbol              String
+  mintAddress         String                    @unique
+  imageUrl            String?
+  description         String?
+  website             String?
+  twitter             String?
+  telegram            String?
+  discord             String?
+  circulatingSupply   String?
+  verificationStatus  String                    @default("unverified")
+  organicActivity     String                    @default("low")
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+  likes               TokenLike[]
+  verifications       VerificationSubmission[]
+  news                NewsPost[]
+  riskWarnings        RiskWarning[]
+
+  @@index([mintAddress])
+  @@index([symbol])
+  @@index([name])
+}
+
+model TokenLike {
+  id            String   @id @default(cuid())
+  tokenId       String
+  walletAddress String
+  createdAt     DateTime @default(now())
+  token         Token    @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+
+  @@unique([tokenId, walletAddress])
+  @@index([walletAddress])
+  @@index([tokenId])
+}
+
+model VerificationSubmission {
+  id              String   @id @default(cuid())
+  tokenId         String
+  submitterWallet String
+  status          String   @default("pending")
+  submissionType  String   @default("verification")
+  reviewerWallet  String?
+  reviewedAt      DateTime?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  token           Token    @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+
+  @@index([tokenId])
+  @@index([submitterWallet])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model NewsPost {
+  id              String   @id @default(cuid())
+  tokenId         String
+  url             String
+  title           String?
+  description     String?
+  submittedBy     String
+  status          String   @default("pending")
+  reason          String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  token           Token    @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+
+  @@index([tokenId])
+  @@index([submittedBy])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model RiskWarning {
+  id          String   @id @default(cuid())
+  tokenId     String
+  warningType String
+  severity    String   @default("medium")
+  description String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  token       Token    @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+
+  @@index([tokenId])
+  @@index([isActive])
+}
+
+model User {
+  id            String   @id @default(cuid())
+  walletAddress String   @unique
+  isAdmin       Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  lastSeenAt    DateTime @default(now())
+
+  @@index([walletAddress])
+}
