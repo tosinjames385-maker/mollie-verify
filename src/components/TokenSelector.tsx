@@ -229,7 +229,7 @@ export const TokenSelector = ({ isOpen, onClose, onSelect }: TokenSelectorProps)
   return (
     <div className="fixed inset-0 z-[120] flex justify-center sm:items-start sm:pt-20 items-start pt-4 px-2 sm:px-4">
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-[560px] bg-[#0A1017] border border-[#1C2838] rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] sm:max-h-[78vh] animate-in fade-in zoom-in-[0.98] duration-200">
+      <div className="relative w-full max-w-[560px] bg-[#0A1017] border border-[#1C2838] rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[58vh] sm:max-h-[52vh] animate-in fade-in zoom-in-[0.98] duration-200">
         {/* Header */}
         <div className="flex items-center justify-between px-4 sm:px-5 h-[56px] flex-shrink-0 border-b border-[#1C2838]/60">
           <h2 className="text-[15px] font-bold text-white">Select a token</h2>

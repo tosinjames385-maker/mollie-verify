@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Newspaper, ExternalLink, Clock } from 'lucide-react'
 import { getNews } from '../lib/api'
+import { NewsSkeleton } from '../components/Skeleton'
 import toast from 'react-hot-toast'
 
 interface NewsItem {
@@ -41,22 +42,7 @@ export const News = () => {
   }
 
   if (loading) {
-    return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[...Array(6)].map((_, i) => (
-            <div
-              key={i}
-              className="bg-dark-200 rounded-lg border border-dark-50 p-6 animate-pulse"
-            >
-              <div className="h-4 bg-dark-50 rounded w-3/4 mb-4" />
-              <div className="h-3 bg-dark-50 rounded w-full mb-2" />
-              <div className="h-3 bg-dark-50 rounded w-5/6" />
-            </div>
-          ))}
-        </div>
-      </div>
-    )
+    return <NewsSkeleton />
   }
 
   return (

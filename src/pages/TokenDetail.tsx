@@ -19,6 +19,7 @@ import { AddMetadataModal } from '../components/AddMetadataModal'
 import { VerifyTokenModal } from '../components/VerifyTokenModal'
 import { AddNewsModal } from '../components/AddNewsModal'
 import { ConnectWalletSidebar } from '../components/ConnectWalletSidebar'
+import { TokenDetailSkeleton } from '../components/Skeleton'
 import { getTokenByMint, LiveToken } from '../services/tokenService'
 
 const DEMO_TOKEN = {
@@ -44,11 +45,17 @@ export const TokenDetail = () => {
   const [token, setToken] = useState(DEMO_TOKEN)
   const [liveLogo, setLiveLogo] = useState<string | null>(null)
   const [loadingLive, setLoadingLive] = useState(false)
+  const [initialLoading, setInitialLoading] = useState(true)
   const [showAddMetadata, setShowAddMetadata] = useState(false)
   const [showVerify, setShowVerify] = useState(false)
   const [showAddNews, setShowAddNews] = useState(false)
   const [submissionHistoryOpen, setSubmissionHistoryOpen] = useState(false)
   const [showConnectWallet, setShowConnectWallet] = useState(false)
+
+  useEffect(() => {
+    const t = setTimeout(() => setInitialLoading(false), 600)
+    return () => clearTimeout(t)
+  }, [])
 
   // Load live token when mintAddress changes (search selector) – mintAddress is canonical id
   useEffect(() => {
@@ -129,6 +136,10 @@ export const TokenDetail = () => {
   const copyMintAddress = () => {
     navigator.clipboard.writeText(token.fullMintAddress)
     toast.success('Mint address copied!')
+  }
+
+  if (initialLoading || loadingLive) {
+    return <TokenDetailSkeleton />
   }
 
   return (

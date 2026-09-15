@@ -15,6 +15,7 @@ import {
   updateNewsStatus,
   getAdminStats,
 } from '../lib/api'
+import { AdminSkeleton } from '../components/Skeleton'
 import toast from 'react-hot-toast'
 
 export const Admin = () => {
@@ -128,11 +129,7 @@ export const Admin = () => {
   }
 
   if (loading) {
-    return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
-        <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    )
+    return <AdminSkeleton />
   }
 
   return (

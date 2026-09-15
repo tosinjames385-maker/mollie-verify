@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FileText, Clock, CheckCircle, XCircle, Filter } from 'lucide-react'
 import { getSubmissions } from '../lib/api'
+import { SubmissionsSkeleton } from '../components/Skeleton'
 import toast from 'react-hot-toast'
 
 interface Submission {
@@ -107,12 +108,11 @@ export const Submissions = () => {
       </div>
 
       {/* Submissions Table */}
-      <div className="bg-dark-200 rounded-lg border border-dark-50 overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-center">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-          </div>
-        ) : submissions.length > 0 ? (
+      {loading ? (
+        <SubmissionsSkeleton />
+      ) : (
+        <div className="bg-dark-200 rounded-lg border border-dark-50 overflow-hidden">
+          {submissions.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-dark-50">
@@ -208,7 +208,8 @@ export const Submissions = () => {
             </p>
           </div>
         )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Shield, TrendingUp, Clock } from 'lucide-react'
 import { getTokens } from '../lib/api'
+import { DashboardSkeleton } from '../components/Skeleton'
 import toast from 'react-hot-toast'
 
 interface Token {
@@ -75,26 +76,7 @@ export const Dashboard = () => {
   }
 
   if (loading) {
-    return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[...Array(6)].map((_, i) => (
-            <div
-              key={i}
-              className="bg-dark-200 rounded-lg border border-dark-50 p-6 animate-pulse"
-            >
-              <div className="flex items-start space-x-4">
-                <div className="w-16 h-16 bg-dark-50 rounded-full" />
-                <div className="flex-1 space-y-3">
-                  <div className="h-4 bg-dark-50 rounded w-3/4" />
-                  <div className="h-3 bg-dark-50 rounded w-1/2" />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    )
+    return <DashboardSkeleton />
   }
 
   return (
