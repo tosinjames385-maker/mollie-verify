@@ -19,3 +19,17 @@
   }
 }
 
+/* Custom gradient text */
+.gradient-text {
+  @apply text-transparent bg-clip-text bg-gradient-to-r from-teal to-primary;
+}
+
+/* Code block styling */
+pre code {
+  @apply text-xs font-mono leading-relaxed;
+}
+
+/* Smooth scroll */
+html {
+  scroll-behavior: smooth;
+}

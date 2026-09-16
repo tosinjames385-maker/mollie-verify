@@ -267,8 +267,8 @@ export const TokenDetail = () => {
 
       {/* 4. MAIN TWO-COLUMN LAYOUT */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6 items-start">
-        {/* LEFT COLUMN: Data Completeness Card - narrowed for smarter look */}
-        <div className="lg:col-span-3 xl:col-span-2 space-y-4 w-full">
+        {/* LEFT COLUMN: Data Completeness Card - widened for better inner arrangement */}
+        <div className="lg:col-span-4 xl:col-span-4 space-y-4 w-full">
           <div className="bg-[#0A1017] border border-[#1C2838] rounded-lg p-3.5 w-full">
             {/* Header */}
             <div className="flex items-center justify-between mb-3.5">
@@ -286,8 +286,8 @@ export const TokenDetail = () => {
               </div>
             </div>
 
-            {/* Section List: 2 cols */}
-            <div className="grid grid-cols-2 gap-y-3.5 gap-x-4">
+            {/* Section List: 2 cols - uses wider card for clean arrangement */}
+            <div className="grid grid-cols-2 gap-y-4 gap-x-6">
               {/* Token Verification */}
               <div className="border-l-2 border-[#1E2D40] pl-3">
                 <h3 className="text-xs font-bold text-white mb-0.5">
@@ -335,7 +335,7 @@ export const TokenDetail = () => {
         </div>
 
         {/* RIGHT COLUMN: Token Data & News Cards */}
-        <div className="lg:col-span-9 xl:col-span-10 space-y-5">
+        <div className="lg:col-span-8 xl:col-span-8 space-y-5">
           {/* Token Data Card */}
           <div className="bg-[#091018] border border-[#162232]/40 rounded-xl p-4 sm:p-5 min-h-[300px]">
             {/* Header */}

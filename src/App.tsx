@@ -2,10 +2,14 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { WalletProvider } from './components/WalletProvider'
 import { Layout } from './components/Layout'
-import { Dashboard } from './pages/Dashboard'
+import { Home } from './pages/Home'
 import { TokenDetail } from './pages/TokenDetail'
 import { Submissions } from './pages/Submissions'
-import { News } from './pages/News'
+import { APIs } from './pages/APIs'
+import { FAQ } from './pages/FAQ'
+import { Media } from './pages/Media'
+import { Leaderboard } from './pages/Leaderboard'
+import { Profile } from './pages/Profile'
 import { Admin } from './pages/Admin'
 
 function App() {
@@ -14,11 +18,14 @@ function App() {
       <WalletProvider>
         <Routes>
           <Route path="/" element={<Layout />}>
-            <Route index element={<TokenDetail />} />
+            <Route index element={<Navigate to="/submissions" replace />} />
             <Route path="token/:mintAddress" element={<TokenDetail />} />
-            <Route path="dashboard" element={<Dashboard />} />
             <Route path="submissions" element={<Submissions />} />
-            <Route path="news" element={<News />} />
+            <Route path="apis" element={<APIs />} />
+            <Route path="faq" element={<FAQ />} />
+            <Route path="media" element={<Media />} />
+            <Route path="leaderboard" element={<Leaderboard />} />
+            <Route path="profile/:username" element={<Profile />} />
             <Route path="admin" element={<Admin />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
@@ -27,14 +34,14 @@ function App() {
           position="bottom-right"
           toastOptions={{
             style: {
-              background: '#151929',
+              background: '#0A1017',
               color: '#fff',
-              border: '1px solid #1a1f2e',
+              border: '1px solid #1C2838',
             },
             success: {
               iconTheme: {
-                primary: '#84cc16',
-                secondary: '#fff',
+                primary: '#B7F34A',
+                secondary: '#000',
               },
             },
           }}
