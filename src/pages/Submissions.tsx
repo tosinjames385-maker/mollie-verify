@@ -203,16 +203,16 @@ export const Submissions = () => {
               )}
 
               {/* Token List */}
-              <div className="space-y-2.5 max-h-[calc(100vh-270px)] overflow-y-auto pr-0.5">
+              <div className="space-y-1.5 max-h-[calc(100vh-270px)] overflow-y-auto pr-0.5">
                 {loading ? (
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     {[1, 2, 3, 4, 5].map((i) => (
-                      <div key={i} className="animate-pulse bg-[#0D141C] border border-[#16212D] rounded-xl p-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-[#16212D] rounded-full" />
+                      <div key={i} className="animate-pulse bg-[#0D141C] border border-[#16212D] rounded-xl p-2.5">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 bg-[#16212D] rounded-full" />
                           <div className="flex-1">
-                            <div className="h-3.5 bg-[#16212D] rounded w-20 mb-2" />
-                            <div className="h-2.5 bg-[#16212D] rounded w-28" />
+                            <div className="h-3 bg-[#16212D] rounded w-20 mb-1.5" />
+                            <div className="h-2 bg-[#16212D] rounded w-28" />
                           </div>
                         </div>
                       </div>
@@ -225,13 +225,13 @@ export const Submissions = () => {
                       onClick={() => setSelectedSubmission(submission)}
                       className={`w-full p-3 text-left rounded-xl transition-all cursor-pointer border ${
                         selectedSubmission?.id === submission.id
-                          ? 'bg-[#0D151F] border-[#4ADE80]/50 shadow-md ring-1 ring-[#4ADE80]/30'
+                          ? 'bg-[#0D151F] border-[#c7f284]/66 shadow-md ring-1 ring-[#c7f284]/30'
                           : 'bg-[#090F16] border-[#131D28] hover:border-[#1F2E3E]'
                       }`}
                     >
-                      <div className="flex items-start gap-3">
+                      <div className="flex items-center gap-2.5">
                         {/* Token Icon */}
-                        <div className="relative w-10 h-10 rounded-full overflow-hidden flex-shrink-0 bg-[#16212D] mt-0.5">
+                        <div className="relative w-8 h-8 rounded-full overflow-hidden flex-shrink-0 bg-[#16212D]">
                           {submission.token.imageUrl ? (
                             <img
                               src={submission.token.imageUrl}
@@ -243,14 +243,14 @@ export const Submissions = () => {
                             />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#1C2C3E] to-[#101924]">
-                              <span className="text-xs font-bold text-[#B7F34A]">
+                              <span className="text-[11px] font-bold text-[#B7F34A]">
                                 {submission.token.symbol[0]}
                               </span>
                             </div>
                           )}
                           {/* Green verification badge overlay on bottom right of avatar if verified */}
                           {submission.token.verified && (
-                            <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-[#4ADE80] border border-[#090F16] rounded-full flex items-center justify-center text-black text-[8px] font-bold">
+                            <div className="absolute bottom-0 right-0 w-3 h-3 bg-[#4ADE80] border border-[#090F16] rounded-full flex items-center justify-center text-black text-[7px] font-bold">
                               ✓
                             </div>
                           )}
@@ -258,13 +258,13 @@ export const Submissions = () => {
 
                         {/* Token Details */}
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-1 mb-0.5">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <span className="font-bold text-white text-sm truncate tracking-tight">
+                          <div className="flex items-center justify-between gap-1 leading-tight">
+                            <div className="flex items-center gap-1 min-w-0">
+                              <span className="font-bold text-white text-xs truncate tracking-tight">
                                 {submission.token.symbol}
                               </span>
                               {submission.token.verified && (
-                                <svg className="w-3.5 h-3.5 text-[#4ADE80] flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                                <svg className="w-3 h-3 text-[#4ADE80] flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
                                   <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
                                 </svg>
                               )}
@@ -276,16 +276,16 @@ export const Submissions = () => {
                           </div>
 
                           {/* Address & Time */}
-                          <div className="flex items-center gap-1.5 text-[11px] text-gray-400 mb-1 font-mono">
+                          <div className="flex items-center gap-1 text-[10px] text-gray-400 font-mono leading-tight mt-0.5">
                             <span className="truncate">{submission.token.mintAddress.slice(0, 4)}...{submission.token.mintAddress.slice(-4)}</span>
                             <button
                               onClick={(e) => handleCopyAddress(e, submission.token.mintAddress)}
                               className="text-gray-500 hover:text-white transition-colors"
                             >
                               {copiedAddress === submission.token.mintAddress ? (
-                                <Check className="w-3 h-3 text-[#4ADE80]" />
+                                <Check className="w-2.5 h-2.5 text-[#4ADE80]" />
                               ) : (
-                                <Copy className="w-3 h-3" />
+                                <Copy className="w-2.5 h-2.5" />
                               )}
                             </button>
                             <span className="text-gray-600 font-sans">·</span>
@@ -293,7 +293,7 @@ export const Submissions = () => {
                           </div>
 
                           {/* Market Cap & Net Volume Stats */}
-                          <div className="flex items-center gap-2 text-[11px] text-gray-400">
+                          <div className="flex items-center gap-1.5 text-[10px] text-gray-400 leading-tight mt-0.5">
                             <span>
                               MC <span className="text-gray-200 font-semibold">{submission.token.marketCap || '—'}</span>
                             </span>
