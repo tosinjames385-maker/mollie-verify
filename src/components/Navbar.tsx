@@ -101,24 +101,31 @@ export const Navbar = () => {
   return (
     <>
       {/* Desktop Navbar */}
-      <nav className="hidden lg:flex fixed top-0 left-0 right-0 z-40 bg-[#070A0F]/95 backdrop-blur-sm border-b border-[#141B24] h-[44px] items-center px-6">
-        <div className="flex items-center gap-8 w-full">
-          {/* Logo + Nav Links */}
-          <div className="flex items-center gap-8">
-            <Link to="/" className="flex items-center gap-2.5">
-              {/* Exact Green Circle VRFD Icon */}
-              <div className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0">
+      <nav className="hidden lg:flex fixed top-0 left-0 right-0 z-40 bg-[#060B11]/95 backdrop-blur-md border-b border-[#141B24] h-[48px] items-center px-4">
+        <div className="flex items-center justify-between w-full">
+          {/* Left: Logo & Nav Links */}
+          <div className="flex items-center gap-6">
+            <Link to="/" className="flex items-center gap-2">
+              {/* Exact Green/Cyan Sphere Globe VRFD Logo */}
+              <div className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 relative">
                 <svg className="w-full h-full" viewBox="0 0 100 100" fill="none">
-                  <circle cx="50" cy="50" r="50" fill="#00D2B8" />
-                  <circle cx="50" cy="50" r="28" fill="none" stroke="#FFFFFF" strokeWidth="7" />
-                  <circle cx="50" cy="62" r="4" fill="#FFFFFF" />
-                  <rect x="46" y="32" width="8" height="20" rx="4" fill="#FFFFFF" />
+                  <circle cx="50" cy="50" r="46" stroke="url(#globeGrad)" strokeWidth="6" />
+                  <path d="M15 50 Q50 20 85 50 Q50 80 15 50Z" stroke="url(#globeGrad)" strokeWidth="5" fill="none" />
+                  <path d="M22 35 Q50 12 78 35" stroke="url(#globeGrad)" strokeWidth="4" fill="none" />
+                  <path d="M22 65 Q50 88 78 65" stroke="url(#globeGrad)" strokeWidth="4" fill="none" />
+                  <circle cx="30" cy="30" r="10" fill="#00D2B8" />
+                  <path d="M26 30L29 33L35 27" stroke="#060B11" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                  <defs>
+                    <linearGradient id="globeGrad" x1="0" y1="0" x2="100" y2="100">
+                      <stop offset="0%" stopColor="#00D2B8" />
+                      <stop offset="100%" stopColor="#B7F34A" />
+                    </linearGradient>
+                  </defs>
                 </svg>
               </div>
-              <span className="font-bold text-white text-lg tracking-tight">VRFD</span>
             </Link>
 
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-5">
               {navLinks.map((link) => (
                 <Link
                   key={link.to}
@@ -136,58 +143,59 @@ export const Navbar = () => {
           </div>
 
           {/* Search Bar */}
-          <div className="flex-1 max-w-md mx-auto">
+          <div className="flex-1 max-w-md mx-6">
             <button
               onClick={() => setShowSelector(true)}
-              className="w-full"
+              className="w-full text-left"
             >
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                <div className="w-full bg-[#0F151E] border border-[#1A2332] rounded-full pl-10 pr-4 py-2 text-sm text-gray-500 flex items-center justify-between">
-                  <span>Search token by name or mint</span>
-                  <kbd className="text-[10px] text-gray-600 bg-[#1A2332] px-1.5 py-0.5 rounded font-mono">/</kbd>
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <div className="w-full bg-[#0A1017] border border-[#1C2838] rounded-full pl-10 pr-4 py-1.5 text-sm text-gray-400 flex items-center justify-between hover:border-gray-700 transition-colors">
+                  <span>Search</span>
+                  <kbd className="text-[10px] text-gray-500 bg-[#141E2C] px-1.5 py-0.5 rounded font-mono">/</kbd>
                 </div>
               </div>
             </button>
           </div>
 
           {/* Right Actions */}
-          <div className="flex items-center gap-3">
-            {/* Grid icon */}
-            <button className="text-gray-400 hover:text-white transition-colors p-1">
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="3" y="3" width="7" height="7" />
-                <rect x="14" y="3" width="7" height="7" />
-                <rect x="3" y="14" width="7" height="7" />
-                <rect x="14" y="14" width="7" height="7" />
-              </svg>
-            </button>
-
-            {/* Exact Leaderboard Podium Icon */}
+          <div className="flex items-center gap-4">
+            {/* Phosphor Ranking Icon (ph--ranking-bold) */}
             <button
               onClick={() => navigate('/leaderboard')}
-              className="text-gray-400 hover:text-white transition-colors p-1"
+              className="text-[#B7F34A] hover:opacity-90 transition-opacity p-1"
               title="Leaderboard"
             >
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M7 10h4v11H7V10zm6-5h4v16h-4V5zm6 8h4v8h-4v-8zM1 14h4v7H1v-7z" opacity="0.9" />
-                <path d="M14 8.5l.8-1.7 1.8-.3-1.3-1.3.3-1.9-1.6.9-1.6-.9.3 1.9-1.3 1.3 1.8.3.8 1.7z" fill="#B7F34A" />
+              <svg className="w-5 h-5 shrink-0" viewBox="0 0 256 256" fill="currentColor">
+                <path d="M128 24a8 8 0 0 0-8 8v16H40a16 16 0 0 0-16 16v144a16 16 0 0 0 16 16h176a16 16 0 0 0 16-16V64a16 16 0 0 0-16-16h-80V32a8 8 0 0 0-8-8Zm-72 80h48v96H56Zm64-40h48v136h-48Zm64 64h48v72h-48Z" />
               </svg>
             </button>
 
-            {/* X Auth Sign In / User Profile Button */}
+            {/* X Icon */}
+            <button
+              onClick={openAuthModal}
+              className="text-gray-300 hover:text-white transition-colors p-1"
+              title="Sign in with X"
+            >
+              <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.835L1.254 2.25H8.08l4.253 5.622L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
+              </svg>
+            </button>
+
+            {/* X User Profile Badge Pill */}
             {isAuthenticated && user ? (
               <div className="relative">
                 <button
                   onClick={() => setUserMenuOpen(!userMenuOpen)}
-                  className="bg-[#1C2838] hover:bg-[#253545] border border-[#2A3B50] text-white text-xs font-semibold pl-2 pr-3 py-1 rounded-full flex items-center gap-2 transition-all shadow-sm"
+                  className="bg-[#0D1520] hover:bg-[#152232] border border-[#1E2D40] text-white px-2.5 py-1 rounded-full flex items-center gap-2 transition-all"
                 >
-                  <img
-                    src={user.avatar}
-                    alt={user.username}
-                    className="w-6 h-6 rounded-full border border-[#00D2B8]"
-                  />
-                  <span>{user.handle}</span>
+                  <div className="relative w-6 h-6 rounded-full bg-[#0099FF] flex items-center justify-center text-white text-xs font-bold">
+                    {user.username.charAt(0).toLowerCase()}
+                    <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-[#00D2B8] border-2 border-[#0D1520] rounded-full" />
+                  </div>
+                  <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path d="M19 9l-7 7-7-7" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
                 </button>
 
                 {userMenuOpen && (
@@ -217,10 +225,10 @@ export const Navbar = () => {
             ) : (
               <button
                 onClick={openAuthModal}
-                className="bg-[#F5F5F5] hover:bg-white text-black font-semibold text-sm px-4 py-1.5 rounded-full flex items-center gap-1.5 transition-colors shadow-sm"
+                className="bg-[#F5F5F5] hover:bg-white text-black font-semibold text-xs px-3.5 py-1.5 rounded-full flex items-center gap-1.5 transition-colors shadow-sm"
               >
                 <span>Sign in with</span>
-                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.835L1.254 2.25H8.08l4.253 5.622L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
                 </svg>
               </button>
@@ -230,16 +238,25 @@ export const Navbar = () => {
       </nav>
 
       {/* Mobile Navbar */}
-      <nav className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-[#070A0F]/95 backdrop-blur-sm border-b border-[#141B24]">
-        <div className="h-[44px] px-3 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 flex-shrink-0">
+      <nav className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-[#060B11]/95 backdrop-blur-md border-b border-[#141B24]">
+        <div className="h-[48px] px-3 flex items-center justify-between gap-2">
+          {/* Left: Sphere Logo + Hamburger Menu */}
+          <div className="flex items-center gap-2.5 flex-shrink-0">
             <Link to="/" className="flex items-center">
-              <div className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0">
+              <div className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 relative">
                 <svg className="w-full h-full" viewBox="0 0 100 100" fill="none">
-                  <circle cx="50" cy="50" r="50" fill="#00D2B8" />
-                  <circle cx="50" cy="50" r="28" fill="none" stroke="#FFFFFF" strokeWidth="7" />
-                  <circle cx="50" cy="62" r="4" fill="#FFFFFF" />
-                  <rect x="46" y="32" width="8" height="20" rx="4" fill="#FFFFFF" />
+                  <circle cx="50" cy="50" r="46" stroke="url(#mobileGlobeGrad)" strokeWidth="6" />
+                  <path d="M15 50 Q50 20 85 50 Q50 80 15 50Z" stroke="url(#mobileGlobeGrad)" strokeWidth="5" fill="none" />
+                  <path d="M22 35 Q50 12 78 35" stroke="url(#mobileGlobeGrad)" strokeWidth="4" fill="none" />
+                  <path d="M22 65 Q50 88 78 65" stroke="url(#mobileGlobeGrad)" strokeWidth="4" fill="none" />
+                  <circle cx="30" cy="30" r="10" fill="#00D2B8" />
+                  <path d="M26 30L29 33L35 27" stroke="#060B11" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                  <defs>
+                    <linearGradient id="mobileGlobeGrad" x1="0" y1="0" x2="100" y2="100">
+                      <stop offset="0%" stopColor="#00D2B8" />
+                      <stop offset="100%" stopColor="#B7F34A" />
+                    </linearGradient>
+                  </defs>
                 </svg>
               </div>
             </Link>
@@ -247,48 +264,61 @@ export const Navbar = () => {
               onClick={() => setMobileMenuOpen(true)}
               className="text-gray-400 hover:text-white transition-colors p-1"
             >
-              <Menu className="w-4 h-4" />
+              <Menu className="w-5 h-5" />
             </button>
           </div>
 
-          <div className="flex-1 max-w-[200px]">
+          {/* Search Box */}
+          <div className="flex-1 max-w-[210px]">
             <button
               onClick={() => setShowSelector(true)}
-              className="w-full"
+              className="w-full text-left"
             >
               <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
-                <div className="w-full bg-[#0F151E] border border-[#1A2332] rounded-full pl-8 pr-3 py-1.5 text-xs text-gray-500">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                <div className="w-full bg-[#0A1017] border border-[#1C2838] rounded-full pl-8 pr-3 py-1.5 text-xs text-gray-400">
                   Search
                 </div>
               </div>
             </button>
           </div>
 
-          <div className="flex items-center gap-1.5 flex-shrink-0">
-            <button className="text-gray-400 hover:text-white transition-colors p-1">
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="3" y="3" width="7" height="7" />
-                <rect x="14" y="3" width="7" height="7" />
-                <rect x="3" y="14" width="7" height="7" />
-                <rect x="14" y="14" width="7" height="7" />
-              </svg>
-            </button>
+          {/* Right: Ranking, X Icon, Profile */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {/* Phosphor Ranking Icon */}
             <button
               onClick={() => navigate('/leaderboard')}
-              className="text-gray-400 hover:text-white transition-colors p-1"
+              className="text-[#B7F34A] hover:opacity-90 transition-opacity p-1"
+              title="Leaderboard"
             >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M7 10h4v11H7V10zm6-5h4v16h-4V5zm6 8h4v8h-4v-8zM1 14h4v7H1v-7z" opacity="0.9" />
-                <path d="M14 8.5l.8-1.7 1.8-.3-1.3-1.3.3-1.9-1.6.9-1.6-.9.3 1.9-1.3 1.3 1.8.3.8 1.7z" fill="#B7F34A" />
+              <svg className="w-5 h-5 shrink-0" viewBox="0 0 256 256" fill="currentColor">
+                <path d="M128 24a8 8 0 0 0-8 8v16H40a16 16 0 0 0-16 16v144a16 16 0 0 0 16 16h176a16 16 0 0 0 16-16V64a16 16 0 0 0-16-16h-80V32a8 8 0 0 0-8-8Zm-72 80h48v96H56Zm64-40h48v136h-48Zm64 64h48v72h-48Z" />
               </svg>
             </button>
+
+            {/* X Icon */}
+            <button
+              onClick={openAuthModal}
+              className="text-gray-300 hover:text-white transition-colors p-1"
+            >
+              <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.835L1.254 2.25H8.08l4.253 5.622L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
+              </svg>
+            </button>
+
+            {/* X User Profile Badge Pill */}
             {isAuthenticated && user ? (
               <button
                 onClick={() => navigate(`/profile/${user.username}`)}
-                className="bg-[#1C2838] border border-[#00D2B8]/40 p-0.5 rounded-full flex items-center justify-center"
+                className="bg-[#0D1520] border border-[#1E2D40] text-white p-1 rounded-full flex items-center gap-1 transition-all"
               >
-                <img src={user.avatar} alt={user.username} className="w-6 h-6 rounded-full" />
+                <div className="relative w-6 h-6 rounded-full bg-[#0099FF] flex items-center justify-center text-white text-xs font-bold">
+                  {user.username.charAt(0).toLowerCase()}
+                  <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-[#00D2B8] border border-[#0D1520] rounded-full" />
+                </div>
+                <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path d="M19 9l-7 7-7-7" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
               </button>
             ) : (
               <button
