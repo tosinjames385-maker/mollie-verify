@@ -37,7 +37,7 @@ export const demoUsers: DemoUser[] = [
     displayName: 'Sunrise',
     bio: 'Every asset has a sunrise. New stocks, commodities, and more, tradable across Solana.',
     wallet: 'SunrisexKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU',
-    avatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=sunrise&backgroundColor=ff6b6b',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=sunrise&backgroundColor=ff6b6b',
     coverPhoto: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200&h=400&fit=crop',
     verified: true,
     joinedDate: 'Sep 2026',

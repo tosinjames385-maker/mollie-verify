@@ -106,22 +106,8 @@ export const Navbar = () => {
           {/* Left: Logo & Nav Links */}
           <div className="flex items-center gap-6">
             <Link to="/" className="flex items-center gap-2">
-              {/* Exact Green/Cyan Sphere Globe VRFD Logo */}
-              <div className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 relative">
-                <svg className="w-full h-full" viewBox="0 0 100 100" fill="none">
-                  <circle cx="50" cy="50" r="46" stroke="url(#globeGrad)" strokeWidth="6" />
-                  <path d="M15 50 Q50 20 85 50 Q50 80 15 50Z" stroke="url(#globeGrad)" strokeWidth="5" fill="none" />
-                  <path d="M22 35 Q50 12 78 35" stroke="url(#globeGrad)" strokeWidth="4" fill="none" />
-                  <path d="M22 65 Q50 88 78 65" stroke="url(#globeGrad)" strokeWidth="4" fill="none" />
-                  <circle cx="30" cy="30" r="10" fill="#00D2B8" />
-                  <path d="M26 30L29 33L35 27" stroke="#060B11" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                  <defs>
-                    <linearGradient id="globeGrad" x1="0" y1="0" x2="100" y2="100">
-                      <stop offset="0%" stopColor="#00D2B8" />
-                      <stop offset="100%" stopColor="#B7F34A" />
-                    </linearGradient>
-                  </defs>
-                </svg>
+              <div className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0">
+                <img src="/logo.png" alt="VRFD" className="w-full h-full object-cover" />
               </div>
             </Link>
 
@@ -251,23 +237,10 @@ export const Navbar = () => {
       <nav className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-[#060B11]/95 backdrop-blur-md border-b border-[#141B24]">
         <div className="h-[48px] px-3 flex items-center justify-between gap-2">
           {/* Left: Sphere Logo + Hamburger Menu */}
-          <div className="flex items-center gap-2.5 flex-shrink-0">
+          <div className="flex items-center gap-3 flex-shrink-0">
             <Link to="/" className="flex items-center">
-              <div className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 relative">
-                <svg className="w-full h-full" viewBox="0 0 100 100" fill="none">
-                  <circle cx="50" cy="50" r="46" stroke="url(#mobileGlobeGrad)" strokeWidth="6" />
-                  <path d="M15 50 Q50 20 85 50 Q50 80 15 50Z" stroke="url(#mobileGlobeGrad)" strokeWidth="5" fill="none" />
-                  <path d="M22 35 Q50 12 78 35" stroke="url(#mobileGlobeGrad)" strokeWidth="4" fill="none" />
-                  <path d="M22 65 Q50 88 78 65" stroke="url(#mobileGlobeGrad)" strokeWidth="4" fill="none" />
-                  <circle cx="30" cy="30" r="10" fill="#00D2B8" />
-                  <path d="M26 30L29 33L35 27" stroke="#060B11" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                  <defs>
-                    <linearGradient id="mobileGlobeGrad" x1="0" y1="0" x2="100" y2="100">
-                      <stop offset="0%" stopColor="#00D2B8" />
-                      <stop offset="100%" stopColor="#B7F34A" />
-                    </linearGradient>
-                  </defs>
-                </svg>
+              <div className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0">
+                <img src="/logo.png" alt="VRFD" className="w-full h-full object-cover" />
               </div>
             </Link>
             <button
@@ -397,12 +370,7 @@ export const Navbar = () => {
           <div className="flex items-center justify-between p-4 border-b border-[#1C2838]">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0">
-                <svg className="w-full h-full" viewBox="0 0 100 100" fill="none">
-                  <circle cx="50" cy="50" r="50" fill="#00D2B8" />
-                  <circle cx="50" cy="50" r="28" fill="none" stroke="#FFFFFF" strokeWidth="7" />
-                  <circle cx="50" cy="62" r="4" fill="#FFFFFF" />
-                  <rect x="46" y="32" width="8" height="20" rx="4" fill="#FFFFFF" />
-                </svg>
+                <img src="/logo.png" alt="VRFD" className="w-full h-full object-cover" />
               </div>
               <span className="font-bold text-white text-lg tracking-tight">VRFD</span>
             </div>
