@@ -13,17 +13,76 @@ export const Submissions = () => {
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState('newest')
   const [sortOpen, setSortOpen] = useState(false)
+  const [showMobileDetail, setShowMobileDetail] = useState(false)
 
   useEffect(() => {
     loadSubmissions()
   }, [])
 
+  useEffect(() => {
+    setPage(1)
+  }, [filter, searchQuery])
+
   const loadSubmissions = async () => {
     setLoading(true)
     await new Promise(resolve => setTimeout(resolve, 300))
-    setSubmissions(demoSubmissions)
-    if (demoSubmissions.length > 0) {
-      setSelectedSubmission(demoSubmissions[0])
+
+    // Generate extra demo submissions to fill ~24 pages (240 items)
+    const extraSymbols = [
+      'ALPHA','BETA','GAMMA','DELTA','ZETA','THETA','KAPPA','SIGMA','OMEGA','PHI',
+      'PSI','CHI','RHO','TAU','LAMBDA','MU','NU','XI','PI','EPSILON',
+      'IOTA','VARON','SAFEX','LUNA','MARS','VENUS','SATURN','JUPITER','NEPTUNE','PLUTO',
+      'CERES','HADES','ZEUS','POSEIDON','HERMES','ATHENA','APOLLO','ARTEMIS','HEPHAESTUS','ARES',
+      'AFRODITE','DEMETER','HERA','DIONYSUS','PERSEPHONE','HADES','IRIS','HESTIA','PAN','NYX',
+      'TITAN','CYCLOPS','MINOTAUR','CHIMERA','SPHYNX','GRIFFON','HYDRA','PEGASUS','UNICORN','DRAGON',
+      'PHOENIX','KRAKEN','BASILISK','MANTICORE','CERBERUS','SCYLLA','CHARYBDIS','SIREN','HARPY','CENTAUR',
+      'GOBLIN','ORC','ELF','DWARF','TROLL','OGRE','FAIRY','PIXIE','SPRITE','NYMPH',
+      'DRUID','WIZARD','SORCERER','NECROMANCER','PALADIN','RANGER','ROGUE','BARD','CLERIC','MONK',
+      'KNIGHT','WARRIOR','ARCHER','HUNTER','SHAMAN','PRIEST','WARLOCK','MAGE','ASSASSIN','BERSERKER',
+      'SENTINEL','GUARDIAN','PROTECTOR','DEFENDER','CHAMPION','HERO','VILLAIN','LEGEND','MYTH','FABLE',
+      'QUEST','VOYAGE','EXPEDITION','JOURNEY','ODYSSEY','CRUSADE','CAMPAIGN','ADVENTURE','DISCOVERY','EXPLORER',
+      'PIONEER','SETTLER','PILGRIM','WANDERER','NOMAD','RANGER','SCOUT','PATHFINDER','TRAILBLAZER','EXPLORER',
+      'NOVA','STELLAR','COSMIC','GALAXY','NEBULA','QUASAR','PULSAR','MAGNETAR','SPUTNIK','COMET',
+      'ASTEROID','METEOR','ECLIPSE','SOLAR','LUNAR','STELLAR','ORBITAL','GRAVITY','QUANTUM','SINGULARITY',
+      'PARADOX','ENIGMA','MYSTERY','PHANTOM','SHADOW','GHOST','SPECTER','WRAITH','SPIRIT','SOUL',
+      'BLAZE','INFERNO','HELLFIRE','PYRO','IGNIS','EMBER','SCORCH','ASHES','SMOKE','FLAME',
+      'FROST','ICE','GLACIER','TUNDRA','BLIZZARD','AVALANCHE','CRYO','Sleet','SNOW','HAIL',
+      'STORM','TEMPEST','CYCLONE','TORNADO','HURRICANE','GALE','BREEZE','ZEPHYR','MONSOON','WHIRLWIND',
+      'THUNDER','LIGHTNING','VOLT','SPARK','SHOCK','SURGE','PULSE','WAVE','RIPPLE','VIBRATION',
+      'ECHO','RESONANCE','HARMONY','MELODY','SYMPHONY','concert','RHYTHM','TEMPO','BEAT','GROOVE',
+      'PIXEL','VOXEL','BIT','BYTE','NODE','BLOCK','CHAIN','HASH','LEDGER','TOKEN',
+      'COIN','STACK','VAULT','CHEST','SAFE','CACHE','DEPOT','CACHE','POOL','RESERVE',
+      'NEXUS','CORE','HEART','PULSE','SPINE','BRAIN','MIND','SOUL','SPIRIT','ESSENCE',
+    ]
+    const statuses = ['pending','pending','pending','pending','pending','pending','pending','pending','approved','rejected']
+    const timeAgos = ['1h','2h','3h','5h','8h','12h','1d','2d','3d','5d','7d','14d','21d','30d']
+    const mcs = ['—','$5K','$12K','$34K','$67K','$89K','$123K','$234K','$456K','$789K','$1.2M','$2.5M','$5.6M']
+    const nets = ['—','B:$500','B:$1.2K','B:$3.4K','B:$8.9K','B:$15K','B:$23K','B:$45K','B:$78K','B:$134K','B:$234K','S:$5K','S:$12K']
+
+    const generated: Submission[] = extraSymbols.map((sym, i) => ({
+      id: `gen-${i + 52}`,
+      submissionType: 'verification',
+      status: statuses[i % statuses.length],
+      isExpress: i % 7 === 0,
+      submitterWallet: `${sym.slice(0,4).toLowerCase()}${i}xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU`,
+      submitterX: `@${sym}`,
+      tokenX: `@${sym}`,
+      createdAt: new Date(Date.now() - (i * 3600000 * 6)).toISOString(),
+      token: {
+        name: sym.charAt(0) + sym.slice(1).toLowerCase() + ' Token',
+        symbol: sym,
+        mintAddress: `${sym}${i}KxLm${(i*7)%9}pQrS${(i*3)%9}tUv${(i*5)%9}wYz${(i*2)%9}dC6eGhAaBbOoIiCcDd${i%10}${sym.slice(0,3).toLowerCase()}`,
+        imageUrl: i % 4 === 0 ? undefined : i % 3 === 0 ? `https://unavatar.io/${sym.toLowerCase()}?fallback=https://api.dicebear.com/7.x/avataaars/svg?seed=${sym}` : `https://api.dicebear.com/7.x/identicon/svg?seed=${sym}${i}`,
+        marketCap: mcs[i % mcs.length],
+        netVolume: nets[i % nets.length],
+        timeAgo: timeAgos[i % timeAgos.length],
+      },
+    }))
+
+    const all = [...demoSubmissions, ...generated]
+    setSubmissions(all)
+    if (all.length > 0) {
+      setSelectedSubmission(all[0])
     }
     setLoading(false)
   }
@@ -51,6 +110,36 @@ export const Submissions = () => {
     return result
   }, [submissions, filter, searchQuery])
 
+  const isSearching = searchQuery.trim().length > 0
+
+  const totalPages = useMemo(() => Math.max(1, Math.ceil(filteredSubmissions.length / 10)), [filteredSubmissions])
+
+  const displaySubmissions = useMemo(() => {
+    if (isSearching) return filteredSubmissions
+    const start = (page - 1) * 10
+    return filteredSubmissions.slice(start, start + 10)
+  }, [filteredSubmissions, page, isSearching])
+
+  const handleNextPage = () => {
+    if (page < totalPages) {
+      setPage(p => p + 1)
+      const nextPageStart = page * 10
+      if (filteredSubmissions[nextPageStart]) {
+        setSelectedSubmission(filteredSubmissions[nextPageStart])
+      }
+    }
+  }
+
+  const handlePrevPage = () => {
+    if (page > 1) {
+      setPage(p => p - 1)
+      const prevPageStart = (page - 2) * 10
+      if (filteredSubmissions[prevPageStart]) {
+        setSelectedSubmission(filteredSubmissions[prevPageStart])
+      }
+    }
+  }
+
   const filterCounts = useMemo(() => ({
     all: submissions.length,
     pending: submissions.filter(s => s.status === 'pending').length,
@@ -69,7 +158,7 @@ export const Submissions = () => {
   const getStatusBadge = (status: string) => {
     if (status === 'approved') {
       return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium text-[#4ADE80] border border-[#4ADE80]/40 bg-[#4ADE80]/10">
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium text-[#c7f284] border border-[#c7f284]/40 bg-[#c7f284]/10">
           <span className="text-[10px]">✓</span> Approved
         </span>
       )
@@ -89,7 +178,7 @@ export const Submissions = () => {
   }
 
   const getExpressBadge = () => (
-    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium text-[#B7F34A] border border-[#B7F34A]/40 bg-[#B7F34A]/10">
+    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium text-[#c7f284] border border-[#c7f284]/40 bg-[#c7f284]/10">
       <span className="text-[10px]">⚡</span> Express
     </span>
   )
@@ -97,8 +186,8 @@ export const Submissions = () => {
   const filters = [
     { key: 'all', label: 'All', count: filterCounts.all },
     { key: 'pending', label: 'Pending', count: filterCounts.pending },
-    { key: 'approved', label: 'Approved', count: filterCounts.approved },
-    { key: 'rejected', label: 'Rejected', count: filterCounts.rejected },
+    { key: 'approved', label: 'Approved' },
+    { key: 'rejected', label: 'Rejected' },
   ]
 
   const sortOptions = [
@@ -112,7 +201,7 @@ export const Submissions = () => {
       {/* Top Tabs */}
       <div className="px-4 pt-4 pb-2 border-b border-[#131B26]/60">
         <div className="flex gap-4">
-          <button className="text-xs font-semibold text-[#B7F34A] bg-[#111A24] border border-[#B7F34A]/30 px-3.5 py-1.5 rounded-lg shadow-sm">
+          <button className="text-xs font-semibold text-[#c7f284] bg-[#111A24] border border-[#c7f284]/30 px-3.5 py-1.5 rounded-lg shadow-sm">
             Token Verification
           </button>
           <button className="text-xs font-medium text-gray-400 hover:text-white transition-colors px-2 py-1.5">
@@ -124,7 +213,7 @@ export const Submissions = () => {
       <div className="p-3 md:p-4 max-w-7xl mx-auto">
         <div className="lg:grid lg:grid-cols-12 lg:gap-5">
           {/* Main List Container */}
-          <div className="lg:col-span-4">
+          <div className={`lg:col-span-4 ${showMobileDetail ? 'hidden lg:block' : 'block'}`}>
             <div className="bg-[#0B1118] border border-[#16212D] rounded-2xl overflow-hidden p-3 md:p-4 shadow-xl">
               {/* Header */}
               <div className="mb-3">
@@ -141,7 +230,7 @@ export const Submissions = () => {
                   placeholder="Search token or address"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-[#060A0E] border border-[#182432] rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#B7F34A]/60 transition-colors"
+                    className="w-full bg-[#060A0E] border border-[#182432] rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#c7f284]/60 transition-colors"
                 />
               </div>
 
@@ -159,13 +248,15 @@ export const Submissions = () => {
                     <button
                       key={f.key}
                       onClick={() => setFilter(f.key)}
-                      className={`px-3 py-1 rounded-full text-xs font-medium transition-all flex-shrink-0 ${
-                        filter === f.key
-                          ? 'bg-[#18281D] text-[#4ADE80] border border-[#4ADE80]/30'
-                          : 'text-gray-400 hover:text-white border border-transparent'
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex-shrink-0 ${
+                        filter === f.key && f.key === 'all'
+                          ? 'bg-[#182432] text-white'
+                          : filter === f.key && f.key === 'pending'
+                            ? 'text-[#c7f284]'
+                            : 'text-gray-500 hover:text-gray-300'
                       }`}
                     >
-                      {f.label} ({f.count})
+                      {f.label}{f.count !== undefined ? ` (${f.count})` : ''}
                     </button>
                   ))}
                 </div>
@@ -190,7 +281,7 @@ export const Submissions = () => {
                             key={opt.key}
                             onClick={() => { setSortBy(opt.key); setSortOpen(false) }}
                             className={`w-full text-left px-3 py-1.5 text-xs transition-colors ${
-                              sortBy === opt.key ? 'text-[#B7F34A] bg-[#162230]' : 'text-gray-400 hover:text-white hover:bg-[#162230]/50'
+                              sortBy === opt.key ? 'text-[#c7f284] bg-[#162230]' : 'text-gray-400 hover:text-white hover:bg-[#162230]/50'
                             }`}
                           >
                             {opt.label}
@@ -218,14 +309,14 @@ export const Submissions = () => {
                       </div>
                     ))}
                   </div>
-                ) : filteredSubmissions.length > 0 ? (
-                  filteredSubmissions.map((submission) => (
+                ) : displaySubmissions.length > 0 ? (
+                  displaySubmissions.map((submission) => (
                     <div
                       key={submission.id}
-                      onClick={() => setSelectedSubmission(submission)}
+                      onClick={() => { setSelectedSubmission(submission); setShowMobileDetail(true) }}
                       className={`w-full p-3 text-left rounded-xl transition-all cursor-pointer border ${
                         selectedSubmission?.id === submission.id
-                          ? 'bg-[#0D151F] border-[#c7f284]/66 shadow-md ring-1 ring-[#c7f284]/30'
+                          ? 'bg-[#0D151F] border-[#c7f28466]'
                           : 'bg-[#090F16] border-[#131D28] hover:border-[#1F2E3E]'
                       }`}
                     >
@@ -243,14 +334,14 @@ export const Submissions = () => {
                             />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#1C2C3E] to-[#101924]">
-                              <span className="text-[11px] font-bold text-[#B7F34A]">
-                                {submission.token.symbol[0]}
+                               <span className="text-[11px] font-bold text-[#c7f284]">
+                                ?
                               </span>
                             </div>
                           )}
                           {/* Green verification badge overlay on bottom right of avatar if verified */}
                           {submission.token.verified && (
-                            <div className="absolute bottom-0 right-0 w-3 h-3 bg-[#4ADE80] border border-[#090F16] rounded-full flex items-center justify-center text-black text-[7px] font-bold">
+                            <div className="absolute bottom-0 right-0 w-3 h-3 bg-[#c7f284] border border-[#090F16] rounded-full flex items-center justify-center text-black text-[7px] font-bold">
                               ✓
                             </div>
                           )}
@@ -264,7 +355,7 @@ export const Submissions = () => {
                                 {submission.token.symbol}
                               </span>
                               {submission.token.verified && (
-                                <svg className="w-3 h-3 text-[#4ADE80] flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                                <svg className="w-3 h-3 text-[#c7f284] flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
                                   <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
                                 </svg>
                               )}
@@ -283,7 +374,7 @@ export const Submissions = () => {
                               className="text-gray-500 hover:text-white transition-colors"
                             >
                               {copiedAddress === submission.token.mintAddress ? (
-                                <Check className="w-2.5 h-2.5 text-[#4ADE80]" />
+                                <Check className="w-2.5 h-2.5 text-[#c7f284]" />
                               ) : (
                                 <Copy className="w-2.5 h-2.5" />
                               )}
@@ -299,7 +390,7 @@ export const Submissions = () => {
                             </span>
                             <span className="text-gray-600">·</span>
                             <span>
-                              NET <span className="text-[#4ADE80] font-semibold">{submission.token.netVolume || '—'}</span>
+                              NET <span className="text-[#c7f284] font-semibold">{submission.token.netVolume || '—'}</span>
                             </span>
                           </div>
                         </div>
@@ -313,10 +404,11 @@ export const Submissions = () => {
                 )}
               </div>
 
-              {/* Pagination Controls */}
+              {/* Pagination Controls - hidden when searching */}
+              {!isSearching && (
               <div className="mt-3 pt-3 border-t border-[#16212D] flex items-center justify-between text-xs text-gray-400 px-1">
                 <button
-                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  onClick={handlePrevPage}
                   className="hover:text-white flex items-center gap-1 transition-colors disabled:opacity-40"
                   disabled={page === 1}
                 >
@@ -324,110 +416,211 @@ export const Submissions = () => {
                   Prev
                 </button>
                 <span className="text-gray-400 font-medium">
-                  {page} / {searchQuery ? '2' : '23'}
+                  {page} / {totalPages}
                 </span>
                 <button
-                  onClick={() => setPage(p => p + 1)}
-                  className="hover:text-white flex items-center gap-1 transition-colors"
+                  onClick={handleNextPage}
+                  className="hover:text-white flex items-center gap-1 transition-colors disabled:opacity-40"
+                  disabled={page >= totalPages}
                 >
                   Next
                   <ChevronRight className="w-3.5 h-3.5" />
                 </button>
               </div>
+              )}
             </div>
           </div>
 
-          {/* Right Details Panel (Desktop) */}
-          <div className="hidden lg:block lg:col-span-8 space-y-4">
+          {/* Right Details Panel */}
+          <div className={`lg:col-span-8 space-y-4 ${showMobileDetail ? 'block' : 'hidden lg:block'}`}>
             {selectedSubmission ? (
               <>
+                <button 
+                  onClick={() => setShowMobileDetail(false)}
+                  className="lg:hidden flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors pb-2"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  Back to list
+                </button>
+                {/* Token Header Card */}
                 <div className="bg-[#0B1118] border border-[#16212D] rounded-2xl p-5 shadow-xl">
-                  <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-4">
-                      <div className="w-14 h-14 rounded-full overflow-hidden bg-[#16212D] relative border border-[#1F2E3E]">
+                      <div className="w-16 h-16 rounded-full overflow-hidden bg-[#16212D] relative border border-[#1F2E3E]">
                         {selectedSubmission.token.imageUrl ? (
                           <img
                             src={selectedSubmission.token.imageUrl}
                             alt={selectedSubmission.token.name}
                             className="w-full h-full object-cover"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).src = `https://api.dicebear.com/7.x/identicon/svg?seed=${selectedSubmission.token.symbol}`
+                            }}
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#1C2C3E] to-[#101924]">
-                            <span className="text-lg font-bold text-[#B7F34A]">
-                              {selectedSubmission.token.symbol[0]}
+                            <span className="text-xl font-bold text-[#c7f284]">
+                              ?
                             </span>
                           </div>
                         )}
+                        {selectedSubmission.token.verified && (
+                          <div className="absolute bottom-0 right-0 w-4 h-4 bg-[#c7f284] border-2 border-[#0B1118] rounded-full flex items-center justify-center text-black text-[8px] font-bold">✓</div>
+                        )}
                       </div>
                       <div>
-                        <div className="flex items-center gap-3">
-                          <h2 className="text-xl font-bold text-white">{selectedSubmission.token.symbol}</h2>
+                        <h2 className="text-2xl font-bold text-white">{selectedSubmission.token.symbol}</h2>
+                        <div className="flex items-center gap-2 mt-1.5">
                           {getStatusBadge(selectedSubmission.status)}
                           {selectedSubmission.isExpress && getExpressBadge()}
                         </div>
-                        <div className="flex items-center gap-2 text-xs text-gray-400 mt-1">
-                          <span>{selectedSubmission.token.name}</span>
-                          <span className="text-gray-600">·</span>
-                          <span className="font-mono">{selectedSubmission.token.mintAddress.slice(0, 6)}...{selectedSubmission.token.mintAddress.slice(-6)}</span>
-                          <button
-                            onClick={(e) => handleCopyAddress(e, selectedSubmission.token.mintAddress)}
-                            className="text-gray-500 hover:text-white"
-                          >
-                            <Copy className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
                       </div>
                     </div>
-                    <button className="flex items-center gap-2 px-3.5 py-1.5 bg-[#141E2A] hover:bg-[#1C2A3A] rounded-xl text-xs font-semibold text-gray-300 transition-colors border border-[#1F2E3E]">
+                    <button className="flex items-center gap-2 px-4 py-2 bg-[#141E2A] hover:bg-[#1C2A3A] rounded-xl text-xs font-semibold text-gray-300 transition-colors border border-[#1F2E3E]">
                       <Share2 className="w-3.5 h-3.5" />
                       Share
                     </button>
                   </div>
 
-                  <div className="bg-[#060A0E] border border-[#16212D] rounded-xl p-3.5 flex items-start gap-3">
-                    <Heart className="w-4 h-4 text-[#4ADE80] mt-0.5 flex-shrink-0" />
+                  <div className="flex items-center gap-2 text-xs text-gray-400 mt-1 mb-4">
+                    <span>{selectedSubmission.token.name}</span>
+                    <span className="text-gray-600">·</span>
+                    <span className="font-mono">{selectedSubmission.token.mintAddress.slice(0, 4)}...{selectedSubmission.token.mintAddress.slice(-4)}</span>
+                    <button
+                      onClick={(e) => handleCopyAddress(e, selectedSubmission.token.mintAddress)}
+                      className="text-gray-500 hover:text-white"
+                    >
+                      {copiedAddress === selectedSubmission.token.mintAddress ? (
+                        <Check className="w-3 h-3 text-[#c7f284]" />
+                      ) : (
+                        <Copy className="w-3 h-3" />
+                      )}
+                    </button>
+                    <span className="text-gray-600">·</span>
+                    <span className="flex items-center gap-1">
+                      <span>🕐</span>
+                      {selectedSubmission.token.timeAgo}
+                    </span>
+                  </div>
+
+                  {/* Fast Track Banner */}
+                  <div className="bg-[#060A0E] border border-[#16212D] rounded-xl p-4 flex items-start gap-3">
+                    <Heart className="w-5 h-5 text-[#c7f284] mt-0.5 flex-shrink-0" />
                     <div className="flex-1">
-                      <p className="text-xs font-semibold text-white">Help fast-track this submission</p>
-                      <p className="text-[11px] text-gray-400 mt-0.5">
+                      <p className="text-sm font-semibold text-white">Help fast-track this submission</p>
+                      <p className="text-xs text-gray-400 mt-1 leading-relaxed">
                         Smart likes move pending submissions up the review queue. We periodically scan and add new smart likes accounts to our list from interactions on this site.
                       </p>
                     </div>
+                    <button className="text-sm font-semibold text-[#c7f284] hover:underline flex items-center gap-1 flex-shrink-0">
+                      Dashboard <ChevronRight className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-[#0B1118] border border-[#16212D] rounded-2xl p-5 shadow-xl">
-                    <h3 className="text-xs font-bold text-gray-500 tracking-wider mb-4 uppercase">SUBMISSION DETAILS</h3>
-                    <div className="space-y-3 text-xs">
-                      <div className="flex items-center justify-between">
-                        <span className="text-gray-400">Submitter X</span>
-                        <span className="text-white font-medium">{selectedSubmission.submitterX || '—'}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-gray-400">Submitter wallet</span>
-                        <span className="text-white font-mono">{selectedSubmission.submitterWallet ? `${selectedSubmission.submitterWallet.slice(0, 4)}...${selectedSubmission.submitterWallet.slice(-4)}` : '—'}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-gray-400">Submitted</span>
-                        <span className="text-white">16 Sep 2026</span>
-                      </div>
+                {/* Submission Details Card */}
+                <div className="bg-[#0B1118] border border-[#16212D] rounded-2xl p-5 shadow-xl">
+                  <h3 className="text-xs font-bold text-gray-500 tracking-wider mb-4 uppercase">SUBMISSION DETAILS</h3>
+                  <div className="space-y-0 text-sm">
+                    <div className="flex items-center justify-between py-3 border-b border-[#16212D]/50">
+                      <span className="text-gray-400">Submitter X</span>
+                      <span className="text-white font-medium flex items-center gap-1.5">
+                        {selectedSubmission.submitterX || '—'}
+                        <svg className="w-3.5 h-3.5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.835L1.254 2.25H8.08l4.253 5.622L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
+                        </svg>
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between py-3 border-b border-[#16212D]/50">
+                      <span className="text-gray-400">Submitter wallet</span>
+                      <span className="text-white font-mono text-xs">
+                        {selectedSubmission.submitterWallet ? `${selectedSubmission.submitterWallet.slice(0, 4)}...${selectedSubmission.submitterWallet.slice(-4)}` : '—'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between py-3 border-b border-[#16212D]/50">
+                      <span className="text-gray-400">Token X</span>
+                      <span className="text-white font-medium flex items-center gap-1.5">
+                        {selectedSubmission.tokenX || '—'}
+                        <svg className="w-3.5 h-3.5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.835L1.254 2.25H8.08l4.253 5.622L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
+                        </svg>
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between py-3 border-b border-[#16212D]/50">
+                      <span className="text-gray-400">Submitted</span>
+                      <span className="text-white">{new Date(selectedSubmission.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}, {new Date(selectedSubmission.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                    <div className="flex items-center justify-between py-3">
+                      <span className="text-gray-400">Last reviewed</span>
+                      <span className="text-white">{selectedSubmission.status === 'approved' ? '16 Sep 2026, 13:03' : selectedSubmission.status === 'rejected' ? '16 Sep 2026, 11:20' : '—'}</span>
                     </div>
                   </div>
 
-                  <div className="bg-[#0B1118] border border-[#16212D] rounded-2xl p-5 shadow-xl">
-                    <h3 className="text-xs font-bold text-gray-500 tracking-wider mb-4 uppercase">METRICS</h3>
-                    <div className="grid grid-cols-2 gap-4 text-xs">
-                      <div>
-                        <p className="text-gray-500 mb-1">MC / FDV</p>
-                        <p className="text-white font-semibold">{selectedSubmission.token.marketCap || '—'}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500 mb-1">NET VOLUME</p>
-                        <p className="text-[#4ADE80] font-semibold">{selectedSubmission.token.netVolume || '—'}</p>
-                      </div>
+                  <button className="mt-3 text-xs font-semibold text-gray-400 hover:text-white flex items-center gap-1 transition-colors">
+                    <ChevronRight className="w-3.5 h-3.5" />
+                    SUBMITTER CONTEXT
+                  </button>
+                </div>
+
+                {/* Metrics Card */}
+                <div className="bg-[#0B1118] border border-[#16212D] rounded-2xl p-5 shadow-xl">
+                  <h3 className="text-xs font-bold text-gray-500 tracking-wider mb-4 uppercase">METRICS</h3>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-[11px] text-gray-500 mb-1">MC / FDV</p>
+                      <p className="text-white font-semibold">{selectedSubmission.token.marketCap || '—'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-gray-500 mb-1">NET VOLUME</p>
+                      <p className="text-[#c7f284] font-semibold">{selectedSubmission.token.netVolume || '—'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-gray-500 mb-1">24H VOL</p>
+                      <p className="text-white font-semibold">{selectedSubmission.metrics?.vol24h || '—'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-gray-500 mb-1">LIQUIDITY</p>
+                      <p className="text-white font-semibold">{selectedSubmission.metrics?.liquidity || '—'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-gray-500 mb-1">ORGANIC SCORE</p>
+                      <p className="text-white font-semibold">{selectedSubmission.metrics?.organicScore || '—'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-gray-500 mb-1">LIKES / SMART LIKES</p>
+                      <p className="text-white font-semibold">{selectedSubmission.metrics?.likesSmartLikes || '—'}</p>
                     </div>
                   </div>
+
+                  {selectedSubmission.jupShield && selectedSubmission.jupShield.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-[#16212D]">
+                      <p className="text-[11px] text-gray-500 mb-2 font-semibold">JUP SHIELD</p>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedSubmission.jupShield.map((item, i) => (
+                          <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#141E2A] rounded-full text-xs text-gray-300 border border-[#1F2E3E]">
+                            <AlertTriangle className="w-3 h-3 text-yellow-500" />
+                            {item}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
+
+                {/* Audit Log */}
+                {selectedSubmission.auditLog && selectedSubmission.auditLog.length > 0 && (
+                  <div className="bg-[#0B1118] border border-[#16212D] rounded-2xl p-5 shadow-xl">
+                    <h3 className="text-xs font-bold text-gray-500 tracking-wider mb-4 uppercase">AUDIT LOG</h3>
+                    <div className="space-y-3">
+                      {selectedSubmission.auditLog.map((log, i) => (
+                        <div key={i} className="flex items-start gap-4 text-sm">
+                          <span className="text-gray-500 w-40 flex-shrink-0">{log.date}</span>
+                          <span className="text-white font-semibold w-24 flex-shrink-0">{log.action}</span>
+                          <span className="text-gray-400">{log.details}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </>
             ) : (
               <div className="bg-[#0B1118] border border-[#16212D] rounded-2xl p-12 text-center text-gray-500 text-xs">
@@ -437,6 +630,205 @@ export const Submissions = () => {
           </div>
         </div>
       </div>
+
+      {/* Mobile Detail View */}
+      {showMobileDetail && selectedSubmission && (
+        <div className="lg:hidden fixed inset-0 z-50 bg-[#06090E] overflow-y-auto">
+          <div className="p-4">
+            {/* Back button */}
+            <button
+              onClick={() => setShowMobileDetail(false)}
+              className="flex items-center gap-2 text-sm text-gray-400 hover:text-white mb-4 transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              Back to list
+            </button>
+
+            {/* Token Header */}
+            <div className="bg-[#0B1118] border border-[#16212D] rounded-2xl p-4 mb-4">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-14 h-14 rounded-full overflow-hidden bg-[#16212D] relative border border-[#1F2E3E]">
+                    {selectedSubmission.token.imageUrl ? (
+                      <img
+                        src={selectedSubmission.token.imageUrl}
+                        alt={selectedSubmission.token.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src = `https://api.dicebear.com/7.x/identicon/svg?seed=${selectedSubmission.token.symbol}`
+                        }}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#1C2C3E] to-[#101924]">
+                        <span className="text-lg font-bold text-[#c7f284]">
+                          {selectedSubmission.token.symbol[0]}
+                        </span>
+                      </div>
+                    )}
+                    {selectedSubmission.token.verified && (
+                      <div className="absolute bottom-0 right-0 w-4 h-4 bg-[#c7f284] border-2 border-[#0B1118] rounded-full flex items-center justify-center text-black text-[8px] font-bold">
+                        ✓
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-white">{selectedSubmission.token.symbol}</h2>
+                    <div className="flex items-center gap-2 mt-1">
+                      {getStatusBadge(selectedSubmission.status)}
+                      {selectedSubmission.isExpress && getExpressBadge()}
+                    </div>
+                  </div>
+                </div>
+                <button className="flex items-center gap-1.5 px-3 py-1.5 bg-[#141E2A] hover:bg-[#1C2A3A] rounded-xl text-xs font-semibold text-gray-300 transition-colors border border-[#1F2E3E]">
+                  <Share2 className="w-3.5 h-3.5" />
+                  Share
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 text-xs text-gray-400 mt-1">
+                <span>{selectedSubmission.token.name}</span>
+                <span className="text-gray-600">·</span>
+                <span className="font-mono">{selectedSubmission.token.mintAddress.slice(0, 4)}...{selectedSubmission.token.mintAddress.slice(-4)}</span>
+                <button
+                  onClick={(e) => handleCopyAddress(e, selectedSubmission.token.mintAddress)}
+                  className="text-gray-500 hover:text-white"
+                >
+                  {copiedAddress === selectedSubmission.token.mintAddress ? (
+                    <Check className="w-3 h-3 text-[#c7f284]" />
+                  ) : (
+                    <Copy className="w-3 h-3" />
+                  )}
+                </button>
+                <span className="text-gray-600">·</span>
+                <span className="flex items-center gap-1">
+                  <span>🕐</span>
+                  {selectedSubmission.token.timeAgo}
+                </span>
+              </div>
+            </div>
+
+            {/* Fast Track Banner */}
+            <div className="bg-[#0B1118] border border-[#16212D] rounded-2xl p-4 mb-4 flex items-start gap-3">
+              <Heart className="w-5 h-5 text-[#c7f284] mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-white">Help fast-track this submission</p>
+                <p className="text-xs text-gray-400 mt-1 leading-relaxed">
+                  Smart likes move pending submissions up the review queue. We periodically scan and add new smart likes accounts to our list from interactions on this site.
+                </p>
+              </div>
+              <button className="text-sm font-semibold text-[#c7f284] hover:underline flex items-center gap-1 flex-shrink-0">
+                Dashboard <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Submission Details */}
+            <div className="bg-[#0B1118] border border-[#16212D] rounded-2xl p-4 mb-4">
+              <h3 className="text-xs font-bold text-gray-500 tracking-wider mb-4 uppercase">SUBMISSION DETAILS</h3>
+              <div className="space-y-3 text-sm">
+                <div className="flex items-center justify-between py-2 border-b border-[#16212D]/50">
+                  <span className="text-gray-400">Submitter X</span>
+                  <span className="text-white font-medium flex items-center gap-1">
+                    {selectedSubmission.submitterX || '—'}
+                    <svg className="w-3.5 h-3.5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.835L1.254 2.25H8.08l4.253 5.622L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
+                    </svg>
+                  </span>
+                </div>
+                <div className="flex items-center justify-between py-2 border-b border-[#16212D]/50">
+                  <span className="text-gray-400">Submitter wallet</span>
+                  <span className="text-white font-mono text-xs">
+                    {selectedSubmission.submitterWallet ? `${selectedSubmission.submitterWallet.slice(0, 4)}...${selectedSubmission.submitterWallet.slice(-4)}` : '—'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between py-2 border-b border-[#16212D]/50">
+                  <span className="text-gray-400">Token X</span>
+                  <span className="text-white font-medium flex items-center gap-1">
+                    {selectedSubmission.tokenX || '—'}
+                    <svg className="w-3.5 h-3.5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.835L1.254 2.25H8.08l4.253 5.622L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
+                    </svg>
+                  </span>
+                </div>
+                <div className="flex items-center justify-between py-2 border-b border-[#16212D]/50">
+                  <span className="text-gray-400">Submitted</span>
+                  <span className="text-white">{new Date(selectedSubmission.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}, {new Date(selectedSubmission.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
+                </div>
+                <div className="flex items-center justify-between py-2">
+                  <span className="text-gray-400">Last reviewed</span>
+                  <span className="text-white">{selectedSubmission.status === 'approved' ? '16 Sep 2026, 13:03' : selectedSubmission.status === 'rejected' ? '16 Sep 2026, 11:20' : '—'}</span>
+                </div>
+              </div>
+
+              <button className="mt-3 text-xs font-semibold text-gray-400 hover:text-white flex items-center gap-1 transition-colors">
+                <ChevronRight className="w-3.5 h-3.5" />
+                SUBMITTER CONTEXT
+              </button>
+            </div>
+
+            {/* Metrics */}
+            <div className="bg-[#0B1118] border border-[#16212D] rounded-2xl p-4 mb-4">
+              <h3 className="text-xs font-bold text-gray-500 tracking-wider mb-4 uppercase">METRICS</h3>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-[11px] text-gray-500 mb-1">MC / FDV</p>
+                  <p className="text-white font-semibold">{selectedSubmission.token.marketCap || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] text-gray-500 mb-1">NET VOLUME</p>
+                  <p className="text-[#c7f284] font-semibold">{selectedSubmission.token.netVolume || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] text-gray-500 mb-1">24H VOL</p>
+                  <p className="text-white font-semibold">{selectedSubmission.metrics?.vol24h || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] text-gray-500 mb-1">LIQUIDITY</p>
+                  <p className="text-white font-semibold">{selectedSubmission.metrics?.liquidity || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] text-gray-500 mb-1">ORGANIC SCORE</p>
+                  <p className="text-white font-semibold">{selectedSubmission.metrics?.organicScore || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] text-gray-500 mb-1">LIKES / SMART LIKES</p>
+                  <p className="text-white font-semibold">{selectedSubmission.metrics?.likesSmartLikes || '—'}</p>
+                </div>
+              </div>
+
+              {/* Jup Shield */}
+              {selectedSubmission.jupShield && selectedSubmission.jupShield.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-[#16212D]">
+                  <p className="text-[11px] text-gray-500 mb-2 font-semibold">JUP SHIELD</p>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedSubmission.jupShield.map((item, i) => (
+                      <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#141E2A] rounded-full text-xs text-gray-300 border border-[#1F2E3E]">
+                        <AlertTriangle className="w-3 h-3 text-yellow-500" />
+                        {item}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Audit Log */}
+            {selectedSubmission.auditLog && selectedSubmission.auditLog.length > 0 && (
+              <div className="bg-[#0B1118] border border-[#16212D] rounded-2xl p-4 mb-6">
+                <h3 className="text-xs font-bold text-gray-500 tracking-wider mb-4 uppercase">AUDIT LOG</h3>
+                <div className="space-y-3">
+                  {selectedSubmission.auditLog.map((log, i) => (
+                    <div key={i} className="flex items-start gap-3 text-xs">
+                      <span className="text-gray-500 w-32 flex-shrink-0">{log.date}</span>
+                      <span className="text-white font-semibold w-20 flex-shrink-0">{log.action}</span>
+                      <span className="text-gray-400">{log.details}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
