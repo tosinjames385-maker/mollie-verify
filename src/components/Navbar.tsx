@@ -1,14 +1,17 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { Search, Menu, X, ChevronRight } from 'lucide-react'
+import { Search, Menu, X, LogOut } from 'lucide-react'
 import { TokenSelector } from './TokenSelector'
+import { useAuth } from '../context/AuthContext'
 import type { LiveToken } from '../services/tokenService'
 
 export const Navbar = () => {
   const navigate = useNavigate()
   const location = useLocation()
+  const { user, isAuthenticated, openAuthModal, logout } = useAuth()
   const [showSelector, setShowSelector] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
 
   const handleSelectLiveToken = (token: LiveToken) => {
     setShowSelector(false)
@@ -61,37 +64,35 @@ export const Navbar = () => {
     switch (icon) {
       case 'checkmark':
         return (
-          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg className="w-5 h-5 text-[#00D2B8]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
             <polyline points="22 4 12 14.01 9 11.01" />
           </svg>
         )
       case 'chart':
         return (
-          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect x="3" y="3" width="7" height="7" />
-            <rect x="14" y="3" width="7" height="7" />
-            <rect x="3" y="14" width="7" height="7" />
-            <rect x="14" y="14" width="7" height="7" />
+          <svg className="w-5 h-5 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <path d="M4 18h16M7 18v-5M12 18V9M17 18v-8" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M12 6l.01.01" strokeLinecap="round" strokeWidth="3" />
           </svg>
         )
       case 'play':
         return (
-          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg className="w-5 h-5 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <circle cx="12" cy="12" r="10" />
             <polygon points="10 8 16 12 10 16 10 8" />
           </svg>
         )
       case 'help':
         return (
-          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg className="w-5 h-5 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <circle cx="12" cy="12" r="10" />
             <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
             <line x1="12" y1="17" x2="12.01" y2="17" />
           </svg>
         )
       case 'code':
-        return <span className="text-lg font-mono">&lt;/&gt;</span>
+        return <span className="text-lg font-mono text-gray-300">&lt;/&gt;</span>
       default:
         return null
     }
@@ -105,9 +106,13 @@ export const Navbar = () => {
           {/* Logo + Nav Links */}
           <div className="flex items-center gap-8">
             <Link to="/" className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#00D2B8] to-[#00A89A] flex items-center justify-center p-1.5">
-                <svg className="w-full h-full text-white" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z" />
+              {/* Exact Green Circle VRFD Icon */}
+              <div className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0">
+                <svg className="w-full h-full" viewBox="0 0 100 100" fill="none">
+                  <circle cx="50" cy="50" r="50" fill="#00D2B8" />
+                  <circle cx="50" cy="50" r="28" fill="none" stroke="#FFFFFF" strokeWidth="7" />
+                  <circle cx="50" cy="62" r="4" fill="#FFFFFF" />
+                  <rect x="46" y="32" width="8" height="20" rx="4" fill="#FFFFFF" />
                 </svg>
               </div>
               <span className="font-bold text-white text-lg tracking-tight">VRFD</span>
@@ -148,6 +153,7 @@ export const Navbar = () => {
 
           {/* Right Actions */}
           <div className="flex items-center gap-3">
+            {/* Grid icon */}
             <button className="text-gray-400 hover:text-white transition-colors p-1">
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <rect x="3" y="3" width="7" height="7" />
@@ -156,17 +162,69 @@ export const Navbar = () => {
                 <rect x="14" y="14" width="7" height="7" />
               </svg>
             </button>
-            <button className="text-gray-400 hover:text-white transition-colors p-1">
+
+            {/* Exact Leaderboard Podium Icon */}
+            <button
+              onClick={() => navigate('/leaderboard')}
+              className="text-gray-400 hover:text-white transition-colors p-1"
+              title="Leaderboard"
+            >
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.835L1.254 2.25H8.08l4.253 5.622L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
+                <path d="M7 10h4v11H7V10zm6-5h4v16h-4V5zm6 8h4v8h-4v-8zM1 14h4v7H1v-7z" opacity="0.9" />
+                <path d="M14 8.5l.8-1.7 1.8-.3-1.3-1.3.3-1.9-1.6.9-1.6-.9.3 1.9-1.3 1.3 1.8.3.8 1.7z" fill="#B7F34A" />
               </svg>
             </button>
-            <button className="bg-[#F5F5F5] hover:bg-white text-black font-semibold text-sm px-4 py-1.5 rounded-full flex items-center gap-1.5 transition-colors">
-              <span>Sign in with</span>
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.835L1.254 2.25H8.08l4.253 5.622L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
-              </svg>
-            </button>
+
+            {/* X Auth Sign In / User Profile Button */}
+            {isAuthenticated && user ? (
+              <div className="relative">
+                <button
+                  onClick={() => setUserMenuOpen(!userMenuOpen)}
+                  className="bg-[#1C2838] hover:bg-[#253545] border border-[#2A3B50] text-white text-xs font-semibold pl-2 pr-3 py-1 rounded-full flex items-center gap-2 transition-all shadow-sm"
+                >
+                  <img
+                    src={user.avatar}
+                    alt={user.username}
+                    className="w-6 h-6 rounded-full border border-[#00D2B8]"
+                  />
+                  <span>{user.handle}</span>
+                </button>
+
+                {userMenuOpen && (
+                  <div className="absolute right-0 mt-2 w-48 bg-[#0A1017] border border-[#1C2838] rounded-xl shadow-2xl py-1 z-50 animate-fadeIn">
+                    <button
+                      onClick={() => {
+                        setUserMenuOpen(false)
+                        navigate(`/profile/${user.username}`)
+                      }}
+                      className="w-full text-left px-4 py-2 text-xs text-gray-300 hover:bg-[#1C2838] hover:text-white flex items-center gap-2"
+                    >
+                      <span>View Profile</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setUserMenuOpen(false)
+                        logout()
+                      }}
+                      className="w-full text-left px-4 py-2 text-xs text-red-400 hover:bg-[#1C2838] flex items-center gap-2"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>Sign Out</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <button
+                onClick={openAuthModal}
+                className="bg-[#F5F5F5] hover:bg-white text-black font-semibold text-sm px-4 py-1.5 rounded-full flex items-center gap-1.5 transition-colors shadow-sm"
+              >
+                <span>Sign in with</span>
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.835L1.254 2.25H8.08l4.253 5.622L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
+                </svg>
+              </button>
+            )}
           </div>
         </div>
       </nav>
@@ -176,9 +234,12 @@ export const Navbar = () => {
         <div className="h-[44px] px-3 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 flex-shrink-0">
             <Link to="/" className="flex items-center">
-              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#00D2B8] to-[#00A89A] flex items-center justify-center p-1">
-                <svg className="w-full h-full text-white" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z" />
+              <div className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0">
+                <svg className="w-full h-full" viewBox="0 0 100 100" fill="none">
+                  <circle cx="50" cy="50" r="50" fill="#00D2B8" />
+                  <circle cx="50" cy="50" r="28" fill="none" stroke="#FFFFFF" strokeWidth="7" />
+                  <circle cx="50" cy="62" r="4" fill="#FFFFFF" />
+                  <rect x="46" y="32" width="8" height="20" rx="4" fill="#FFFFFF" />
                 </svg>
               </div>
             </Link>
@@ -213,17 +274,33 @@ export const Navbar = () => {
                 <rect x="14" y="14" width="7" height="7" />
               </svg>
             </button>
-            <button className="text-gray-400 hover:text-white transition-colors p-1">
+            <button
+              onClick={() => navigate('/leaderboard')}
+              className="text-gray-400 hover:text-white transition-colors p-1"
+            >
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.835L1.254 2.25H8.08l4.253 5.622L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
+                <path d="M7 10h4v11H7V10zm6-5h4v16h-4V5zm6 8h4v8h-4v-8zM1 14h4v7H1v-7z" opacity="0.9" />
+                <path d="M14 8.5l.8-1.7 1.8-.3-1.3-1.3.3-1.9-1.6.9-1.6-.9.3 1.9-1.3 1.3 1.8.3.8 1.7z" fill="#B7F34A" />
               </svg>
             </button>
-            <button className="bg-[#F5F5F5] hover:bg-white text-black font-semibold text-[10px] px-2 py-1 rounded-full flex items-center gap-1 transition-colors">
-              <span>Sign in with</span>
-              <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.835L1.254 2.25H8.08l4.253 5.622L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
-              </svg>
-            </button>
+            {isAuthenticated && user ? (
+              <button
+                onClick={() => navigate(`/profile/${user.username}`)}
+                className="bg-[#1C2838] border border-[#00D2B8]/40 p-0.5 rounded-full flex items-center justify-center"
+              >
+                <img src={user.avatar} alt={user.username} className="w-6 h-6 rounded-full" />
+              </button>
+            ) : (
+              <button
+                onClick={openAuthModal}
+                className="bg-[#F5F5F5] hover:bg-white text-black font-semibold text-[10px] px-2 py-1 rounded-full flex items-center gap-1 transition-colors"
+              >
+                <span>Sign in with</span>
+                <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.835L1.254 2.25H8.08l4.253 5.622L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
+                </svg>
+              </button>
+            )}
           </div>
         </div>
       </nav>
@@ -244,11 +321,15 @@ export const Navbar = () => {
         >
           <div className="flex items-center justify-between p-4 border-b border-[#1C2838]">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#00D2B8] to-[#00A89A] flex items-center justify-center p-1.5">
-                <svg className="w-full h-full text-white" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z" />
+              <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0">
+                <svg className="w-full h-full" viewBox="0 0 100 100" fill="none">
+                  <circle cx="50" cy="50" r="50" fill="#00D2B8" />
+                  <circle cx="50" cy="50" r="28" fill="none" stroke="#FFFFFF" strokeWidth="7" />
+                  <circle cx="50" cy="62" r="4" fill="#FFFFFF" />
+                  <rect x="46" y="32" width="8" height="20" rx="4" fill="#FFFFFF" />
                 </svg>
               </div>
+              <span className="font-bold text-white text-lg tracking-tight">VRFD</span>
             </div>
             <button
               onClick={() => setMobileMenuOpen(false)}
