@@ -430,7 +430,7 @@ export const Submissions = () => {
           </div>
 
           {/* Right Details Panel */}
-          <div className={`lg:col-span-8 space-y-4 ${showMobileDetail ? 'fixed inset-0 z-50 bg-[#06090E] p-4 overflow-y-auto block' : 'hidden lg:block'}`}>
+          <div className={`lg:col-span-8 space-y-4 ${showMobileDetail ? 'block' : 'hidden lg:block'}`}>
             {selectedSubmission ? (
               <>
                 <button 
@@ -442,62 +442,74 @@ export const Submissions = () => {
                 </button>
                 {/* Token Header Card */}
                 <div className="bg-[#0B1118] border border-[#16212D] rounded-2xl p-5 shadow-xl">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-4">
-                      <div className="w-16 h-16 rounded-full overflow-hidden bg-[#16212D] relative border border-[#1F2E3E]">
-                        {selectedSubmission.token.imageUrl ? (
-                          <img
-                            src={selectedSubmission.token.imageUrl}
-                            alt={selectedSubmission.token.name}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              (e.currentTarget as HTMLImageElement).src = `https://api.dicebear.com/7.x/identicon/svg?seed=${selectedSubmission.token.symbol}`
-                            }}
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#1C2C3E] to-[#101924]">
-                            <span className="text-xl font-bold text-[#c7f284]">
-                              ?
-                            </span>
-                          </div>
-                        )}
-                        {selectedSubmission.token.verified && (
-                          <div className="absolute bottom-0 right-0 w-4 h-4 bg-[#c7f284] border-2 border-[#0B1118] rounded-full flex items-center justify-center text-black text-[8px] font-bold">✓</div>
-                        )}
-                      </div>
-                      <div>
-                        <h2 className="text-2xl font-bold text-white">{selectedSubmission.token.symbol}</h2>
-                        <div className="flex items-center gap-2 mt-1.5">
+                  <div className="flex items-start gap-4 mb-4">
+                    <div className="w-16 h-16 rounded-full overflow-hidden bg-[#16212D] relative border border-[#1F2E3E] flex-shrink-0">
+                      {selectedSubmission.token.imageUrl ? (
+                        <img
+                          src={selectedSubmission.token.imageUrl}
+                          alt={selectedSubmission.token.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).src = `https://api.dicebear.com/7.x/identicon/svg?seed=${selectedSubmission.token.symbol}`
+                          }}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#1C2C3E] to-[#101924]">
+                          <span className="text-xl font-bold text-[#c7f284]">
+                            ?
+                          </span>
+                        </div>
+                      )}
+                      {selectedSubmission.token.verified && (
+                        <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 bg-[#c7f284] border-2 border-[#0B1118] rounded-full flex items-center justify-center text-black">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3">
+                            <path d="M10 14.5a4 4 0 1 1 5.5-5.5" />
+                            <path d="M14 10.5 9.5 15" />
+                            <path d="M9.5 15a4 4 0 1 1-5.5-5.5l4.5-4.5a4 4 0 1 1 5.5 5.5Z" />
+                          </svg>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="flex-1 min-w-0">
+                      {/* Top Row: Title, Badges & Share */}
+                      <div className="flex items-start justify-between gap-2 w-full mb-1">
+                        <div className="flex items-center gap-2 flex-wrap min-w-0 mt-0.5">
+                          <h2 className="text-xl font-bold text-white tracking-tight">{selectedSubmission.token.symbol}</h2>
                           {getStatusBadge(selectedSubmission.status)}
                           {selectedSubmission.isExpress && getExpressBadge()}
                         </div>
+                        <button className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-[#141E2A] hover:bg-[#1C2A3A] rounded-lg text-xs font-semibold text-gray-300 transition-colors border border-[#1F2E3E]">
+                          <Share2 className="w-3.5 h-3.5" />
+                          Share
+                        </button>
+                      </div>
+
+                      {/* Bottom Row: Name, Mint, Time */}
+                      <div className="flex items-center gap-1.5 text-xs text-gray-400 mt-2">
+                        <span className="truncate max-w-[80px] sm:max-w-none">{selectedSubmission.token.name}</span>
+                        <span className="text-gray-600">·</span>
+                        <span className="font-mono">{selectedSubmission.token.mintAddress.slice(0, 4)}...{selectedSubmission.token.mintAddress.slice(-4)}</span>
+                        <button
+                          onClick={(e) => handleCopyAddress(e, selectedSubmission.token.mintAddress)}
+                          className="text-gray-500 hover:text-white"
+                        >
+                          {copiedAddress === selectedSubmission.token.mintAddress ? (
+                            <Check className="w-3 h-3 text-[#c7f284]" />
+                          ) : (
+                            <Copy className="w-3 h-3" />
+                          )}
+                        </button>
+                        <span className="text-gray-600">·</span>
+                        <span className="flex items-center gap-1 text-[11px]">
+                          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                             <circle cx="12" cy="12" r="10" />
+                             <polyline points="12 6 12 12 16 14" />
+                          </svg>
+                          {selectedSubmission.token.timeAgo}
+                        </span>
                       </div>
                     </div>
-                    <button className="flex items-center gap-2 px-4 py-2 bg-[#141E2A] hover:bg-[#1C2A3A] rounded-xl text-xs font-semibold text-gray-300 transition-colors border border-[#1F2E3E]">
-                      <Share2 className="w-3.5 h-3.5" />
-                      Share
-                    </button>
-                  </div>
-
-                  <div className="flex items-center gap-2 text-xs text-gray-400 mt-1 mb-4">
-                    <span>{selectedSubmission.token.name}</span>
-                    <span className="text-gray-600">·</span>
-                    <span className="font-mono">{selectedSubmission.token.mintAddress.slice(0, 4)}...{selectedSubmission.token.mintAddress.slice(-4)}</span>
-                    <button
-                      onClick={(e) => handleCopyAddress(e, selectedSubmission.token.mintAddress)}
-                      className="text-gray-500 hover:text-white"
-                    >
-                      {copiedAddress === selectedSubmission.token.mintAddress ? (
-                        <Check className="w-3 h-3 text-[#c7f284]" />
-                      ) : (
-                        <Copy className="w-3 h-3" />
-                      )}
-                    </button>
-                    <span className="text-gray-600">·</span>
-                    <span className="flex items-center gap-1">
-                      <span>🕐</span>
-                      {selectedSubmission.token.timeAgo}
-                    </span>
                   </div>
 
                   {/* Fast Track Banner */}
@@ -562,30 +574,30 @@ export const Submissions = () => {
                 {/* Metrics Card */}
                 <div className="bg-[#0B1118] border border-[#16212D] rounded-2xl p-5 shadow-xl">
                   <h3 className="text-xs font-bold text-gray-500 tracking-wider mb-4 uppercase">METRICS</h3>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="grid grid-cols-2 gap-5 text-sm">
                     <div>
-                      <p className="text-[11px] text-gray-500 mb-1">MC / FDV</p>
-                      <p className="text-white font-semibold">{selectedSubmission.token.marketCap || '—'}</p>
+                      <p className="text-[11px] text-gray-500 mb-1 font-semibold uppercase tracking-wide">MC / FDV</p>
+                      <p className="text-white font-bold">
+                        {selectedSubmission.token.marketCap || '—'} / {selectedSubmission.token.marketCap || '—'}
+                      </p>
                     </div>
                     <div>
-                      <p className="text-[11px] text-gray-500 mb-1">NET VOLUME</p>
-                      <p className="text-[#c7f284] font-semibold">{selectedSubmission.token.netVolume || '—'}</p>
+                      <p className="text-[11px] text-gray-500 mb-1 font-semibold uppercase tracking-wide">24H VOL / NET</p>
+                      <p className="text-white font-bold">
+                        {selectedSubmission.metrics?.vol24h || '—'} / <span className="text-[#c7f284]">{selectedSubmission.token.netVolume || '—'}</span>
+                      </p>
                     </div>
                     <div>
-                      <p className="text-[11px] text-gray-500 mb-1">24H VOL</p>
-                      <p className="text-white font-semibold">{selectedSubmission.metrics?.vol24h || '—'}</p>
+                      <p className="text-[11px] text-gray-500 mb-1 font-semibold uppercase tracking-wide">LIQUIDITY</p>
+                      <p className="text-white font-bold">{selectedSubmission.metrics?.liquidity || '—'}</p>
                     </div>
                     <div>
-                      <p className="text-[11px] text-gray-500 mb-1">LIQUIDITY</p>
-                      <p className="text-white font-semibold">{selectedSubmission.metrics?.liquidity || '—'}</p>
+                      <p className="text-[11px] text-gray-500 mb-1 font-semibold uppercase tracking-wide">ORGANIC SCORE</p>
+                      <p className="text-white font-bold">{selectedSubmission.metrics?.organicScore || '—'}</p>
                     </div>
                     <div>
-                      <p className="text-[11px] text-gray-500 mb-1">ORGANIC SCORE</p>
-                      <p className="text-white font-semibold">{selectedSubmission.metrics?.organicScore || '—'}</p>
-                    </div>
-                    <div>
-                      <p className="text-[11px] text-gray-500 mb-1">LIKES / SMART LIKES</p>
-                      <p className="text-white font-semibold">{selectedSubmission.metrics?.likesSmartLikes || '—'}</p>
+                      <p className="text-[11px] text-gray-500 mb-1 font-semibold uppercase tracking-wide">LIKES / SMART LIKES</p>
+                      <p className="text-white font-bold">{selectedSubmission.metrics?.likesSmartLikes || '—'}</p>
                     </div>
                   </div>
 
