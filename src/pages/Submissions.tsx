@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { Search, ChevronLeft, ChevronRight, Heart, AlertTriangle, Share2, ChevronDown, Copy, Check } from 'lucide-react'
 import { demoSubmissions, Submission } from '../data/demoSubmissions'
+import { getPopularTokens } from '../services/tokenService'
 import toast from 'react-hot-toast'
 
 export const Submissions = () => {
@@ -25,66 +26,49 @@ export const Submissions = () => {
 
   const loadSubmissions = async () => {
     setLoading(true)
-    await new Promise(resolve => setTimeout(resolve, 300))
+    try {
+      const liveTokens = await getPopularTokens()
+      
+      const liveSubmissions: Submission[] = liveTokens.map((t, i) => ({
+        id: `live-${t.mintAddress}`,
+        submissionType: 'verification',
+        status: t.verified ? 'approved' : 'pending',
+        isExpress: i % 7 === 0,
+        submitterWallet: `${t.mintAddress.slice(0, 4).toLowerCase()}${i}xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU`,
+        submitterX: `@user_${t.symbol.toLowerCase()}`,
+        tokenX: `@${t.symbol.toLowerCase()}_official`,
+        createdAt: new Date(Date.now() - (i * 3600000 * 6)).toISOString(),
+        token: {
+          name: t.name,
+          symbol: t.symbol,
+          mintAddress: t.mintAddress,
+          imageUrl: t.logo || `https://api.dicebear.com/7.x/identicon/svg?seed=${t.symbol}`,
+          marketCap: t.marketCap ? `$${(t.marketCap / 1000).toFixed(1)}K` : '—',
+          netVolume: t.volume24h ? `B:$${(t.volume24h / 1000).toFixed(1)}K` : '—',
+          timeAgo: `${(i % 12) + 1}h`,
+          verified: t.verified
+        },
+        metrics: {
+          vol24h: t.volume24h ? `$${(t.volume24h / 1000).toFixed(1)}K` : '—',
+          liquidity: t.marketCap ? `$${(t.marketCap / 2000).toFixed(1)}K` : '—',
+          organicScore: t.verified ? 95 : 45,
+          likesSmartLikes: `${Math.floor(Math.random() * 50)} / ${Math.floor(Math.random() * 10)}`
+        }
+      }))
 
-    // Generate extra demo submissions to fill ~24 pages (240 items)
-    const extraSymbols = [
-      'ALPHA','BETA','GAMMA','DELTA','ZETA','THETA','KAPPA','SIGMA','OMEGA','PHI',
-      'PSI','CHI','RHO','TAU','LAMBDA','MU','NU','XI','PI','EPSILON',
-      'IOTA','VARON','SAFEX','LUNA','MARS','VENUS','SATURN','JUPITER','NEPTUNE','PLUTO',
-      'CERES','HADES','ZEUS','POSEIDON','HERMES','ATHENA','APOLLO','ARTEMIS','HEPHAESTUS','ARES',
-      'AFRODITE','DEMETER','HERA','DIONYSUS','PERSEPHONE','HADES','IRIS','HESTIA','PAN','NYX',
-      'TITAN','CYCLOPS','MINOTAUR','CHIMERA','SPHYNX','GRIFFON','HYDRA','PEGASUS','UNICORN','DRAGON',
-      'PHOENIX','KRAKEN','BASILISK','MANTICORE','CERBERUS','SCYLLA','CHARYBDIS','SIREN','HARPY','CENTAUR',
-      'GOBLIN','ORC','ELF','DWARF','TROLL','OGRE','FAIRY','PIXIE','SPRITE','NYMPH',
-      'DRUID','WIZARD','SORCERER','NECROMANCER','PALADIN','RANGER','ROGUE','BARD','CLERIC','MONK',
-      'KNIGHT','WARRIOR','ARCHER','HUNTER','SHAMAN','PRIEST','WARLOCK','MAGE','ASSASSIN','BERSERKER',
-      'SENTINEL','GUARDIAN','PROTECTOR','DEFENDER','CHAMPION','HERO','VILLAIN','LEGEND','MYTH','FABLE',
-      'QUEST','VOYAGE','EXPEDITION','JOURNEY','ODYSSEY','CRUSADE','CAMPAIGN','ADVENTURE','DISCOVERY','EXPLORER',
-      'PIONEER','SETTLER','PILGRIM','WANDERER','NOMAD','RANGER','SCOUT','PATHFINDER','TRAILBLAZER','EXPLORER',
-      'NOVA','STELLAR','COSMIC','GALAXY','NEBULA','QUASAR','PULSAR','MAGNETAR','SPUTNIK','COMET',
-      'ASTEROID','METEOR','ECLIPSE','SOLAR','LUNAR','STELLAR','ORBITAL','GRAVITY','QUANTUM','SINGULARITY',
-      'PARADOX','ENIGMA','MYSTERY','PHANTOM','SHADOW','GHOST','SPECTER','WRAITH','SPIRIT','SOUL',
-      'BLAZE','INFERNO','HELLFIRE','PYRO','IGNIS','EMBER','SCORCH','ASHES','SMOKE','FLAME',
-      'FROST','ICE','GLACIER','TUNDRA','BLIZZARD','AVALANCHE','CRYO','Sleet','SNOW','HAIL',
-      'STORM','TEMPEST','CYCLONE','TORNADO','HURRICANE','GALE','BREEZE','ZEPHYR','MONSOON','WHIRLWIND',
-      'THUNDER','LIGHTNING','VOLT','SPARK','SHOCK','SURGE','PULSE','WAVE','RIPPLE','VIBRATION',
-      'ECHO','RESONANCE','HARMONY','MELODY','SYMPHONY','concert','RHYTHM','TEMPO','BEAT','GROOVE',
-      'PIXEL','VOXEL','BIT','BYTE','NODE','BLOCK','CHAIN','HASH','LEDGER','TOKEN',
-      'COIN','STACK','VAULT','CHEST','SAFE','CACHE','DEPOT','CACHE','POOL','RESERVE',
-      'NEXUS','CORE','HEART','PULSE','SPINE','BRAIN','MIND','SOUL','SPIRIT','ESSENCE',
-    ]
-    const statuses = ['pending','pending','pending','pending','pending','pending','pending','pending','approved','rejected']
-    const timeAgos = ['1h','2h','3h','5h','8h','12h','1d','2d','3d','5d','7d','14d','21d','30d']
-    const mcs = ['—','$5K','$12K','$34K','$67K','$89K','$123K','$234K','$456K','$789K','$1.2M','$2.5M','$5.6M']
-    const nets = ['—','B:$500','B:$1.2K','B:$3.4K','B:$8.9K','B:$15K','B:$23K','B:$45K','B:$78K','B:$134K','B:$234K','S:$5K','S:$12K']
-
-    const generated: Submission[] = extraSymbols.map((sym, i) => ({
-      id: `gen-${i + 52}`,
-      submissionType: 'verification',
-      status: statuses[i % statuses.length],
-      isExpress: i % 7 === 0,
-      submitterWallet: `${sym.slice(0,4).toLowerCase()}${i}xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU`,
-      submitterX: `@${sym}`,
-      tokenX: `@${sym}`,
-      createdAt: new Date(Date.now() - (i * 3600000 * 6)).toISOString(),
-      token: {
-        name: sym.charAt(0) + sym.slice(1).toLowerCase() + ' Token',
-        symbol: sym,
-        mintAddress: `${sym}${i}KxLm${(i*7)%9}pQrS${(i*3)%9}tUv${(i*5)%9}wYz${(i*2)%9}dC6eGhAaBbOoIiCcDd${i%10}${sym.slice(0,3).toLowerCase()}`,
-        imageUrl: i % 4 === 0 ? undefined : i % 3 === 0 ? `https://unavatar.io/${sym.toLowerCase()}?fallback=https://api.dicebear.com/7.x/avataaars/svg?seed=${sym}` : `https://api.dicebear.com/7.x/identicon/svg?seed=${sym}${i}`,
-        marketCap: mcs[i % mcs.length],
-        netVolume: nets[i % nets.length],
-        timeAgo: timeAgos[i % timeAgos.length],
-      },
-    }))
-
-    const all = [...demoSubmissions, ...generated]
-    setSubmissions(all)
-    if (all.length > 0) {
-      setSelectedSubmission(all[0])
+      // Still include a few hardcoded demo ones at the top to guarantee full UI features like JupShield warnings are seen
+      const all = [...demoSubmissions.slice(0, 3), ...liveSubmissions]
+      setSubmissions(all)
+      if (all.length > 0) {
+        setSelectedSubmission(all[0])
+      }
+    } catch (e) {
+      console.error(e)
+      toast.error('Failed to load live submissions')
+      setSubmissions(demoSubmissions)
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   const filteredSubmissions = useMemo(() => {

@@ -13,6 +13,7 @@ import { Media } from './pages/Media'
 import { Leaderboard } from './pages/Leaderboard'
 import { Profile } from './pages/Profile'
 import { Admin } from './pages/Admin'
+import { AuthCallback } from './pages/AuthCallback'
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
       <AuthProvider>
         <WalletProvider>
           <Routes>
+            <Route path="/auth/x/callback" element={<AuthCallback />} />
             <Route path="/" element={<Layout />}>
               <Route index element={<Navigate to="/submissions" replace />} />
               <Route path="token/:mintAddress" element={<TokenDetail />} />

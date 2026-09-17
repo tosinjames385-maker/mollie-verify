@@ -98,11 +98,18 @@ model RiskWarning {
 }
 
 model User {
-  id            String   @id @default(cuid())
-  walletAddress String   @unique
-  isAdmin       Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  lastSeenAt    DateTime @default(now())
+  id            String    @id @default(cuid())
+  walletAddress String?   @unique
+  xUserId       String?   @unique
+  xUsername     String?
+  displayName   String?
+  avatarUrl     String?
+  email         String?
+  isAdmin       Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastSeenAt    DateTime  @default(now())
 
   @@index([walletAddress])
+  @@index([xUserId])
 }

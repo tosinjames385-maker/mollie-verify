@@ -298,7 +298,9 @@ export const TokenDetail = () => {
                 <h3 className="text-xs font-bold text-white mb-0.5">
                   Token Verification
                 </h3>
-                <p className="text-[11px] text-[#94A3B8]">Not yet verified</p>
+                <p className={`text-[11px] ${token.verificationStatus === 'verified' ? 'text-[#c7f284]' : 'text-[#94A3B8]'}`}>
+                  {token.verificationStatus === 'verified' ? 'Verified' : 'Not yet verified'}
+                </p>
               </div>
 
               {/* Metadata Completeness */}
@@ -307,8 +309,8 @@ export const TokenDetail = () => {
                   Metadata Completeness
                 </h3>
                 <p className="text-[11px] text-[#64748B] mb-0.5">All fields, including socials</p>
-                <p className="text-xs text-[#94A3B8] font-bold">
-                  Missing: Description
+                <p className={`text-xs font-bold ${token.description ? 'text-[#c7f284]' : 'text-[#94A3B8]'}`}>
+                  {token.description ? 'All complete' : 'Missing: Description'}
                 </p>
               </div>
 
@@ -318,8 +320,8 @@ export const TokenDetail = () => {
                   Ecosystem Support
                 </h3>
                 <p className="text-[11px] text-[#64748B] mb-0.5">&gt; 10 Likes</p>
-                <p className="text-xs text-[#94A3B8] font-bold">
-                  Current Likes: 1
+                <p className={`text-xs font-bold ${token.likes >= 10 ? 'text-[#c7f284]' : 'text-[#94A3B8]'}`}>
+                  Current Likes: {token.likes}
                 </p>
               </div>
 
@@ -331,8 +333,8 @@ export const TokenDetail = () => {
                 <p className="text-[11px] text-[#64748B] mb-0.5">
                   ≥ 1 approvals in last 2 weeks
                 </p>
-                <p className="text-xs text-[#94A3B8] font-bold">
-                  0 approved
+                <p className={`text-xs font-bold ${token.verificationStatus === 'verified' ? 'text-[#c7f284]' : 'text-[#94A3B8]'}`}>
+                  {token.verificationStatus === 'verified' ? '1 approved' : '0 approved'}
                 </p>
               </div>
             </div>
@@ -351,8 +353,8 @@ export const TokenDetail = () => {
               </div>
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1.5 px-2.5 py-1 bg-[#131B26] border border-[#1E2B3C]/60 rounded-full">
-                  <span className="text-xs font-semibold text-[#F5C400] flex items-center gap-1">
-                    Status <AlertTriangle className="w-3.5 h-3.5" /> Unverified
+                  <span className={`text-xs font-semibold flex items-center gap-1 ${token.verificationStatus === 'verified' ? 'text-[#B7F34A]' : 'text-[#F5C400]'}`}>
+                    Status {token.verificationStatus === 'verified' ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertTriangle className="w-3.5 h-3.5" />} {token.verificationStatus === 'verified' ? 'Verified' : 'Unverified'}
                   </span>
                 </div>
                 <button

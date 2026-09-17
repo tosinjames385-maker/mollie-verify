@@ -3,6 +3,7 @@ import { prisma } from '../prisma'
 
 export interface AuthRequest extends Request {
   walletAddress?: string
+  userId?: string
   isAdmin?: boolean
 }
 
@@ -11,9 +12,24 @@ export const optionalAuth = async (
   res: Response,
   next: NextFunction
 ) => {
+  const session = req.session as any
+
+  if (session.userId) {
+    req.userId = session.userId
+
+    const user = await prisma.user.findUnique({
+      where: { id: session.userId },
+    })
+
+    if (user) {
+      req.walletAddress = user.walletAddress || undefined
+      req.isAdmin = user.isAdmin
+    }
+  }
+
   const walletAddress = req.headers['x-wallet-address'] as string
 
-  if (walletAddress) {
+  if (walletAddress && !req.userId) {
     req.walletAddress = walletAddress
 
     const user = await prisma.user.findUnique({
@@ -31,21 +47,37 @@ export const requireAuth = async (
   res: Response,
   next: NextFunction
 ) => {
-  const walletAddress = req.headers['x-wallet-address'] as string
+  const session = req.session as any
 
-  if (!walletAddress) {
-    return res.status(401).json({ error: 'Wallet not connected' })
+  if (session.userId) {
+    req.userId = session.userId
+
+    const user = await prisma.user.findUnique({
+      where: { id: session.userId },
+    })
+
+    if (user) {
+      req.walletAddress = user.walletAddress || undefined
+      req.isAdmin = user.isAdmin
+      return next()
+    }
   }
 
-  req.walletAddress = walletAddress
+  const walletAddress = req.headers['x-wallet-address'] as string
 
-  const user = await prisma.user.findUnique({
-    where: { walletAddress },
-  })
+  if (walletAddress) {
+    req.walletAddress = walletAddress
 
-  req.isAdmin = user?.isAdmin || false
+    const user = await prisma.user.findUnique({
+      where: { walletAddress },
+    })
 
-  next()
+    req.isAdmin = user?.isAdmin || false
+
+    return next()
+  }
+
+  return res.status(401).json({ error: 'Not authenticated' })
 }
 
 export const requireAdmin = async (

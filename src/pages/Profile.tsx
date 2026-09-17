@@ -17,7 +17,7 @@ export const Profile = () => {
         setUser({
           id: 'me',
           username: authUser.username,
-          displayName: authUser.name,
+          displayName: authUser.displayName,
           bio: 'Solana verification enthusiast. Keeping token metadata transparent.',
           wallet: 'SunrisexKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU',
           avatar: authUser.avatar,

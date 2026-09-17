@@ -1,22 +1,27 @@
-import React, { createContext, useContext, useState, useEffect } from 'react'
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import toast from 'react-hot-toast'
-import { supabase } from '../lib/supabase'
 
 export interface UserProfile {
+  id: string
   username: string
-  name: string
+  displayName: string
   avatar: string
   handle: string
+  xUserId?: string
+  walletAddress?: string
+  isAdmin?: boolean
 }
 
 interface AuthContextType {
   user: UserProfile | null
   isAuthenticated: boolean
   isModalOpen: boolean
+  isLoading: boolean
   openAuthModal: () => void
   closeAuthModal: () => void
   loginWithX: () => Promise<void>
   logout: () => Promise<void>
+  refreshUser: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -24,71 +29,68 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<UserProfile | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
 
-  useEffect(() => {
-    if (!supabase) return
+  const refreshUser = useCallback(async () => {
+    try {
+      const res = await fetch('/api/auth/me', { credentials: 'include' })
+      const data = await res.json()
 
-    // Check active sessions and sets the user
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
+      if (data.user) {
         setUser({
-          username: session.user.user_metadata.user_name || session.user.email?.split('@')[0] || 'user',
-          handle: `@${session.user.user_metadata.user_name || session.user.email?.split('@')[0] || 'user'}`,
-          name: session.user.user_metadata.full_name || 'User',
-          avatar: session.user.user_metadata.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${session.user.id}`,
-        })
-      }
-    })
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        setUser({
-          username: session.user.user_metadata.user_name || session.user.email?.split('@')[0] || 'user',
-          handle: `@${session.user.user_metadata.user_name || session.user.email?.split('@')[0] || 'user'}`,
-          name: session.user.user_metadata.full_name || 'User',
-          avatar: session.user.user_metadata.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${session.user.id}`,
+          id: data.user.id,
+          username: data.user.xUsername || data.user.walletAddress || 'user',
+          displayName: data.user.displayName || data.user.xUsername || 'User',
+          avatar: data.user.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.user.id}`,
+          handle: `@${data.user.xUsername || data.user.walletAddress || 'user'}`,
+          xUserId: data.user.xUserId,
+          walletAddress: data.user.walletAddress,
+          isAdmin: data.user.isAdmin,
         })
       } else {
         setUser(null)
       }
-    })
-
-    return () => subscription.unsubscribe()
+    } catch {
+      setUser(null)
+    } finally {
+      setIsLoading(false)
+    }
   }, [])
 
-  const openAuthModal = () => setIsModalOpen(true)
-  const closeAuthModal = () => setIsModalOpen(false)
+  useEffect(() => {
+    refreshUser()
+  }, [refreshUser])
 
   const loginWithX = async () => {
     try {
-      if (!supabase) {
-        toast.error('Supabase URL not configured. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your .env file.')
-        return
+      const res = await fetch('/api/auth/x', { credentials: 'include' })
+      const data = await res.json()
+
+      if (data.url) {
+        window.location.href = data.url
+      } else {
+        toast.error(data.error || 'Failed to initiate X login')
       }
-      
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'twitter',
-        options: {
-          redirectTo: window.location.origin
-        }
-      })
-      if (error) throw error
-      setIsModalOpen(false)
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to sign in with X')
+    } catch {
+      toast.error('Failed to connect to X. Please try again.')
     }
   }
 
   const logout = async () => {
     try {
-      if (!supabase) return
-      const { error } = await supabase.auth.signOut()
-      if (error) throw error
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+      })
+      setUser(null)
       toast.success('Signed out')
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to sign out')
+    } catch {
+      toast.error('Failed to sign out')
     }
   }
+
+  const openAuthModal = () => setIsModalOpen(true)
+  const closeAuthModal = () => setIsModalOpen(false)
 
   return (
     <AuthContext.Provider
@@ -96,10 +98,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user,
         isAuthenticated: !!user,
         isModalOpen,
+        isLoading,
         openAuthModal,
         closeAuthModal,
         loginWithX,
         logout,
+        refreshUser,
       }}
     >
       {children}
