@@ -152,8 +152,17 @@ export const Navbar = () => {
               className="text-[#B7F34A] hover:opacity-90 transition-opacity p-1"
               title="Leaderboard"
             >
-              <svg className="w-5 h-5 shrink-0" viewBox="0 0 256 256" fill="currentColor">
-                <path d="M128 24a8 8 0 0 0-8 8v16H40a16 16 0 0 0-16 16v144a16 16 0 0 0 16 16h176a16 16 0 0 0 16-16V64a16 16 0 0 0-16-16h-80V32a8 8 0 0 0-8-8Zm-72 80h48v96H56Zm64-40h48v136h-48Zm64 64h48v72h-48Z" />
+              <svg className="w-5 h-5 shrink-0" viewBox="0 0 256 256" fill="none" stroke="currentColor" strokeWidth="20" strokeLinecap="round" strokeLinejoin="round">
+                {/* Base bar */}
+                <line x1="16" y1="216" x2="240" y2="216" />
+                {/* Left column (2nd place) */}
+                <rect x="24" y="136" width="56" height="80" rx="8" />
+                {/* Center column (1st place - tallest) */}
+                <rect x="96" y="72" width="64" height="144" rx="8" />
+                {/* Right column (3rd place) */}
+                <rect x="176" y="160" width="56" height="56" rx="8" />
+                {/* #1 marker dot in center column */}
+                <circle cx="128" cy="108" r="10" fill="currentColor" stroke="none" />
               </svg>
             </button>
 
@@ -274,8 +283,17 @@ export const Navbar = () => {
               className="text-[#B7F34A] hover:opacity-90 transition-opacity p-1"
               title="Leaderboard"
             >
-              <svg className="w-5 h-5 shrink-0" viewBox="0 0 256 256" fill="currentColor">
-                <path d="M128 24a8 8 0 0 0-8 8v16H40a16 16 0 0 0-16 16v144a16 16 0 0 0 16 16h176a16 16 0 0 0 16-16V64a16 16 0 0 0-16-16h-80V32a8 8 0 0 0-8-8Zm-72 80h48v96H56Zm64-40h48v136h-48Zm64 64h48v72h-48Z" />
+              <svg className="w-5 h-5 shrink-0" viewBox="0 0 256 256" fill="none" stroke="currentColor" strokeWidth="20" strokeLinecap="round" strokeLinejoin="round">
+                {/* Base bar */}
+                <line x1="16" y1="216" x2="240" y2="216" />
+                {/* Left column (2nd place) */}
+                <rect x="24" y="136" width="56" height="80" rx="8" />
+                {/* Center column (1st place - tallest) */}
+                <rect x="96" y="72" width="64" height="144" rx="8" />
+                {/* Right column (3rd place) */}
+                <rect x="176" y="160" width="56" height="56" rx="8" />
+                {/* #1 marker dot in center column */}
+                <circle cx="128" cy="108" r="10" fill="currentColor" stroke="none" />
               </svg>
             </button>
 
