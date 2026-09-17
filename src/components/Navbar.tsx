@@ -101,12 +101,12 @@ export const Navbar = () => {
   return (
     <>
       {/* Desktop Navbar */}
-      <nav className="hidden lg:flex fixed top-0 left-0 right-0 z-40 bg-[#060B11]/95 backdrop-blur-md border-b border-[#141B24] h-[48px] items-center px-4">
+      <nav className="hidden lg:flex fixed top-0 left-0 right-0 z-40 bg-[#060B11]/95 backdrop-blur-md border-b border-[#141B24] h-[54px] items-center px-4">
         <div className="flex items-center justify-between w-full">
           {/* Left: Logo & Nav Links */}
           <div className="flex items-center gap-6">
             <Link to="/" className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0">
+              <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0">
                 <img src="/logo.png" alt="VRFD" className="w-full h-full object-cover" />
               </div>
             </Link>
@@ -116,7 +116,7 @@ export const Navbar = () => {
                 <Link
                   key={link.to}
                   to={link.to}
-                  className={`text-sm font-semibold transition-colors ${
+                  className={`text-base font-semibold transition-colors ${
                     isActive(link.to) 
                       ? 'text-white' 
                       : 'text-gray-400 hover:text-white'
@@ -135,8 +135,8 @@ export const Navbar = () => {
               className="w-full text-left"
             >
               <div className="relative">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <div className="w-full bg-[#0A1017] border border-[#1C2838] rounded-full pl-10 pr-4 py-1.5 text-sm text-gray-400 flex items-center justify-between hover:border-gray-700 transition-colors">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <div className="w-full bg-[#0A1017] border border-[#1C2838] rounded-full pl-11 pr-4 py-1.5 text-sm text-gray-400 flex items-center justify-between hover:border-gray-700 transition-colors">
                   <span>Search</span>
                   <kbd className="text-[10px] text-gray-500 bg-[#141E2C] px-1.5 py-0.5 rounded font-mono">/</kbd>
                 </div>
@@ -149,10 +149,10 @@ export const Navbar = () => {
             {/* Phosphor Ranking Icon (ph--ranking-bold) */}
             <button
               onClick={() => navigate('/leaderboard')}
-              className="text-[#B7F34A] hover:opacity-90 transition-opacity p-1"
+              className="text-white hover:opacity-80 transition-opacity p-1"
               title="Leaderboard"
             >
-              <svg className="w-5 h-5 shrink-0" viewBox="0 0 256 256" fill="none" stroke="currentColor" strokeWidth="20" strokeLinecap="round" strokeLinejoin="round">
+              <svg className="w-6 h-6 shrink-0" viewBox="0 0 256 256" fill="none" stroke="currentColor" strokeWidth="20" strokeLinecap="round" strokeLinejoin="round">
                 {/* Base bar */}
                 <line x1="16" y1="216" x2="240" y2="216" />
                 {/* Left column (2nd place) */}
@@ -172,7 +172,7 @@ export const Navbar = () => {
               className="text-gray-300 hover:text-white transition-colors p-1"
               title="Sign in with X"
             >
-              <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+              <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.835L1.254 2.25H8.08l4.253 5.622L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
               </svg>
             </button>
@@ -244,11 +244,11 @@ export const Navbar = () => {
 
       {/* Mobile Navbar */}
       <nav className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-[#060B11]/95 backdrop-blur-md border-b border-[#141B24]">
-        <div className="h-[48px] px-3 flex items-center justify-between gap-2">
+        <div className="h-[54px] px-3 flex items-center justify-between gap-2">
           {/* Left: Sphere Logo + Hamburger Menu */}
           <div className="flex items-center gap-3 flex-shrink-0">
             <Link to="/" className="flex items-center">
-              <div className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0">
+              <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0">
                 <img src="/logo.png" alt="VRFD" className="w-full h-full object-cover" />
               </div>
             </Link>
@@ -256,7 +256,7 @@ export const Navbar = () => {
               onClick={() => setMobileMenuOpen(true)}
               className="text-gray-400 hover:text-white transition-colors p-1"
             >
-              <Menu className="w-5 h-5" />
+              <Menu className="w-6 h-6" />
             </button>
           </div>
 
@@ -267,8 +267,8 @@ export const Navbar = () => {
               className="w-full text-left"
             >
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-                <div className="w-full bg-[#0A1017] border border-[#1C2838] rounded-full pl-8 pr-3 py-1.5 text-xs text-gray-400">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <div className="w-full bg-[#0A1017] border border-[#1C2838] rounded-full pl-9 pr-3 py-1.5 text-xs text-gray-400">
                   Search
                 </div>
               </div>
@@ -280,10 +280,10 @@ export const Navbar = () => {
             {/* Phosphor Ranking Icon */}
             <button
               onClick={() => navigate('/leaderboard')}
-              className="text-[#B7F34A] hover:opacity-90 transition-opacity p-1"
+              className="text-white hover:opacity-80 transition-opacity p-1"
               title="Leaderboard"
             >
-              <svg className="w-5 h-5 shrink-0" viewBox="0 0 256 256" fill="none" stroke="currentColor" strokeWidth="20" strokeLinecap="round" strokeLinejoin="round">
+              <svg className="w-6 h-6 shrink-0" viewBox="0 0 256 256" fill="none" stroke="currentColor" strokeWidth="20" strokeLinecap="round" strokeLinejoin="round">
                 {/* Base bar */}
                 <line x1="16" y1="216" x2="240" y2="216" />
                 {/* Left column (2nd place) */}
@@ -302,7 +302,7 @@ export const Navbar = () => {
               onClick={openAuthModal}
               className="text-gray-300 hover:text-white transition-colors p-1"
             >
-              <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+              <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.835L1.254 2.25H8.08l4.253 5.622L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
               </svg>
             </button>
