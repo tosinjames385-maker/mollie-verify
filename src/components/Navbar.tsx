@@ -187,9 +187,9 @@ export const Navbar = () => {
               <div className="relative">
                 <button
                   onClick={() => setUserMenuOpen(!userMenuOpen)}
-                  className="bg-[#0D1520] hover:bg-[#152232] border border-[#1E2D40] text-white px-2.5 py-1 rounded-full flex items-center gap-2 transition-all"
+                  className="bg-[#0D1520] hover:bg-[#152232] border border-[#1E2D40] text-white px-2.5 py-1 rounded-full flex items-center gap-2 transition-all cursor-pointer"
                 >
-                  <div className="relative w-6 h-6 rounded-full bg-[#0099FF] flex items-center justify-center text-white text-xs font-bold">
+                  <div className="relative w-6 h-6 rounded-full bg-[#0099FF] flex items-center justify-center text-white text-xs font-bold shadow-sm">
                     {user.username.charAt(0).toLowerCase()}
                     <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-[#00D2B8] border-2 border-[#0D1520] rounded-full" />
                   </div>
@@ -198,26 +198,36 @@ export const Navbar = () => {
                   </svg>
                 </button>
 
+                {/* Dropdown Box matching screenshot exactly */}
                 {userMenuOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-[#0A1017] border border-[#1C2838] rounded-xl shadow-2xl py-1 z-50 animate-fadeIn">
+                  <div className="absolute right-0 mt-2.5 w-44 bg-[#0F1722] border border-[#1C2A3A] rounded-2xl shadow-2xl p-1.5 z-50 animate-fadeIn">
                     <button
                       onClick={() => {
                         setUserMenuOpen(false)
                         navigate(`/profile/${user.username}`)
                       }}
-                      className="w-full text-left px-4 py-2 text-xs text-gray-300 hover:bg-[#1C2838] hover:text-white flex items-center gap-2"
+                      className="w-full text-left px-3.5 py-2.5 text-sm font-semibold text-gray-200 hover:text-white hover:bg-[#1A2636] rounded-xl flex items-center gap-3 transition-colors"
                     >
-                      <span>View Profile</span>
+                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                        <circle cx="12" cy="7" r="4" />
+                      </svg>
+                      <span>My Profile</span>
                     </button>
+
                     <button
                       onClick={() => {
                         setUserMenuOpen(false)
                         logout()
                       }}
-                      className="w-full text-left px-4 py-2 text-xs text-red-400 hover:bg-[#1C2838] flex items-center gap-2"
+                      className="w-full text-left px-3.5 py-2.5 text-sm font-semibold text-gray-200 hover:text-white hover:bg-[#1A2636] rounded-xl flex items-center gap-3 transition-colors"
                     >
-                      <LogOut className="w-3.5 h-3.5" />
-                      <span>Sign Out</span>
+                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                        <polyline points="16 17 21 12 16 7" />
+                        <line x1="21" y1="12" x2="9" y2="12" />
+                      </svg>
+                      <span>Sign out</span>
                     </button>
                   </div>
                 )}
@@ -308,18 +318,53 @@ export const Navbar = () => {
 
             {/* X User Profile Badge Pill */}
             {isAuthenticated && user ? (
-              <button
-                onClick={() => navigate(`/profile/${user.username}`)}
-                className="bg-[#0D1520] border border-[#1E2D40] text-white p-1 rounded-full flex items-center gap-1 transition-all"
-              >
-                <div className="relative w-6 h-6 rounded-full bg-[#0099FF] flex items-center justify-center text-white text-xs font-bold">
-                  {user.username.charAt(0).toLowerCase()}
-                  <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-[#00D2B8] border border-[#0D1520] rounded-full" />
-                </div>
-                <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path d="M19 9l-7 7-7-7" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
+              <div className="relative">
+                <button
+                  onClick={() => setUserMenuOpen(!userMenuOpen)}
+                  className="bg-[#0D1520] hover:bg-[#152232] border border-[#1E2D40] text-white p-1 rounded-full flex items-center gap-1 transition-all"
+                >
+                  <div className="relative w-6 h-6 rounded-full bg-[#0099FF] flex items-center justify-center text-white text-xs font-bold">
+                    {user.username.charAt(0).toLowerCase()}
+                    <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-[#00D2B8] border border-[#0D1520] rounded-full" />
+                  </div>
+                  <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path d="M19 9l-7 7-7-7" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+
+                {userMenuOpen && (
+                  <div className="absolute right-0 mt-2 w-44 bg-[#0F1722] border border-[#1C2A3A] rounded-2xl shadow-2xl p-1.5 z-50 animate-fadeIn">
+                    <button
+                      onClick={() => {
+                        setUserMenuOpen(false)
+                        navigate(`/profile/${user.username}`)
+                      }}
+                      className="w-full text-left px-3.5 py-2 text-sm font-semibold text-gray-200 hover:text-white hover:bg-[#1A2636] rounded-xl flex items-center gap-3 transition-colors"
+                    >
+                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                        <circle cx="12" cy="7" r="4" />
+                      </svg>
+                      <span>My Profile</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setUserMenuOpen(false)
+                        logout()
+                      }}
+                      className="w-full text-left px-3.5 py-2 text-sm font-semibold text-gray-200 hover:text-white hover:bg-[#1A2636] rounded-xl flex items-center gap-3 transition-colors"
+                    >
+                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                        <polyline points="16 17 21 12 16 7" />
+                        <line x1="21" y1="12" x2="9" y2="12" />
+                      </svg>
+                      <span>Sign out</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             ) : (
               <button
                 onClick={openAuthModal}
