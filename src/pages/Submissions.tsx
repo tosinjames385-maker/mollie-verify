@@ -201,7 +201,7 @@ export const Submissions = () => {
       {/* Top Tabs */}
       <div className="px-4 pt-4 pb-2 border-b border-[#131B26]/60">
         <div className="flex gap-4">
-          <button className="text-xs font-semibold text-[#c7f284] bg-[#111A24] border border-[#c7f284]/30 px-3.5 py-1.5 rounded-lg shadow-sm">
+          <button className="text-xs font-semibold text-[#c7f284] bg-transparent border border-[#c7f28466] px-3.5 py-1.5 rounded-lg shadow-sm">
             Token Verification
           </button>
           <button className="text-xs font-medium text-gray-400 hover:text-white transition-colors px-2 py-1.5">
@@ -249,11 +249,9 @@ export const Submissions = () => {
                       key={f.key}
                       onClick={() => setFilter(f.key)}
                       className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex-shrink-0 ${
-                        filter === f.key && f.key === 'all'
-                          ? 'bg-[#182432] text-white'
-                          : filter === f.key && f.key === 'pending'
-                            ? 'text-[#c7f284]'
-                            : 'text-gray-500 hover:text-gray-300'
+                        filter === f.key
+                          ? 'bg-[#182418] text-[#c7f284]'
+                          : 'text-gray-400 hover:text-gray-300'
                       }`}
                     >
                       {f.label}{f.count !== undefined ? ` (${f.count})` : ''}
@@ -341,57 +339,57 @@ export const Submissions = () => {
                           )}
                           {/* Green verification badge overlay on bottom right of avatar if verified */}
                           {submission.token.verified && (
-                            <div className="absolute bottom-0 right-0 w-3 h-3 bg-[#c7f284] border border-[#090F16] rounded-full flex items-center justify-center text-black text-[7px] font-bold">
-                              ✓
+                            <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-[#c7f284] border-2 border-[#090F16] rounded-full flex items-center justify-center text-black">
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-2.5 h-2.5">
+                                <path d="M10 14.5a4 4 0 1 1 5.5-5.5" />
+                                <path d="M14 10.5 9.5 15" />
+                                <path d="M9.5 15a4 4 0 1 1-5.5-5.5l4.5-4.5a4 4 0 1 1 5.5 5.5Z" />
+                              </svg>
                             </div>
                           )}
                         </div>
 
-                        {/* Token Details */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-1 leading-tight">
-                            <div className="flex items-center gap-1 min-w-0">
-                              <span className="font-bold text-white text-xs truncate tracking-tight">
-                                {submission.token.symbol}
+                        {/* Token Details Container */}
+                        <div className="flex-1 flex justify-between items-center gap-2 min-w-0">
+                          {/* Left Column */}
+                          <div className="flex flex-col justify-center min-w-0 flex-1">
+                            {/* Top Line: Name */}
+                            <div className="font-bold text-white text-xs truncate tracking-tight mb-0.5">
+                              {submission.token.symbol}
+                            </div>
+                            
+                            {/* Middle Line: Address & Time */}
+                            <div className="flex items-center gap-1 text-[10px] text-gray-400 font-mono leading-tight mb-0.5">
+                              <span className="truncate">{submission.token.mintAddress.slice(0, 4)}...{submission.token.mintAddress.slice(-4)}</span>
+                              <button
+                                onClick={(e) => handleCopyAddress(e, submission.token.mintAddress)}
+                                className="text-gray-500 hover:text-white transition-colors"
+                              >
+                                {copiedAddress === submission.token.mintAddress ? (
+                                  <Check className="w-2.5 h-2.5 text-[#c7f284]" />
+                                ) : (
+                                  <Copy className="w-2.5 h-2.5" />
+                                )}
+                              </button>
+                              <span className="text-gray-600 font-sans">·</span>
+                              <span className="text-gray-400 font-sans">{submission.token.timeAgo || '1d'}</span>
+                            </div>
+                            
+                            {/* Bottom Line: Market Cap & Net Volume Stats */}
+                            <div className="flex items-center gap-1.5 text-[10px] text-gray-400 leading-tight">
+                              <span>
+                                MC <span className="text-gray-200 font-semibold">{submission.token.marketCap || '—'}</span>
                               </span>
-                              {submission.token.verified && (
-                                <svg className="w-3 h-3 text-[#c7f284] flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
-                                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-                                </svg>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-1 flex-shrink-0">
-                              {getStatusBadge(submission.status)}
-                              {submission.isExpress && getExpressBadge()}
+                              <span className="text-gray-600">·</span>
+                              <span>
+                                NET <span className="text-[#c7f284] font-semibold">{submission.token.netVolume || '—'}</span>
+                              </span>
                             </div>
                           </div>
-
-                          {/* Address & Time */}
-                          <div className="flex items-center gap-1 text-[10px] text-gray-400 font-mono leading-tight mt-0.5">
-                            <span className="truncate">{submission.token.mintAddress.slice(0, 4)}...{submission.token.mintAddress.slice(-4)}</span>
-                            <button
-                              onClick={(e) => handleCopyAddress(e, submission.token.mintAddress)}
-                              className="text-gray-500 hover:text-white transition-colors"
-                            >
-                              {copiedAddress === submission.token.mintAddress ? (
-                                <Check className="w-2.5 h-2.5 text-[#c7f284]" />
-                              ) : (
-                                <Copy className="w-2.5 h-2.5" />
-                              )}
-                            </button>
-                            <span className="text-gray-600 font-sans">·</span>
-                            <span className="text-gray-400 font-sans">{submission.token.timeAgo || '1d'}</span>
-                          </div>
-
-                          {/* Market Cap & Net Volume Stats */}
-                          <div className="flex items-center gap-1.5 text-[10px] text-gray-400 leading-tight mt-0.5">
-                            <span>
-                              MC <span className="text-gray-200 font-semibold">{submission.token.marketCap || '—'}</span>
-                            </span>
-                            <span className="text-gray-600">·</span>
-                            <span>
-                              NET <span className="text-[#c7f284] font-semibold">{submission.token.netVolume || '—'}</span>
-                            </span>
+                          
+                          {/* Right Column: Status Pill */}
+                          <div className="flex-shrink-0 self-center">
+                            {getStatusBadge(submission.status)}
                           </div>
                         </div>
                       </div>
@@ -432,7 +430,7 @@ export const Submissions = () => {
           </div>
 
           {/* Right Details Panel */}
-          <div className={`lg:col-span-8 space-y-4 ${showMobileDetail ? 'block' : 'hidden lg:block'}`}>
+          <div className={`lg:col-span-8 space-y-4 ${showMobileDetail ? 'fixed inset-0 z-50 bg-[#06090E] p-4 overflow-y-auto block' : 'hidden lg:block'}`}>
             {selectedSubmission ? (
               <>
                 <button 
