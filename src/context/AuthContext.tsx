@@ -26,6 +26,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isModalOpen, setIsModalOpen] = useState(false)
 
   useEffect(() => {
+    if (!supabase) return
+
     // Check active sessions and sets the user
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
@@ -59,7 +61,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loginWithX = async () => {
     try {
-      if (!import.meta.env.VITE_SUPABASE_URL) {
+      if (!supabase) {
         toast.error('Supabase URL not configured. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your .env file.')
         return
       }
@@ -79,6 +81,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     try {
+      if (!supabase) return
       const { error } = await supabase.auth.signOut()
       if (error) throw error
       toast.success('Signed out')
