@@ -274,7 +274,6 @@ export const demoSubmissions: Submission[] = [
       timeAgo: '9d',
       verified: true,
     },
-    isExpress: true,
   },
   {
     id: '13',

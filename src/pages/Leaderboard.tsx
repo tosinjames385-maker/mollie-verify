@@ -12,9 +12,9 @@ interface LeaderboardUser {
   accuracy: number
   rank: number
   badgeText?: string
-  gradient: string
-  height: string
-  bgColor: string
+  gradient?: string
+  height?: string
+  bgColor?: string
 }
 
 const leaderboardData: LeaderboardUser[] = [

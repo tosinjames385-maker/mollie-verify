@@ -7,6 +7,7 @@ export interface DemoUser {
   avatar: string
   coverPhoto: string
   verified: boolean
+  rank?: number
   joinedDate: string
   stats: {
     signals: number

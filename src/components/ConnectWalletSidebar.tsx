@@ -1,198 +1,189 @@
-import { X, ChevronDown, ChevronUp } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { useWallet } from '@solana/wallet-adapter-react'
+import React, { useState, useEffect, useMemo } from 'react'
+import { QRCodeSVG } from 'qrcode.react'
+import {
+  X,
+  ArrowLeft,
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  ExternalLink,
+  LogOut,
+  RefreshCw,
+  QrCode,
+  Smartphone,
+  Check,
+  Zap,
+  Globe,
+  ShieldCheck,
+  AlertTriangle
+} from 'lucide-react'
 import toast from 'react-hot-toast'
+import { useWalletState } from '../context/WalletContext'
+import { useWallet } from '@solana/wallet-adapter-react'
+import { WalletReadyState } from '@solana/wallet-adapter-base'
 
 interface ConnectWalletSidebarProps {
   isOpen: boolean
   onClose: () => void
 }
 
-// ───────── Wallet data ─────────
-// Structured array so wallets can be added/removed easily.
-// `installed` marks wallets shown in the horizontal Installed row.
-// Keep icon URLs as 20-24px ready assets. Fallback handled via onError.
-type WalletItem = {
+export interface WalletItemConfig {
   name: string
-  icon: string
-  secondary?: string
-  installed?: boolean
-  // adapterName matches Solana wallet adapter name for real connect
   adapterName?: string
+  icon: string
+  subtitle?: string
+  url?: string
+  deepLink?: string
 }
 
-const walletsData: WalletItem[] = [
+// Full wallet list matching Jupiter sidebar reference UI
+const MASTER_WALLETS: WalletItemConfig[] = [
   {
     name: 'Social Login',
+    subtitle: 'prev. ⚡ Quick Account',
     icon: 'https://www.google.com/favicon.ico',
-    secondary: 'prev. Quick Account',
-    adapterName: undefined,
   },
-  { name: 'Phantom', icon: 'https://raw.githubusercontent.com/solana-labs/wallet-adapter/master/packages/wallets/phantom/images/phantom-icon.svg', installed: true, adapterName: 'Phantom' },
-  { name: 'Solflare', icon: 'https://raw.githubusercontent.com/solana-labs/wallet-adapter/master/packages/wallets/solflare/images/solflare-icon.svg', installed: true, adapterName: 'Solflare' },
-  // Fallback for Brave/MetaMask-like installed example – maps to Backpack for demo if needed
-  { name: 'Brave Wallet', icon: 'https://raw.githubusercontent.com/solana-labs/wallet-adapter/master/packages/wallets/backpack/images/backpack-icon.svg', installed: true, adapterName: 'Backpack' },
-  { name: 'Backpack', icon: 'https://raw.githubusercontent.com/solana-labs/wallet-adapter/master/packages/wallets/backpack/images/backpack-icon.svg', adapterName: 'Backpack' },
-  { name: 'Coinbase Wallet', icon: 'https://raw.githubusercontent.com/solana-labs/wallet-adapter/master/packages/wallets/coinbase/images/coinbase-icon.svg', adapterName: 'Coinbase' },
-  { name: 'Magic Eden', icon: 'https://avatars.githubusercontent.com/u/108054095?s=200', adapterName: undefined },
-  { name: 'Jupiter', icon: 'https://station.jup.ag/favicon.ico', adapterName: undefined },
-  { name: 'Trust', icon: 'https://raw.githubusercontent.com/solana-labs/wallet-adapter/master/packages/wallets/trust/images/trust-icon.svg', adapterName: 'Trust' },
-  { name: 'Ledger', icon: 'https://raw.githubusercontent.com/solana-labs/wallet-adapter/master/packages/wallets/ledger/images/ledger-icon.svg', adapterName: 'Ledger' },
-  { name: 'Trezor', icon: 'https://raw.githubusercontent.com/solana-labs/wallet-adapter/master/packages/wallets/trezor/images/trezor-icon.svg', adapterName: 'Trezor' },
-  { name: 'Ethereum Wallet', icon: 'https://raw.githubusercontent.com/MetaMask/brand-resources/master/SVG/metamask-fox.svg', adapterName: undefined },
-  { name: 'Coin98', icon: 'https://coin98.com/favicon.ico', adapterName: undefined },
-  { name: 'Google via TipLink', icon: 'https://www.google.com/favicon.ico', adapterName: undefined },
-  { name: 'Bitget Wallet', icon: 'https://www.bitget.com/favicon.ico', adapterName: undefined },
-  { name: 'QR', icon: 'https://cdn-icons-png.flaticon.com/512/3351/3351653.png', adapterName: undefined },
+  {
+    name: 'Solflare',
+    adapterName: 'Solflare',
+    icon: 'https://raw.githubusercontent.com/solana-labs/wallet-adapter/master/packages/wallets/solflare/images/solflare-icon.svg',
+    url: 'https://solflare.com'
+  },
+  {
+    name: 'Backpack',
+    adapterName: 'Backpack',
+    icon: 'https://raw.githubusercontent.com/solana-labs/wallet-adapter/master/packages/wallets/backpack/images/backpack-icon.svg',
+    url: 'https://backpack.app'
+  },
+  {
+    name: 'Coinbase Wallet',
+    adapterName: 'Coinbase Wallet',
+    icon: 'https://raw.githubusercontent.com/solana-labs/wallet-adapter/master/packages/wallets/coinbase/images/coinbase-icon.svg',
+    url: 'https://www.coinbase.com/wallet'
+  },
+  {
+    name: 'Magic Eden',
+    icon: 'https://avatars.githubusercontent.com/u/108054095?s=200',
+    url: 'https://magiceden.io'
+  },
+  {
+    name: 'Jupiter',
+    icon: 'https://station.jup.ag/favicon.ico',
+    url: 'https://jup.ag'
+  },
+  {
+    name: 'Trust',
+    adapterName: 'Trust',
+    icon: 'https://raw.githubusercontent.com/solana-labs/wallet-adapter/master/packages/wallets/trust/images/trust-icon.svg',
+    url: 'https://trustwallet.com'
+  },
+  {
+    name: 'Ledger',
+    adapterName: 'Ledger',
+    icon: 'https://raw.githubusercontent.com/solana-labs/wallet-adapter/master/packages/wallets/ledger/images/ledger-icon.svg',
+    url: 'https://ledger.com'
+  },
+  {
+    name: 'Trezor',
+    adapterName: 'Trezor',
+    icon: 'https://raw.githubusercontent.com/solana-labs/wallet-adapter/master/packages/wallets/trezor/images/trezor-icon.svg',
+    url: 'https://trezor.io'
+  },
+  {
+    name: 'Ethereum Wallet',
+    icon: 'https://raw.githubusercontent.com/MetaMask/brand-resources/master/SVG/metamask-fox.svg',
+    url: 'https://metamask.io'
+  },
+  {
+    name: 'Coin98',
+    adapterName: 'Coin98',
+    icon: 'https://coin98.com/favicon.ico',
+    url: 'https://coin98.com'
+  },
+  {
+    name: 'Google via TipLink',
+    icon: 'https://www.google.com/favicon.ico',
+    url: 'https://tiplink.io'
+  },
+  {
+    name: 'Bitget Wallet',
+    adapterName: 'Bitget Wallet',
+    icon: 'https://www.bitget.com/favicon.ico',
+    url: 'https://web3.bitget.com'
+  },
+  {
+    name: 'QR',
+    icon: 'https://cdn-icons-png.flaticon.com/512/3351/3351653.png',
+  }
 ]
 
-const installedWallets = walletsData.filter(w => w.installed).slice(0, 3)
-const expandedWallets = walletsData
+export const ConnectWalletSidebar: React.FC<ConnectWalletSidebarProps> = ({ isOpen, onClose }) => {
+  const {
+    walletAddress,
+    shortAddress,
+    walletName,
+    walletIcon,
+    connected,
+    connecting,
+    error,
+    balanceSol,
+    balanceLoading,
+    isVerified,
+    verifying,
+    connectWallet,
+    disconnectWallet,
+    signAndVerifyServer,
+    refreshBalance,
+    clearError,
+  } = useWalletState()
 
-// ───────── Reusable subcomponents ─────────
-const RecommendedWalletCard = ({
-  onClick,
-  isConnecting,
-}: {
-  onClick: () => void
-  isConnecting: boolean
-}) => (
-  <button
-    onClick={onClick}
-    disabled={isConnecting}
-    className="w-full text-left relative bg-[#111A25] border border-[#1D2936] hover:border-[#24344A] rounded-xl p-3.5 flex items-center gap-3.5 transition-colors active:scale-[0.99] disabled:opacity-60"
-  >
-    <span className="absolute -top-2 right-3 bg-[#1A2E1A] text-[#B7F34A] text-[10px] font-bold tracking-wide px-2 py-0.5 rounded-full border border-[#234026]">
-      Recommended
-    </span>
-    <div className="w-10 h-10 rounded-lg bg-[#0D141E] border border-[#1D2936] flex items-center justify-center flex-shrink-0 overflow-hidden">
-      {/* Jupiter icon – simple SVG matching branding */}
-      <svg className="w-6 h-6 text-[#22C8B8]" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1.8 16.5c-2.32-.42-4.14-2.19-4.63-4.5h2.15c.42 1.25 1.45 2.18 2.48 2.48v2.02zm0-11c-1.03.3-2.06 1.23-2.48 2.48H5.57c.49-2.31 2.31-4.08 4.63-4.5v2.02zm3.6 11v-2.02c1.03-.3 2.06-1.23 2.48-2.48h2.15c-.49 2.31-2.31 4.08-4.63 4.5zm0-11V5.48c2.32.42 4.14 2.19 4.63 4.5h-2.15c-.42-1.25-1.45-2.18-2.48-2.48z" />
-      </svg>
-    </div>
-    <div className="flex-1 min-w-0">
-      <div className="text-[14px] font-semibold text-white leading-none">Jupiter Mobile App</div>
-      <div className="text-[11px] text-[#64748B] font-medium mt-1 leading-none">Instant trades with auto-approvals!</div>
-    </div>
-    {isConnecting && <span className="w-4 h-4 border-2 border-[#1D2936] border-t-[#B7F34A] rounded-full animate-spin flex-shrink-0" />}
-  </button>
-)
-
-const InstalledWallets = ({
-  onSelect,
-  selectedWallet,
-  isConnecting,
-}: {
-  onSelect: (name: string) => void
-  selectedWallet: string | null
-  isConnecting: boolean
-}) => (
-  <div>
-    <div className="text-[12px] font-semibold text-white mb-2.5">Installed</div>
-    <div className="flex items-center gap-2.5">
-      {installedWallets.map((w) => (
-        <button
-          key={w.name}
-          onClick={() => onSelect(w.name)}
-          disabled={isConnecting}
-          className={`w-[64px] h-[64px] sm:w-[72px] sm:h-[72px] bg-[#0D141E] border rounded-[10px] flex items-center justify-center transition-colors active:scale-[0.97] disabled:opacity-60 ${
-            selectedWallet === w.name && isConnecting ? 'border-[#B7F34A]/60 bg-[#111A25]' : 'border-[#1D2936] hover:border-[#24344A] hover:bg-[#111A25]'
-          }`}
-          aria-label={`Connect ${w.name}`}
-        >
-          <img
-            src={w.icon}
-            alt={w.name}
-            className="w-7 h-7 sm:w-8 sm:h-8 object-contain"
-            onError={(e) => {
-              ;(e.currentTarget as HTMLImageElement).style.display = 'none'
-            }}
-          />
-        </button>
-      ))}
-    </div>
-  </div>
-)
-
-const WalletListItem = ({
-  wallet,
-  onClick,
-  isConnecting,
-  isSelected,
-}: {
-  wallet: WalletItem
-  onClick: () => void
-  isConnecting: boolean
-  isSelected: boolean
-}) => (
-  <button
-    onClick={onClick}
-    disabled={isConnecting}
-    className={`w-full flex items-center gap-3 px-3 transition-colors text-left h-[46px] rounded-[8px] border active:scale-[0.99] disabled:opacity-60 ${
-      isSelected && isConnecting
-        ? 'bg-[#152030] border-[#24344A]'
-        : 'bg-[#0D141E] border-[#1D2936] hover:bg-[#111A25] hover:border-[#24344A]'
-    }`}
-  >
-    <img
-      src={wallet.icon}
-      alt={wallet.name}
-      className="w-[22px] h-[22px] rounded-full object-contain flex-shrink-0 bg-white/0"
-      onError={(e) => {
-        ;(e.currentTarget as HTMLImageElement).style.display = 'none'
-      }}
-    />
-    <div className="flex-1 min-w-0">
-      <div className="text-[13px] font-medium text-white leading-none truncate">{wallet.name}</div>
-      {wallet.secondary && <div className="text-[11px] text-[#64748B] leading-none mt-1 truncate">{wallet.secondary}</div>}
-    </div>
-    {isSelected && isConnecting ? (
-      <span className="w-4 h-4 border-2 border-[#1D2936] border-t-white rounded-full animate-spin flex-shrink-0" />
-    ) : null}
-  </button>
-)
-
-// ───────── Main Panel ─────────
-export const ConnectWalletSidebar = ({ isOpen, onClose }: ConnectWalletSidebarProps) => {
-  const { wallets, select, connect, connected, wallet } = useWallet()
+  const { wallets } = useWallet()
 
   const [mounted, setMounted] = useState(false)
-  // State management as per spec
-  const [isWalletListExpanded, setIsWalletListExpanded] = useState(false)
-  const [selectedWallet, setSelectedWallet] = useState<string | null>(null)
-  const [isConnecting, setIsConnecting] = useState(false)
-  const [connectionError, setConnectionError] = useState<string | null>(null)
-  const connectedWallet = wallet?.adapter.name ?? null
+  const [isWalletListExpanded, setIsWalletListExpanded] = useState(true)
+  const [connectingItemName, setConnectingItemName] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+  
+  // Sub-view mode ('main' | 'qr')
+  const [subView, setSubView] = useState<'main' | 'qr'>('main')
+  
+  // QR session state
+  const [qrSessionId, setQrSessionId] = useState<string>('')
+  const [qrTimeLeft, setQrTimeLeft] = useState<number>(120)
+  const [qrExpired, setQrExpired] = useState<boolean>(false)
 
-  // Mount animation handling – keep in DOM for exit animation
+  // Detect real installed wallet adapters from browser extension
+  const installedAdapters = useMemo(() => {
+    return wallets.filter(
+      (w) => w.readyState === WalletReadyState.Installed || w.readyState === WalletReadyState.Loadable
+    )
+  }, [wallets])
+
+  // Mount animation handling
   useEffect(() => {
-    if (isOpen) setMounted(true)
-    else {
+    if (isOpen) {
+      setMounted(true)
+    } else {
       const t = setTimeout(() => {
         setMounted(false)
-        setIsWalletListExpanded(false)
-        setSelectedWallet(null)
-        setConnectionError(null)
+        setSubView('main')
+        setConnectingItemName(null)
       }, 300)
       return () => clearTimeout(t)
     }
   }, [isOpen])
 
-  // Lock background scroll + prevent underlying interaction
+  // Lock background scroll
   useEffect(() => {
     if (isOpen) {
-      const prev = document.body.style.overflow
       document.body.style.overflow = 'hidden'
       return () => {
-        document.body.style.overflow = prev
+        document.body.style.overflow = ''
       }
-    } else {
-      document.body.style.overflow = ''
     }
   }, [isOpen])
 
-  // Close on Escape
+  // Close on Escape key
   useEffect(() => {
     if (!isOpen) return
     const onKey = (e: KeyboardEvent) => {
@@ -202,155 +193,447 @@ export const ConnectWalletSidebar = ({ isOpen, onClose }: ConnectWalletSidebarPr
     return () => window.removeEventListener('keydown', onKey)
   }, [isOpen, onClose])
 
-  const handleSelectWallet = async (walletName: string) => {
-    setSelectedWallet(walletName)
-    setConnectionError(null)
+  // QR Code generator
+  const generateQrSession = () => {
+    const randomId = 'session_' + Math.random().toString(36).substring(2, 12)
+    setQrSessionId(randomId)
+    setQrTimeLeft(120)
+    setQrExpired(false)
+  }
 
-    // Find adapter for real Solana wallets
-    const target = wallets.find((w) => w.adapter.name.toLowerCase() === walletName.toLowerCase() || (walletsData.find((d) => d.name === walletName)?.adapterName?.toLowerCase() === w.adapter.name.toLowerCase()))
+  const openQrView = () => {
+    generateQrSession()
+    setSubView('qr')
+  }
 
-    // If wallet requires real adapter and exists, attempt connect
-    if (target) {
-      try {
-        setIsConnecting(true)
-        // select first if not already selected
-        if (wallet?.adapter.name !== target.adapter.name) {
-          select(target.adapter.name)
-          // small delay to let adapter switch
-          await new Promise((r) => setTimeout(r, 50))
+  // Countdown timer for QR code
+  useEffect(() => {
+    if (subView !== 'qr' || qrExpired || qrTimeLeft <= 0) return
+    const timer = setInterval(() => {
+      setQrTimeLeft((prev) => {
+        if (prev <= 1) {
+          setQrExpired(true)
+          clearInterval(timer)
+          return 0
         }
-        await connect()
-        toast.success(`Connected to ${walletName}`)
+        return prev - 1
+      })
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [subView, qrTimeLeft, qrExpired])
+
+  const handleConnectWalletItem = async (item: WalletItemConfig) => {
+    clearError()
+
+    if (item.name === 'QR') {
+      openQrView()
+      return
+    }
+
+    setConnectingItemName(item.name)
+
+    // Try to find matching adapter
+    const adapter = wallets.find(
+      (w) =>
+        w.adapter.name.toLowerCase() === (item.adapterName || item.name).toLowerCase() ||
+        (item.adapterName && w.adapter.name.toLowerCase().includes(item.adapterName.toLowerCase()))
+    )
+
+    if (adapter) {
+      const isInstalled =
+        adapter.readyState === WalletReadyState.Installed ||
+        adapter.readyState === WalletReadyState.Loadable
+
+      if (!isInstalled) {
+        if (item.url) {
+          window.open(item.url, '_blank')
+          toast(`${item.name} extension not installed. Opening download link...`, { icon: '🌐' })
+        } else {
+          toast.error(`${item.name} extension not detected in your browser.`)
+        }
+        setConnectingItemName(null)
+        return
+      }
+
+      try {
+        await connectWallet(adapter.adapter.name)
         onClose()
-      } catch (err: any) {
-        const msg = err?.message || 'Connection rejected'
-        setConnectionError(msg)
-        toast.error(msg)
+      } catch (err) {
+        // Error set in context
       } finally {
-        setIsConnecting(false)
+        setConnectingItemName(null)
       }
       return
     }
 
-    // Check if wallet is in our structured list but not yet integrated
-    const meta = walletsData.find((w) => w.name === walletName)
-    if (meta && !meta.adapterName) {
-      // Structure ready to add later – show graceful message keep panel open
-      setIsConnecting(true)
-      setTimeout(() => {
-        setIsConnecting(false)
-        setConnectionError(`${walletName} not yet integrated – easily added to walletsData[]`)
-        toast(`${walletName} coming soon`, { icon: '🟡' })
-      }, 400)
-      return
+    // Special handlers
+    if (item.name.includes('Jupiter')) {
+      const phantomAdapter = wallets.find((w) => w.adapter.name.toLowerCase() === 'phantom')
+      if (phantomAdapter && phantomAdapter.readyState === WalletReadyState.Installed) {
+        handleConnectWalletItem({ name: 'Phantom', adapterName: 'Phantom', icon: item.icon })
+        return
+      }
     }
 
-    // For adapters that exist but wallet not found (e.g., Jupiter Mobile custom)
-    if (walletName === 'Jupiter Mobile App') {
-      // Try Phantom as fallback or just show connecting flow
-      setIsConnecting(true)
-      setTimeout(() => {
-        setIsConnecting(false)
-        toast('Jupiter Mobile App flow – connect via deep link (integration ready)', { icon: '🪐' })
-      }, 500)
-      return
+    if (item.url) {
+      window.open(item.url, '_blank')
     }
+    setConnectingItemName(null)
+  }
 
-    setConnectionError(`${walletName} not supported yet`)
-    toast.error(`${walletName} not supported yet`)
+  const handleCopyAddress = () => {
+    if (!walletAddress) return
+    navigator.clipboard.writeText(walletAddress)
+    setCopied(true)
+    toast.success('Wallet address copied!')
+    setTimeout(() => setCopied(false), 2000)
   }
 
   if (!mounted) return null
 
+  const qrUri = `solana:${walletAddress || 'connect'}?session=${qrSessionId}&dapp=${encodeURIComponent(window.location.origin)}`
+
   return (
     <div className="fixed inset-0 z-[100] flex justify-end" aria-modal="true" role="dialog">
-      {/* Overlay – semi-transparent dark, fades, click to close */}
+      {/* Backdrop Overlay */}
       <div
-        className={`fixed inset-0 bg-black/60 backdrop-blur-[2px] transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0'}`}
+        className={`fixed inset-0 bg-black/75 backdrop-blur-sm transition-opacity duration-300 ${
+          isOpen ? 'opacity-100' : 'opacity-0'
+        }`}
         onClick={onClose}
       />
 
-      {/* Panel – slides from RIGHT, dark background, near-full mobile height, rounded corners */}
+      {/* Drawer Panel */}
       <div
-        className={`relative flex flex-col w-full sm:w-[380px] sm:max-w-[420px] bg-[#070B13] sm:bg-[#0A121A] border-l-0 sm:border-l border-t sm:border-t-0 border-[#1D2936] shadow-2xl
-          h-[100dvh] sm:h-full sm:h-[100dvh]
-          rounded-t-[16px] sm:rounded-none sm:rounded-l-[16px]
+        className={`relative flex flex-col w-full sm:w-[420px] bg-[#070D16] border-l-0 sm:border-l border-[#182638] shadow-2xl
+          h-[100dvh] sm:h-full
+          rounded-t-3xl sm:rounded-none sm:rounded-l-3xl
           transition-transform duration-300 ease-out will-change-transform
           ${isOpen ? 'translate-x-0' : 'translate-x-full'}
-          pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]`}
-        style={{ maxHeight: '100dvh' }}
+          pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] z-10`}
       >
-        {/* Header – stays at top, Close X circular */}
-        <div className="flex items-center justify-between px-4 sm:px-5 h-[56px] flex-shrink-0 border-b border-[#1D2936]/60">
-          <h2 className="text-[18px] font-bold text-white tracking-tight">Connect</h2>
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 h-16 flex-shrink-0 border-b border-[#142030]/80">
+          <div className="flex items-center gap-2.5">
+            {subView === 'qr' && (
+              <button
+                onClick={() => setSubView('main')}
+                className="w-7 h-7 rounded-full bg-[#0E1724] border border-[#1E2D40] flex items-center justify-center text-gray-400 hover:text-white transition-all cursor-pointer"
+                title="Back to Wallets"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+            )}
+            <h2 className="text-xl font-bold text-white tracking-tight">
+              {subView === 'qr' ? 'Scan QR Code' : 'Connect'}
+            </h2>
+          </div>
           <button
             onClick={onClose}
-            className="w-9 h-9 sm:w-8 sm:h-8 rounded-full bg-[#111A25] border border-[#1D2936] flex items-center justify-center text-[#94A3B8] hover:text-white hover:bg-[#152030] hover:border-[#24344A] active:scale-95 transition-all"
-            aria-label="Close wallet panel"
+            className="w-8 h-8 rounded-full bg-[#0E1724] border border-[#1E2D40] flex items-center justify-center text-gray-400 hover:text-white hover:bg-[#162436] transition-all cursor-pointer"
+            aria-label="Close modal"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Scrollable content – header stays, list scrolls */}
-        <div className="flex-1 overflow-y-auto overscroll-contain px-4 sm:px-5 py-4 space-y-5 pb-6">
-          {/* Recommended Wallet Card */}
-          <RecommendedWalletCard onClick={() => handleSelectWallet('Jupiter Mobile App')} isConnecting={isConnecting && selectedWallet === 'Jupiter Mobile App'} />
+        {/* Scrollable Body */}
+        <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-5 space-y-5">
+          {/* CONNECTED STATE BOX */}
+          {connected && walletAddress ? (
+            <div className="bg-[#0B1522] border border-[#1D2E44] rounded-2xl p-4 space-y-3.5 shadow-lg">
+              <div className="flex items-center justify-between">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#B7F34A]/10 text-[#B7F34A] border border-[#B7F34A]/30 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#B7F34A] animate-pulse" /> Live Connected
+                </span>
+                <span className="text-xs text-gray-400 font-semibold">{walletName || 'Solana Wallet'}</span>
+              </div>
 
-          {/* Installed Wallets */}
-          <InstalledWallets onSelect={handleSelectWallet} selectedWallet={selectedWallet} isConnecting={isConnecting} />
+              <div>
+                <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Wallet Address</p>
+                <p className="font-mono text-xs text-[#B7F34A] font-bold truncate mt-0.5 select-all">{walletAddress}</p>
+              </div>
 
-          {/* Connection status */}
-          {connected && connectedWallet && (
-            <div className="text-[11px] text-[#22C55E] bg-[#0F1F15] border border-[#1E3A1E] rounded-lg px-3 py-2">Connected: {connectedWallet}</div>
-          )}
-          {connectionError && (
-            <div className="text-[11px] text-[#F87171] bg-[#1A0F0F] border border-[#3A1E1E] rounded-lg px-3 py-2">{connectionError}</div>
-          )}
+              {/* RPC Balance */}
+              <div className="bg-[#070D16] border border-[#162436] rounded-xl p-3 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Solana RPC Balance</p>
+                  <p className="text-sm font-extrabold text-white mt-0.5">
+                    {balanceLoading ? (
+                      <span className="text-gray-400 animate-pulse">Loading...</span>
+                    ) : balanceSol !== null ? (
+                      `${balanceSol.toFixed(4)} SOL`
+                    ) : (
+                      '0.00 SOL'
+                    )}
+                  </p>
+                </div>
+                <button
+                  onClick={refreshBalance}
+                  className="p-1.5 text-gray-400 hover:text-white bg-[#0F1A28] rounded-lg transition-colors cursor-pointer"
+                  title="Refresh Balance"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${balanceLoading ? 'animate-spin text-[#B7F34A]' : ''}`} />
+                </button>
+              </div>
 
-          {/* View More / View Less – centered expandable control with smooth animation */}
-          <div className="relative flex items-center justify-center py-1">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full h-px bg-[#1D2936]" />
-            </div>
-            <button
-              onClick={() => setIsWalletListExpanded((v) => !v)}
-              className="relative bg-[#070B13] sm:bg-[#0A121A] border border-[#1D2936] hover:border-[#24344A] hover:bg-[#0D141E] px-3.5 py-1.5 rounded-full flex items-center gap-1.5 text-[12px] font-semibold text-[#94A3B8] hover:text-white transition-colors z-10 active:scale-95"
-            >
-              {isWalletListExpanded ? (
-                <>
-                  View Less Wallets <ChevronUp className="w-3.5 h-3.5" />
-                </>
-              ) : (
-                <>
-                  View More Wallets <ChevronDown className="w-3.5 h-3.5" />
-                </>
-              )}
-            </button>
-          </div>
+              {/* Signature Verification */}
+              <div className="pt-2 border-t border-[#142030]">
+                {isVerified ? (
+                  <div className="bg-[#B7F34A]/10 border border-[#B7F34A]/30 rounded-xl p-2.5 flex items-center gap-2.5">
+                    <ShieldCheck className="w-4 h-4 text-[#B7F34A] flex-shrink-0" />
+                    <p className="text-[11px] font-bold text-white">Server Signature Verified</p>
+                  </div>
+                ) : (
+                  <button
+                    onClick={signAndVerifyServer}
+                    disabled={verifying}
+                    className="w-full py-2 bg-[#00D2B8] hover:bg-[#00b8a2] text-[#060B11] font-extrabold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {verifying ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />}
+                    <span>{verifying ? 'Signing Challenge...' : 'Verify Wallet Ownership'}</span>
+                  </button>
+                )}
+              </div>
 
-          {/* Expanded Wallet List – vertical list of dark rounded rectangles */}
-          <div
-            className={`grid transition-all duration-300 ease-out ${isWalletListExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}
-          >
-            <div className="overflow-hidden">
-              <div className="space-y-2 pt-1">
-                {expandedWallets.map((w) => (
-                  <WalletListItem
-                    key={w.name}
-                    wallet={w}
-                    onClick={() => handleSelectWallet(w.name)}
-                    isConnecting={isConnecting}
-                    isSelected={selectedWallet === w.name}
-                  />
-                ))}
+              {/* Action Buttons */}
+              <div className="pt-1 flex items-center gap-2">
+                <button
+                  onClick={handleCopyAddress}
+                  className="flex-1 py-2 bg-[#142030] hover:bg-[#1B2B3E] text-white text-xs font-semibold rounded-xl border border-[#22344A] transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  {copied ? <Check className="w-3.5 h-3.5 text-[#B7F34A]" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copied ? 'Copied' : 'Copy Address'}</span>
+                </button>
+
+                <a
+                  href={`https://solscan.io/account/${walletAddress}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-2 bg-[#142030] hover:bg-[#1B2B3E] text-gray-300 hover:text-white rounded-xl border border-[#22344A] transition-colors"
+                  title="View on Explorer"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                </a>
+
+                <button
+                  onClick={disconnectWallet}
+                  className="py-2 px-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-semibold rounded-xl border border-red-500/30 transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Disconnect</span>
+                </button>
               </div>
             </div>
-          </div>
-        </div>
+          ) : null}
 
-        {/* Optional bottom safe area spacer for mobile home indicator */}
-        <div className="h-[env(safe-area-inset-bottom)] sm:h-0 flex-shrink-0" />
+          {/* STATUS / ERROR BANNER */}
+          {connecting && (
+            <div className="bg-[#0C1726] border border-[#1F3248] rounded-2xl p-3.5 flex items-center gap-3 animate-pulse">
+              <RefreshCw className="w-5 h-5 text-[#B7F34A] animate-spin flex-shrink-0" />
+              <div>
+                <p className="text-xs font-bold text-white">Connecting to {connectingItemName || 'Wallet'}...</p>
+                <p className="text-[11px] text-gray-400">Approve the connection prompt in your wallet.</p>
+              </div>
+            </div>
+          )}
+
+          {error && !connecting && (
+            <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-3.5 flex items-start gap-2.5">
+              <AlertTriangle className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-xs font-bold text-red-300">Connection Error</p>
+                <p className="text-xs text-red-300/80 leading-normal mt-0.5">{error}</p>
+              </div>
+              <button onClick={clearError} className="text-red-400 text-xs font-bold hover:text-white">✕</button>
+            </div>
+          )}
+
+          {/* SUB-VIEW: QR CODE SCANNER */}
+          {subView === 'qr' && (
+            <div className="bg-[#0B1522] border border-[#1D2E44] rounded-2xl p-5 space-y-4 flex flex-col items-center text-center animate-fadeIn">
+              <div className="p-3 bg-white rounded-2xl border-4 border-[#00D2B8]/40 shadow-xl">
+                {!qrExpired ? (
+                  <QRCodeSVG value={qrUri} size={180} level="H" includeMargin={true} />
+                ) : (
+                  <div className="w-[180px] h-[180px] flex flex-col items-center justify-center bg-gray-900 rounded-xl text-white p-4 space-y-2">
+                    <AlertTriangle className="w-8 h-8 text-amber-400" />
+                    <p className="text-xs font-bold">QR Session Expired</p>
+                    <button
+                      onClick={generateQrSession}
+                      className="px-3 py-1 bg-[#B7F34A] text-[#060B11] text-[11px] font-bold rounded-lg hover:bg-[#a6e038] transition-colors cursor-pointer"
+                    >
+                      Regenerate
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {!qrExpired && (
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold text-gray-300">
+                    Scan with Phantom or Solflare Mobile App
+                  </p>
+                  <p className="text-[11px] text-[#B7F34A] font-mono font-bold">
+                    Expires in: {Math.floor(qrTimeLeft / 60)}:{('0' + (qrTimeLeft % 60)).slice(-2)}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* MAIN WALLET LIST VIEW */}
+          {subView === 'main' && (
+            <>
+              {/* ─── RECOMMENDED SECTION ───────────────────────────── */}
+              <div className="space-y-3">
+                {/* Card 1: Jupiter Extension (Recommended) */}
+                <button
+                  onClick={() => handleConnectWalletItem({ name: 'Phantom', adapterName: 'Phantom', icon: 'https://station.jup.ag/favicon.ico' })}
+                  disabled={connecting}
+                  className="w-full text-left relative bg-[#0C1520] hover:bg-[#111C2B] border border-[#1E3024] hover:border-[#27442B] rounded-2xl p-4 transition-all active:scale-[0.99] group cursor-pointer shadow-lg disabled:opacity-60"
+                >
+                  <span className="absolute top-3 right-3 bg-[#182B1B] text-[#9EE838] border border-[#27442B] text-[10px] font-bold px-2.5 py-0.5 rounded-md tracking-tight">
+                    Recommended
+                  </span>
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-10 h-10 rounded-xl bg-[#09111A] border border-[#1E3024] flex items-center justify-center flex-shrink-0 overflow-hidden">
+                      <svg className="w-6 h-6 text-[#00D2B8]" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1.8 16.5c-2.32-.42-4.14-2.19-4.63-4.5h2.15c.42 1.25 1.45 2.18 2.48 2.48v2.02zm0-11c-1.03.3-2.06 1.23-2.48 2.48H5.57c.49-2.31 2.31-4.08 4.63-4.5v2.02zm3.6 11v-2.02c1.03-.3 2.06-1.23 2.48-2.48h2.15c-.49 2.31-2.31 4.08-4.63 4.5zm0-11V5.48c2.32.42 4.14 2.19 4.63 4.5h-2.15c-.42-1.25-1.45-2.18-2.48-2.48z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white group-hover:text-[#B7F34A] transition-colors leading-tight">
+                        Jupiter Extension
+                      </h3>
+                      <p className="text-xs text-gray-400 font-medium mt-0.5">Instant trades with auto-approvals!</p>
+                    </div>
+                  </div>
+                </button>
+
+                {/* Card 2: Jupiter Mobile */}
+                <button
+                  onClick={openQrView}
+                  className="w-full text-left bg-[#0C1520] hover:bg-[#111C2B] border border-[#162232] hover:border-[#22354E] rounded-2xl p-4 transition-all active:scale-[0.99] group cursor-pointer shadow-md"
+                >
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-10 h-10 rounded-xl bg-[#09111A] border border-[#1A283A] flex items-center justify-center flex-shrink-0 text-[#B7F34A]">
+                      <QrCode className="w-5 h-5 text-[#00D2B8]" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white group-hover:text-white transition-colors leading-tight">
+                        Jupiter Mobile
+                      </h3>
+                      <p className="text-xs text-gray-400 font-medium mt-0.5">Scan QR code to connect</p>
+                    </div>
+                  </div>
+                </button>
+              </div>
+
+              {/* ─── INSTALLED SECTION ─────────────────────────────── */}
+              <div className="space-y-2.5">
+                <h3 className="text-xs font-semibold text-gray-300">Installed</h3>
+                <div className="flex items-center gap-3 overflow-x-auto pb-1 no-scrollbar">
+                  {/* Metamask / Fox */}
+                  <button
+                    onClick={() => handleConnectWalletItem({ name: 'Ethereum Wallet', icon: 'https://raw.githubusercontent.com/MetaMask/brand-resources/master/SVG/metamask-fox.svg' })}
+                    disabled={connecting}
+                    className="w-[68px] h-[68px] sm:w-[64px] sm:h-[64px] rounded-2xl bg-[#0D1623] border border-[#1A283A] hover:border-[#2C415C] hover:bg-[#131F30] flex items-center justify-center flex-shrink-0 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+                    title="Ethereum Wallet / MetaMask"
+                  >
+                    <img src="https://raw.githubusercontent.com/MetaMask/brand-resources/master/SVG/metamask-fox.svg" alt="MetaMask" className="w-8 h-8 object-contain" />
+                  </button>
+
+                  {/* Brave Lion / Solflare */}
+                  <button
+                    onClick={() => handleConnectWalletItem({ name: 'Solflare', adapterName: 'Solflare', icon: 'https://raw.githubusercontent.com/solana-labs/wallet-adapter/master/packages/wallets/solflare/images/solflare-icon.svg' })}
+                    disabled={connecting}
+                    className="w-[68px] h-[68px] sm:w-[64px] sm:h-[64px] rounded-2xl bg-[#0D1623] border border-[#1A283A] hover:border-[#2C415C] hover:bg-[#131F30] flex items-center justify-center flex-shrink-0 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+                    title="Brave Wallet / Solflare"
+                  >
+                    <img src="https://raw.githubusercontent.com/solana-labs/wallet-adapter/master/packages/wallets/solflare/images/solflare-icon.svg" alt="Solflare" className="w-7 h-7 object-contain" />
+                  </button>
+
+                  {/* Backpack */}
+                  <button
+                    onClick={() => handleConnectWalletItem({ name: 'Backpack', adapterName: 'Backpack', icon: 'https://raw.githubusercontent.com/solana-labs/wallet-adapter/master/packages/wallets/backpack/images/backpack-icon.svg' })}
+                    disabled={connecting}
+                    className="w-[68px] h-[68px] sm:w-[64px] sm:h-[64px] rounded-2xl bg-[#0D1623] border border-[#1A283A] hover:border-[#2C415C] hover:bg-[#131F30] flex items-center justify-center flex-shrink-0 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+                    title="Backpack"
+                  >
+                    <img src="https://raw.githubusercontent.com/solana-labs/wallet-adapter/master/packages/wallets/backpack/images/backpack-icon.svg" alt="Backpack" className="w-7 h-7 object-contain" />
+                  </button>
+
+                  {/* Phantom / Ghost */}
+                  <button
+                    onClick={() => handleConnectWalletItem({ name: 'Phantom', adapterName: 'Phantom', icon: 'https://raw.githubusercontent.com/solana-labs/wallet-adapter/master/packages/wallets/phantom/images/phantom-icon.svg' })}
+                    disabled={connecting}
+                    className="w-[68px] h-[68px] sm:w-[64px] sm:h-[64px] rounded-2xl bg-[#0D1623] border border-[#1A283A] hover:border-[#2C415C] hover:bg-[#131F30] flex items-center justify-center flex-shrink-0 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+                    title="Phantom"
+                  >
+                    <img src="https://raw.githubusercontent.com/solana-labs/wallet-adapter/master/packages/wallets/phantom/images/phantom-icon.svg" alt="Phantom" className="w-7 h-7 object-contain" />
+                  </button>
+                </div>
+              </div>
+
+              {/* ─── TOGGLE BUTTON DIVIDER ─────────────────────────── */}
+              <div className="relative flex items-center justify-center py-2">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full h-[1px] bg-[#172536]" />
+                </div>
+                <button
+                  onClick={() => setIsWalletListExpanded((v) => !v)}
+                  className="relative bg-[#0B131E] border border-[#1E2D40] hover:border-[#2C415C] text-xs font-semibold text-[#8DA0B8] hover:text-white px-3.5 py-1.5 rounded-full flex items-center gap-1 cursor-pointer transition-colors shadow-sm z-10 active:scale-95"
+                >
+                  {isWalletListExpanded ? (
+                    <>
+                      <span>View Less Wallets</span>
+                      <ChevronUp className="w-3.5 h-3.5" />
+                    </>
+                  ) : (
+                    <>
+                      <span>View More Wallets</span>
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* ─── GRID LIST OF WALLETS ───────────────────────────── */}
+              {isWalletListExpanded && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 animate-fadeIn">
+                  {MASTER_WALLETS.map((item) => (
+                    <button
+                      key={item.name}
+                      onClick={() => handleConnectWalletItem(item)}
+                      disabled={connecting}
+                      className="w-full bg-[#0D1623] border border-[#192738] hover:border-[#283C54] hover:bg-[#121E2E] rounded-2xl px-4 py-3 flex items-center gap-3 transition-all cursor-pointer active:scale-[0.98] disabled:opacity-60 text-left"
+                    >
+                      <img
+                        src={item.icon}
+                        alt={item.name}
+                        className="w-6 h-6 rounded-md object-contain flex-shrink-0"
+                        onError={(e) => {
+                          ;(e.currentTarget as HTMLImageElement).src =
+                            'https://raw.githubusercontent.com/solana-labs/wallet-adapter/master/packages/wallets/phantom/images/phantom-icon.svg'
+                        }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-white leading-tight truncate">{item.name}</p>
+                        {item.subtitle && (
+                          <p className="text-[11px] text-gray-400 leading-tight mt-0.5 truncate">{item.subtitle}</p>
+                        )}
+                      </div>
+                      {connectingItemName === item.name && (
+                        <RefreshCw className="w-4 h-4 text-[#B7F34A] animate-spin flex-shrink-0" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   )

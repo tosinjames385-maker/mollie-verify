@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import toast from 'react-hot-toast'
+import { supabase } from '../lib/supabase'
 
 export interface UserProfile {
   id: string
@@ -10,6 +11,7 @@ export interface UserProfile {
   xUserId?: string
   walletAddress?: string
   isAdmin?: boolean
+  email?: string
 }
 
 interface AuthContextType {
@@ -31,26 +33,59 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
+  const mapSupabaseUserToProfile = (sbUser: any): UserProfile => {
+    const meta = sbUser.user_metadata || {}
+    const identity = sbUser.identities?.[0]?.identity_data || {}
+
+    const xUserId = meta.provider_id || identity.provider_id || sbUser.id
+    const rawUsername = meta.user_name || meta.preferred_username || identity.user_name || meta.name || 'user'
+    const username = String(rawUsername).replace(/^@/, '')
+    const displayName = meta.full_name || meta.name || meta.user_name || username
+    const avatar = meta.avatar_url || meta.picture || identity.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${sbUser.id}`
+
+    return {
+      id: sbUser.id,
+      username,
+      displayName,
+      avatar,
+      handle: `@${username}`,
+      xUserId,
+      email: sbUser.email,
+      isAdmin: meta.isAdmin || false,
+    }
+  }
+
   const refreshUser = useCallback(async () => {
     try {
-      const res = await fetch('/api/auth/me', { credentials: 'include' })
-      const data = await res.json()
+      const { data: { session }, error } = await supabase.auth.getSession()
+      if (error) throw error
 
-      if (data.user) {
-        setUser({
-          id: data.user.id,
-          username: data.user.xUsername || data.user.walletAddress || 'user',
-          displayName: data.user.displayName || data.user.xUsername || 'User',
-          avatar: data.user.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.user.id}`,
-          handle: `@${data.user.xUsername || data.user.walletAddress || 'user'}`,
-          xUserId: data.user.xUserId,
-          walletAddress: data.user.walletAddress,
-          isAdmin: data.user.isAdmin,
-        })
+      if (session?.user) {
+        setUser(mapSupabaseUserToProfile(session.user))
       } else {
-        setUser(null)
+        try {
+          const res = await fetch('/api/auth/me', { credentials: 'include' })
+          const data = await res.json()
+          if (data.user) {
+            setUser({
+              id: data.user.id,
+              username: data.user.xUsername || data.user.walletAddress || 'user',
+              displayName: data.user.displayName || data.user.xUsername || 'User',
+              avatar: data.user.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.user.id}`,
+              handle: `@${data.user.xUsername || data.user.walletAddress || 'user'}`,
+              xUserId: data.user.xUserId,
+              walletAddress: data.user.walletAddress,
+              isAdmin: data.user.isAdmin,
+            })
+          } else {
+            setUser(null)
+          }
+        } catch {
+          setUser(null)
+        }
       }
-    } catch {
+    } catch (err) {
+      console.error('Error refreshing session:', err)
       setUser(null)
     } finally {
       setIsLoading(false)
@@ -59,33 +94,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     refreshUser()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session?.user) {
+        setUser(mapSupabaseUserToProfile(session.user))
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null)
+      }
+      setIsLoading(false)
+    })
+
+    return () => {
+      subscription.unsubscribe()
+    }
   }, [refreshUser])
 
   const loginWithX = async () => {
     try {
-      const res = await fetch('/api/auth/x', { credentials: 'include' })
-      const data = await res.json()
+      const redirectUrl = `${window.location.origin}/auth/x/callback`
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'x',
+        options: {
+          redirectTo: redirectUrl,
+        },
+      })
 
-      if (data.url) {
-        window.location.href = data.url
-      } else {
-        toast.error(data.error || 'Failed to initiate X login')
+      if (error) {
+        toast.error(error.message || 'Failed to initiate X login')
       }
-    } catch {
-      toast.error('Failed to connect to X. Please try again.')
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to connect to X. Please try again.')
     }
   }
 
   const logout = async () => {
     try {
-      await fetch('/api/auth/logout', {
-        method: 'POST',
-        credentials: 'include',
-      })
+      await supabase.auth.signOut()
+      try {
+        await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
+      } catch {
+        // ignore fallback endpoint error
+      }
       setUser(null)
       toast.success('Signed out')
-    } catch {
-      toast.error('Failed to sign out')
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to sign out')
     }
   }
 

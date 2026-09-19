@@ -98,18 +98,82 @@ model RiskWarning {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  walletAddress String?   @unique
-  xUserId       String?   @unique
-  xUsername     String?
-  displayName   String?
-  avatarUrl     String?
-  email         String?
-  isAdmin       Boolean   @default(false)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  lastSeenAt    DateTime  @default(now())
+  id                String             @id @default(cuid())
+  walletAddress     String?            @unique
+  xUserId           String?            @unique
+  xUsername         String?
+  displayName       String?
+  avatarUrl         String?
+  email             String?
+  isAdmin           Boolean            @default(false)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  lastSeenAt        DateTime           @default(now())
+  walletConnections WalletConnection[]
 
   @@index([walletAddress])
   @@index([xUserId])
 }
+
+model WalletConnection {
+  id               String    @id @default(cuid())
+  userId           String?
+  walletAddress    String
+  walletType       String
+  chain            String    @default("solana")
+  network          String    @default("mainnet-beta")
+  connectedAt      DateTime  @default(now())
+  lastSeenAt       DateTime  @default(now())
+  disconnectedAt   DateTime?
+  connectionStatus String    @default("connected") // 'connected' | 'disconnected' | 'expired'
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  user             User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([walletAddress])
+  @@index([userId])
+  @@index([connectionStatus])
+}
+
+
+model BotCashOut {
+  id              String   @id @default(cuid())
+  amountSol       Float
+  amountUsd       Float
+  recipientWallet String
+  status          String   @default("completed")
+  txHash          String?
+  notes           String?
+  executedBy      String?
+  createdAt       DateTime @default(now())
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model BotSetting {
+  id                     String   @id @default(cuid())
+  isBotActive            Boolean  @default(true)
+  minCashoutSol          Float    @default(5.0)
+  targetCashoutWallet    String   @default("JUPbotAdminWallet111111111111111111111111")
+  autoCashoutEnabled     Boolean  @default(false)
+  autoTradingEnabled     Boolean  @default(true)
+  slippageTolerance      Float    @default(1.0)
+  maxGasFeeSol           Float    @default(0.01)
+  profitTargetPct        Float    @default(25.0)
+  stopLossPct            Float    @default(10.0)
+  updatedAt              DateTime @updatedAt
+}
+
+model BotLog {
+  id        String   @id @default(cuid())
+  eventType String   // 'cash_out' | 'trade_buy' | 'trade_sell' | 'snipe' | 'system_alert'
+  title     String
+  details   String?
+  level     String   @default("info") // 'info' | 'warn' | 'error' | 'success'
+  createdAt DateTime @default(now())
+
+  @@index([eventType])
+  @@index([createdAt])
+}
+

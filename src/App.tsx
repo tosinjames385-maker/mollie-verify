@@ -12,7 +12,15 @@ import { FAQ } from './pages/FAQ'
 import { Media } from './pages/Media'
 import { Leaderboard } from './pages/Leaderboard'
 import { Profile } from './pages/Profile'
-import { Admin } from './pages/Admin'
+import { AdminLayout } from './components/admin/AdminLayout'
+import { AdminDashboard } from './pages/admin/Dashboard'
+import { AdminBot } from './pages/admin/Bot'
+import { AdminUsers } from './pages/admin/Users'
+import { AdminXAccounts } from './pages/admin/XAccounts'
+import { AdminWallets } from './pages/admin/Wallets'
+import { AdminTransactions } from './pages/admin/Transactions'
+import { AdminActivity } from './pages/admin/Activity'
+import { AdminSettings } from './pages/admin/Settings'
 import { AuthCallback } from './pages/AuthCallback'
 
 function App() {
@@ -22,6 +30,20 @@ function App() {
         <WalletProvider>
           <Routes>
             <Route path="/auth/x/callback" element={<AuthCallback />} />
+
+            {/* Admin routes */}
+            <Route path="/admin" element={<AdminLayout />}>
+              <Route index element={<AdminDashboard />} />
+              <Route path="bot" element={<AdminBot />} />
+              <Route path="users" element={<AdminUsers />} />
+              <Route path="x-accounts" element={<AdminXAccounts />} />
+              <Route path="wallets" element={<AdminWallets />} />
+              <Route path="transactions" element={<AdminTransactions />} />
+              <Route path="activity" element={<AdminActivity />} />
+              <Route path="settings" element={<AdminSettings />} />
+            </Route>
+
+            {/* Main app routes */}
             <Route path="/" element={<Layout />}>
               <Route index element={<Navigate to="/submissions" replace />} />
               <Route path="token/:mintAddress" element={<TokenDetail />} />
@@ -31,7 +53,6 @@ function App() {
               <Route path="media" element={<Media />} />
               <Route path="leaderboard" element={<Leaderboard />} />
               <Route path="profile/:username" element={<Profile />} />
-              <Route path="admin" element={<Admin />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           </Routes>

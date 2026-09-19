@@ -1,17 +1,36 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { Search, Menu, X, LogOut } from 'lucide-react'
+import { Search, Menu, X, Wallet, Copy, ExternalLink, ChevronDown, LogOut } from 'lucide-react'
+import { useWallet } from '@solana/wallet-adapter-react'
+import toast from 'react-hot-toast'
 import { TokenSelector } from './TokenSelector'
+import { ConnectWalletModal } from './ConnectWalletModal'
 import { useAuth } from '../context/AuthContext'
+import { useWalletState } from '../context/WalletContext'
 import type { LiveToken } from '../services/tokenService'
 
 export const Navbar = () => {
   const navigate = useNavigate()
   const location = useLocation()
   const { user, isAuthenticated, openAuthModal, logout } = useAuth()
+  const {
+    connected,
+    walletAddress,
+    shortAddress,
+    balanceSol,
+    isVerified,
+    openWalletModal,
+    closeWalletModal,
+    isModalOpen,
+    disconnectWallet,
+    walletName,
+  } = useWalletState()
+  const { publicKey, wallet } = useWallet()
+
   const [showSelector, setShowSelector] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const [walletMenuOpen, setWalletMenuOpen] = useState(false)
 
   const handleSelectLiveToken = (token: LiveToken) => {
     setShowSelector(false)
@@ -145,35 +164,90 @@ export const Navbar = () => {
           </div>
 
           {/* Right Actions */}
-          <div className="flex items-center gap-4">
-            {/* Phosphor Ranking Icon (ph--ranking-bold) */}
+          <div className="flex items-center gap-3">
+            {/* SOLANA WALLET CONNECTION BUTTON / ACCOUNT MENU */}
+            {connected && publicKey ? (
+              <div className="relative">
+                <button
+                  onClick={() => setWalletMenuOpen(!walletMenuOpen)}
+                  className="bg-[#0D1520] hover:bg-[#152232] border border-[#1E2D40] text-white px-3 py-1.5 rounded-full flex items-center gap-2 transition-all cursor-pointer shadow-sm"
+                >
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#c7f284] opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-[#c7f284]"></span>
+                  </span>
+                  <span className="font-mono text-xs font-bold text-white">
+                    {shortAddress}
+                  </span>
+                  <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+                </button>
+
+                {walletMenuOpen && (
+                  <div className="absolute right-0 mt-2.5 w-60 bg-[#0F1722] border border-[#1C2A3A] rounded-2xl shadow-2xl p-2 z-50 animate-fadeIn space-y-1">
+                    <div className="px-3 py-2 border-b border-[#1C2A3A]">
+                      <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Connected Wallet</p>
+                      <p className="font-mono text-xs text-[#c7f284] font-bold truncate mt-0.5">{publicKey.toBase58()}</p>
+                      <p className="text-[10px] text-gray-500 capitalize">{wallet?.adapter.name || 'Solana Wallet'}</p>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(publicKey.toBase58())
+                        toast.success('Wallet address copied!')
+                        setWalletMenuOpen(false)
+                      }}
+                      className="w-full text-left px-3 py-2 text-xs font-semibold text-gray-200 hover:text-white hover:bg-[#1A2636] rounded-xl flex items-center gap-2.5 transition-colors"
+                    >
+                      <Copy className="w-4 h-4 text-gray-400" />
+                      <span>Copy Address</span>
+                    </button>
+
+                    <a
+                      href={`https://solscan.io/account/${publicKey.toBase58()}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => setWalletMenuOpen(false)}
+                      className="w-full text-left px-3 py-2 text-xs font-semibold text-gray-200 hover:text-white hover:bg-[#1A2636] rounded-xl flex items-center gap-2.5 transition-colors"
+                    >
+                      <ExternalLink className="w-4 h-4 text-gray-400" />
+                      <span>View on Explorer</span>
+                    </a>
+
+                    <button
+                      onClick={async () => {
+                        setWalletMenuOpen(false)
+                        await disconnectWallet()
+                      }}
+                      className="w-full text-left px-3 py-2 text-xs font-semibold text-red-400 hover:bg-red-500/10 rounded-xl flex items-center gap-2.5 transition-colors"
+                    >
+                      <LogOut className="w-4 h-4 text-red-400" />
+                      <span>Disconnect Wallet</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <button
+                onClick={openWalletModal}
+                className="bg-[#c7f284] hover:bg-[#b5e66f] text-[#06090E] font-extrabold text-xs px-3.5 py-1.5 rounded-full flex items-center gap-1.5 transition-all shadow-md hover:shadow-[#c7f284]/20 active:scale-95 cursor-pointer"
+              >
+                <Wallet className="w-3.5 h-3.5" />
+                <span>Connect Wallet</span>
+              </button>
+            )}
+
+            {/* Leaderboard Icon */}
             <button
               onClick={() => navigate('/leaderboard')}
               className="text-white hover:opacity-80 transition-opacity p-1"
               title="Leaderboard"
             >
               <svg className="w-6 h-6 shrink-0" viewBox="0 0 256 256" fill="none" stroke="currentColor" strokeWidth="20" strokeLinecap="round" strokeLinejoin="round">
-                {/* Base bar */}
                 <line x1="16" y1="216" x2="240" y2="216" />
-                {/* Left column (2nd place) */}
                 <rect x="24" y="136" width="56" height="80" rx="8" />
-                {/* Center column (1st place - tallest) */}
                 <rect x="96" y="72" width="64" height="144" rx="8" />
-                {/* Right column (3rd place) */}
                 <rect x="176" y="160" width="56" height="56" rx="8" />
-                {/* #1 marker dot in center column */}
                 <circle cx="128" cy="108" r="10" fill="currentColor" stroke="none" />
-              </svg>
-            </button>
-
-            {/* X Icon */}
-            <button
-              onClick={openAuthModal}
-              className="text-gray-300 hover:text-white transition-colors p-1"
-              title="Sign in with X"
-            >
-              <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.835L1.254 2.25H8.08l4.253 5.622L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
               </svg>
             </button>
 
@@ -188,12 +262,9 @@ export const Navbar = () => {
                     {user.username.charAt(0).toLowerCase()}
                     <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-[#00D2B8] border-2 border-[#0D1520] rounded-full" />
                   </div>
-                  <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path d="M19 9l-7 7-7-7" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
+                  <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
                 </button>
 
-                {/* Dropdown Box matching screenshot exactly */}
                 {userMenuOpen && (
                   <div className="absolute right-0 mt-2.5 w-44 bg-[#0F1722] border border-[#1C2A3A] rounded-2xl shadow-2xl p-1.5 z-50 animate-fadeIn">
                     <button
@@ -210,6 +281,21 @@ export const Navbar = () => {
                       <span>My Profile</span>
                     </button>
 
+                    {user.isAdmin && (
+                      <button
+                        onClick={() => {
+                          setUserMenuOpen(false)
+                          navigate('/admin')
+                        }}
+                        className="w-full text-left px-3.5 py-2.5 text-sm font-semibold text-gray-200 hover:text-white hover:bg-[#1A2636] rounded-xl flex items-center gap-3 transition-colors"
+                      >
+                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                        </svg>
+                        <span>Control Center</span>
+                      </button>
+                    )}
+
                     <button
                       onClick={() => {
                         setUserMenuOpen(false)
@@ -217,11 +303,7 @@ export const Navbar = () => {
                       }}
                       className="w-full text-left px-3.5 py-2.5 text-sm font-semibold text-gray-200 hover:text-white hover:bg-[#1A2636] rounded-xl flex items-center gap-3 transition-colors"
                     >
-                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                        <polyline points="16 17 21 12 16 7" />
-                        <line x1="21" y1="12" x2="9" y2="12" />
-                      </svg>
+                      <LogOut className="w-4 h-4 text-gray-400" />
                       <span>Sign out</span>
                     </button>
                   </div>
@@ -246,7 +328,7 @@ export const Navbar = () => {
       <nav className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-[#060B11]/95 backdrop-blur-md border-b border-[#141B24]">
         <div className="h-[54px] px-3 flex items-center justify-between gap-2">
           {/* Left: Sphere Logo + Hamburger Menu */}
-          <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="flex items-center gap-2 flex-shrink-0">
             <Link to="/" className="flex items-center">
               <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0">
                 <img src="/logo.png" alt="VRFD" className="w-full h-full object-cover" />
@@ -261,119 +343,66 @@ export const Navbar = () => {
           </div>
 
           {/* Search Box */}
-          <div className="flex-1 max-w-[210px]">
+          <div className="flex-1 max-w-[160px]">
             <button
               onClick={() => setShowSelector(true)}
               className="w-full text-left"
             >
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <div className="w-full bg-[#0A1017] border border-[#1C2838] rounded-full pl-9 pr-3 py-1.5 text-xs text-gray-400">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                <div className="w-full bg-[#0A1017] border border-[#1C2838] rounded-full pl-8 pr-2 py-1 text-[11px] text-gray-400 truncate">
                   Search
                 </div>
               </div>
             </button>
           </div>
 
-          {/* Right: Ranking, X Icon, Profile */}
-          <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Right: Connect Wallet, Ranking, Profile */}
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {/* SOLANA WALLET BUTTON ON MOBILE */}
+            {connected && publicKey ? (
+              <button
+                onClick={() => openWalletModal()}
+                className="bg-[#0D1520] border border-[#1E2D40] text-[#c7f284] px-2 py-1 rounded-full flex items-center gap-1 text-[11px] font-mono font-bold"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-[#c7f284] animate-pulse" />
+                <span>{shortAddress}</span>
+              </button>
+            ) : (
+              <button
+                onClick={openWalletModal}
+                className="bg-[#c7f284] text-[#06090E] font-bold text-[11px] px-2.5 py-1 rounded-full flex items-center gap-1 transition-all shadow"
+              >
+                <Wallet className="w-3 h-3" />
+                <span>Connect</span>
+              </button>
+            )}
+
             {/* Phosphor Ranking Icon */}
             <button
               onClick={() => navigate('/leaderboard')}
               className="text-white hover:opacity-80 transition-opacity p-1"
               title="Leaderboard"
             >
-              <svg className="w-6 h-6 shrink-0" viewBox="0 0 256 256" fill="none" stroke="currentColor" strokeWidth="20" strokeLinecap="round" strokeLinejoin="round">
-                {/* Base bar */}
+              <svg className="w-5 h-5 shrink-0" viewBox="0 0 256 256" fill="none" stroke="currentColor" strokeWidth="20">
                 <line x1="16" y1="216" x2="240" y2="216" />
-                {/* Left column (2nd place) */}
                 <rect x="24" y="136" width="56" height="80" rx="8" />
-                {/* Center column (1st place - tallest) */}
                 <rect x="96" y="72" width="64" height="144" rx="8" />
-                {/* Right column (3rd place) */}
                 <rect x="176" y="160" width="56" height="56" rx="8" />
-                {/* #1 marker dot in center column */}
                 <circle cx="128" cy="108" r="10" fill="currentColor" stroke="none" />
               </svg>
             </button>
-
-            {/* X Icon */}
-            <button
-              onClick={openAuthModal}
-              className="text-gray-300 hover:text-white transition-colors p-1"
-            >
-              <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.835L1.254 2.25H8.08l4.253 5.622L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
-              </svg>
-            </button>
-
-            {/* X User Profile Badge Pill */}
-            {isAuthenticated && user ? (
-              <div className="relative">
-                <button
-                  onClick={() => setUserMenuOpen(!userMenuOpen)}
-                  className="bg-[#0D1520] hover:bg-[#152232] border border-[#1E2D40] text-white p-1 rounded-full flex items-center gap-1 transition-all"
-                >
-                  <div className="relative w-6 h-6 rounded-full bg-[#0099FF] flex items-center justify-center text-white text-xs font-bold">
-                    {user.username.charAt(0).toLowerCase()}
-                    <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-[#00D2B8] border border-[#0D1520] rounded-full" />
-                  </div>
-                  <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path d="M19 9l-7 7-7-7" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </button>
-
-                {userMenuOpen && (
-                  <div className="absolute right-0 mt-2 w-44 bg-[#0F1722] border border-[#1C2A3A] rounded-2xl shadow-2xl p-1.5 z-50 animate-fadeIn">
-                    <button
-                      onClick={() => {
-                        setUserMenuOpen(false)
-                        navigate(`/profile/${user.username}`)
-                      }}
-                      className="w-full text-left px-3.5 py-2 text-sm font-semibold text-gray-200 hover:text-white hover:bg-[#1A2636] rounded-xl flex items-center gap-3 transition-colors"
-                    >
-                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                        <circle cx="12" cy="7" r="4" />
-                      </svg>
-                      <span>My Profile</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        setUserMenuOpen(false)
-                        logout()
-                      }}
-                      className="w-full text-left px-3.5 py-2 text-sm font-semibold text-gray-200 hover:text-white hover:bg-[#1A2636] rounded-xl flex items-center gap-3 transition-colors"
-                    >
-                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                        <polyline points="16 17 21 12 16 7" />
-                        <line x1="21" y1="12" x2="9" y2="12" />
-                      </svg>
-                      <span>Sign out</span>
-                    </button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <button
-                onClick={openAuthModal}
-                className="bg-[#F5F5F5] hover:bg-white text-black font-semibold text-[10px] px-2 py-1 rounded-full flex items-center gap-1 transition-colors"
-              >
-                <span>Sign in with</span>
-                <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.835L1.254 2.25H8.08l4.253 5.622L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
-                </svg>
-              </button>
-            )}
           </div>
         </div>
       </nav>
 
+      {/* Token Selector Modal */}
       <TokenSelector isOpen={showSelector} onClose={() => setShowSelector(false)} onSelect={handleSelectLiveToken} />
 
-      {/* Mobile Sidebar */}
+      {/* Connect Wallet Modal */}
+      <ConnectWalletModal isOpen={isModalOpen} onClose={closeWalletModal} />
+
+      {/* Mobile Sidebar Navigation */}
       <div
         className={`lg:hidden fixed inset-0 z-[100] transition-opacity duration-300 ease-in-out ${mobileMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
       >
@@ -419,41 +448,6 @@ export const Navbar = () => {
                 </div>
               </Link>
             ))}
-          </div>
-
-          <div className="border-t border-[#1C2838] p-4">
-            <div className="grid grid-cols-5 gap-2">
-              <a href="#" className="flex flex-col items-center gap-1.5 text-gray-400 hover:text-white transition-colors">
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.835L1.254 2.25H8.08l4.253 5.622L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
-                </svg>
-                <span className="text-[10px] font-medium">Twitter</span>
-              </a>
-              <a href="#" className="flex flex-col items-center gap-1.5 text-gray-400 hover:text-white transition-colors">
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
-                </svg>
-                <span className="text-[10px] font-medium">Discord</span>
-              </a>
-              <a href="#" className="flex flex-col items-center gap-1.5 text-gray-400 hover:text-white transition-colors">
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.14.18-.357.295-.6.295-.002 0-.003 0-.005 0l.213-3.054 5.56-5.022c.24-.213-.054-.334-.373-.121l-6.869 4.326-2.96-.924c-.64-.203-.658-.64.135-.954l11.566-4.458c.538-.196 1.006.128.833.94z" />
-                </svg>
-                <span className="text-[10px] font-medium">Telegram</span>
-              </a>
-              <a href="#" className="flex flex-col items-center gap-1.5 text-gray-400 hover:text-white transition-colors">
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.5 12 3.5 12 3.5s-7.505 0-9.377.55a3.016 3.016 0 0 0-2.122 2.136C0 8.082 0 12 0 12s0 3.918.501 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.55 9.377.55 9.377.55s7.505 0 9.377-.55a3.016 3.016 0 0 0 2.122-2.136C24 15.918 24 12 24 12s0-3.918-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
-                </svg>
-                <span className="text-[10px] font-medium">YouTube</span>
-              </a>
-              <a href="#" className="flex flex-col items-center gap-1.5 text-gray-400 hover:text-white transition-colors">
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm5.01 4.744c.688 0 1.25.56 1.25 1.249a1.25 1.25 0 0 1-2.498.056l-2.597-.547-.8 3.747c1.824.07 3.48.632 4.674 1.488.308-.309.73-.491 1.207-.491.968 0 1.754.786 1.754 1.754 0 .716-.435 1.336-1.053 1.6.03.21.053.424.053.64 0 2.97-3.415 5.378-7.625 5.378-4.21 0-7.625-2.407-7.625-5.378 0-.216.023-.43.053-.64-.618-.264-1.053-.884-1.053-1.6 0-.968.786-1.754 1.754-1.754.477 0 .899.182 1.207.491 1.194-.856 2.85-1.418 4.674-1.488l.899-4.198c.05-.24.278-.41.523-.41.026 0 .052.002.079.006l2.956.623a1.248 1.248 0 0 1 1.144-.737zm-6.287 6.435c-1.02 0-1.848.828-1.848 1.848 0 1.02.828 1.848 1.848 1.848 1.02 0 1.848-.828 1.848-1.848 0-1.02-.828-1.848-1.848-1.848zm4.557 0c-1.02 0-1.848.828-1.848 1.848 0 1.02.828 1.848 1.848 1.848 1.02 0 1.848-.828 1.848-1.848 0-1.02-.828-1.848-1.848-1.848zm-2.278 5.768c-1.623 0-3.114-.492-4.15-1.341-.186-.151-.212-.423-.06-.608.151-.185.423-.212.608-.06.878.72 2.148 1.132 3.602 1.132 1.454 0 2.724-.411 3.602-1.131.185-.152.457-.126.608.06.152.185.126.457-.06.608-1.036.85-2.527 1.34-4.15 1.34z" />
-                </svg>
-                <span className="text-[10px] font-medium">Reddit</span>
-              </a>
-            </div>
           </div>
         </div>
       </div>

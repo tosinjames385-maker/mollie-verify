@@ -1,5 +1,6 @@
 import express from 'express'
 import cors from 'cors'
+import crypto from 'crypto'
 import session from 'express-session'
 import dotenv from 'dotenv'
 import { tokenRoutes } from './routes/tokens'
@@ -8,6 +9,7 @@ import { newsRoutes } from './routes/news'
 import { adminRoutes } from './routes/admin'
 import { liveTokensRouter } from './routes/liveTokens'
 import { authRoutes } from './routes/auth'
+import { walletRoutes } from './routes/wallet'
 
 dotenv.config()
 
@@ -38,6 +40,7 @@ app.use(session({
 
 // Routes
 app.use('/api/auth', authRoutes)
+app.use('/api/wallet', walletRoutes)
 app.use('/api/tokens', tokenRoutes)
 app.use('/api/live-tokens', liveTokensRouter)
 app.use('/api/submissions', submissionRoutes)

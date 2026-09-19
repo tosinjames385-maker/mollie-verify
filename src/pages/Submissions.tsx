@@ -3,6 +3,12 @@ import { Search, ChevronLeft, ChevronRight, Heart, AlertTriangle, Share2, Chevro
 import { demoSubmissions, Submission } from '../data/demoSubmissions'
 import toast from 'react-hot-toast'
 
+const getAvatarUrl = (symbol: string, index: number = 0): string => {
+  const styles = ['bottts', 'avataaars', 'lorelei', 'adventurer', 'shapes', 'big-smile', 'identicon', 'thumbs']
+  const style = styles[Math.abs(index) % styles.length]
+  return `https://api.dicebear.com/7.x/${style}/svg?seed=${encodeURIComponent(symbol)}${index}`
+}
+
 export const Submissions = () => {
   const [submissions, setSubmissions] = useState<Submission[]>([])
   const [loading, setLoading] = useState(true)
@@ -72,7 +78,7 @@ export const Submissions = () => {
         name: sym.charAt(0) + sym.slice(1).toLowerCase() + ' Token',
         symbol: sym,
         mintAddress: `${sym}${i}KxLm${(i*7)%9}pQrS${(i*3)%9}tUv${(i*5)%9}wYz${(i*2)%9}dC6eGhAaBbOoIiCcDd${i%10}${sym.slice(0,3).toLowerCase()}`,
-        imageUrl: i % 4 === 0 ? undefined : i % 3 === 0 ? `https://unavatar.io/${sym.toLowerCase()}?fallback=https://api.dicebear.com/7.x/avataaars/svg?seed=${sym}` : `https://api.dicebear.com/7.x/identicon/svg?seed=${sym}${i}`,
+        imageUrl: getAvatarUrl(sym, i),
         marketCap: mcs[i % mcs.length],
         netVolume: nets[i % nets.length],
         timeAgo: timeAgos[i % timeAgos.length],
@@ -140,13 +146,6 @@ export const Submissions = () => {
     }
   }
 
-  const filterCounts = useMemo(() => ({
-    all: submissions.length,
-    pending: submissions.filter(s => s.status === 'pending').length,
-    approved: submissions.filter(s => s.status === 'approved').length,
-    rejected: submissions.filter(s => s.status === 'rejected').length,
-  }), [submissions])
-
   const handleCopyAddress = (e: React.MouseEvent, address: string) => {
     e.stopPropagation()
     navigator.clipboard.writeText(address)
@@ -184,8 +183,8 @@ export const Submissions = () => {
   )
 
   const filters = [
-    { key: 'all', label: 'All', count: filterCounts.all },
-    { key: 'pending', label: 'Pending', count: filterCounts.pending },
+    { key: 'all', label: 'All' },
+    { key: 'pending', label: 'Pending' },
     { key: 'approved', label: 'Approved' },
     { key: 'rejected', label: 'Rejected' },
   ]
@@ -204,7 +203,10 @@ export const Submissions = () => {
           <button className="text-xs font-semibold text-[#c7f284] bg-transparent border border-[#c7f28466] px-3.5 py-1.5 rounded-lg shadow-sm">
             Token Verification
           </button>
-          <button className="text-xs font-medium text-gray-400 hover:text-white transition-colors px-2 py-1.5">
+          <button
+            onClick={() => setFilter('pending')}
+            className={`text-xs font-medium transition-colors px-2 py-1.5 ${filter === 'pending' ? 'text-[#c7f284]' : 'text-gray-400 hover:text-white'}`}
+          >
             Metadata Updates
           </button>
         </div>
@@ -243,20 +245,23 @@ export const Submissions = () => {
 
               {/* Filters */}
               {!searchQuery.trim() && (
-                <div className="flex items-center gap-1.5 mb-3 overflow-x-auto no-scrollbar pb-1">
-                  {filters.map((f) => (
-                    <button
-                      key={f.key}
-                      onClick={() => setFilter(f.key)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex-shrink-0 ${
-                        filter === f.key
-                          ? 'bg-[#182418] text-[#c7f284]'
-                          : 'text-gray-400 hover:text-gray-300'
-                      }`}
-                    >
-                      {f.label}{f.count !== undefined ? ` (${f.count})` : ''}
-                    </button>
-                  ))}
+                <div className="flex items-center gap-1 mb-3.5 overflow-x-auto no-scrollbar pb-1">
+                  {filters.map((f) => {
+                    const isActive = filter === f.key
+                    return (
+                      <button
+                        key={f.key}
+                        onClick={() => setFilter(f.key)}
+                        className={`px-3 py-1.5 rounded-xl text-xs transition-all flex-shrink-0 ${
+                          isActive
+                            ? 'bg-[#182C1C] text-[#c7f284] font-semibold border border-[#2B472E]/50 shadow-sm'
+                            : 'text-[#8292A3] hover:text-white font-medium bg-transparent'
+                        }`}
+                      >
+                        {f.label}
+                      </button>
+                    )
+                  })}
                 </div>
               )}
 
@@ -320,31 +325,23 @@ export const Submissions = () => {
                     >
                       <div className="flex items-center gap-2.5">
                         {/* Token Icon */}
-                        <div className="relative w-8 h-8 rounded-full overflow-hidden flex-shrink-0 bg-[#16212D]">
-                          {submission.token.imageUrl ? (
-                            <img
-                              src={submission.token.imageUrl}
-                              alt={submission.token.name}
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                (e.currentTarget as HTMLImageElement).src = `https://api.dicebear.com/7.x/identicon/svg?seed=${submission.token.symbol}`
-                              }}
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#1C2C3E] to-[#101924]">
-                               <span className="text-[11px] font-bold text-[#c7f284]">
-                                ?
-                              </span>
-                            </div>
-                          )}
-                          {/* Green verification badge overlay on bottom right of avatar if verified */}
-                          {submission.token.verified && (
-                            <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-[#c7f284] border-2 border-[#090F16] rounded-full flex items-center justify-center text-black">
-                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-2.5 h-2.5">
-                                <path d="M10 14.5a4 4 0 1 1 5.5-5.5" />
-                                <path d="M14 10.5 9.5 15" />
-                                <path d="M9.5 15a4 4 0 1 1-5.5-5.5l4.5-4.5a4 4 0 1 1 5.5 5.5Z" />
-                              </svg>
+                        <div className="relative w-9 h-9 rounded-full overflow-hidden flex-shrink-0 bg-[#141D26] border border-[#1E2B38]/60 shadow-inner">
+                          <img
+                            src={submission.token.imageUrl || getAvatarUrl(submission.token.symbol, submission.id.length)}
+                            alt={submission.token.name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).src = `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(submission.token.symbol)}`
+                            }}
+                          />
+                          {/* Green DEX/pump pill badge overlay on bottom right of avatar */}
+                          {(submission.token.verified || submission.isExpress || submission.status === 'pending') && (
+                            <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-[#06090E] rounded-full flex items-center justify-center p-0.5">
+                              <div className="w-full h-full bg-[#182C1C] border border-[#c7f284] rounded-full flex items-center justify-center shadow-sm">
+                                <svg viewBox="0 0 24 24" fill="currentColor" className="w-2 h-2 text-[#c7f284] transform -rotate-45">
+                                  <path d="M4.5 10.5C3.5 11.5 3.5 13 4.5 14L10 19.5C11 20.5 12.5 20.5 13.5 19.5L19.5 13.5C20.5 12.5 20.5 11 19.5 10L14 4.5C13 3.5 11.5 3.5 10.5 4.5L4.5 10.5Z" />
+                                </svg>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -444,22 +441,14 @@ export const Submissions = () => {
                 <div className="bg-[#0B1118] border border-[#16212D] rounded-2xl p-5 shadow-xl">
                   <div className="flex items-start gap-4 mb-4">
                     <div className="w-16 h-16 rounded-full overflow-hidden bg-[#16212D] relative border border-[#1F2E3E] flex-shrink-0">
-                      {selectedSubmission.token.imageUrl ? (
-                        <img
-                          src={selectedSubmission.token.imageUrl}
-                          alt={selectedSubmission.token.name}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            (e.currentTarget as HTMLImageElement).src = `https://api.dicebear.com/7.x/identicon/svg?seed=${selectedSubmission.token.symbol}`
-                          }}
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#1C2C3E] to-[#101924]">
-                          <span className="text-xl font-bold text-[#c7f284]">
-                            ?
-                          </span>
-                        </div>
-                      )}
+                      <img
+                        src={selectedSubmission.token.imageUrl || getAvatarUrl(selectedSubmission.token.symbol)}
+                        alt={selectedSubmission.token.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src = `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(selectedSubmission.token.symbol)}`
+                        }}
+                      />
                       {selectedSubmission.token.verified && (
                         <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 bg-[#c7f284] border-2 border-[#0B1118] rounded-full flex items-center justify-center text-black">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3">
@@ -659,22 +648,14 @@ export const Submissions = () => {
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-3">
                   <div className="w-14 h-14 rounded-full overflow-hidden bg-[#16212D] relative border border-[#1F2E3E]">
-                    {selectedSubmission.token.imageUrl ? (
-                      <img
-                        src={selectedSubmission.token.imageUrl}
-                        alt={selectedSubmission.token.name}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          (e.currentTarget as HTMLImageElement).src = `https://api.dicebear.com/7.x/identicon/svg?seed=${selectedSubmission.token.symbol}`
-                        }}
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#1C2C3E] to-[#101924]">
-                        <span className="text-lg font-bold text-[#c7f284]">
-                          {selectedSubmission.token.symbol[0]}
-                        </span>
-                      </div>
-                    )}
+                    <img
+                      src={selectedSubmission.token.imageUrl || getAvatarUrl(selectedSubmission.token.symbol)}
+                      alt={selectedSubmission.token.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(selectedSubmission.token.symbol)}`
+                      }}
+                    />
                     {selectedSubmission.token.verified && (
                       <div className="absolute bottom-0 right-0 w-4 h-4 bg-[#c7f284] border-2 border-[#0B1118] rounded-full flex items-center justify-center text-black text-[8px] font-bold">
                         ✓
