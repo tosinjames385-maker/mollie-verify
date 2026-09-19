@@ -357,26 +357,22 @@ export const Navbar = () => {
             </button>
           </div>
 
-          {/* Right: Connect Wallet, Ranking, Profile */}
+          {/* Right: Wallet + Ranking */}
           <div className="flex items-center gap-1.5 flex-shrink-0">
-            {/* SOLANA WALLET BUTTON ON MOBILE */}
+            {/* SOLANA WALLET STATUS ON MOBILE */}
             {connected && publicKey ? (
-              <button
-                onClick={() => openWalletModal()}
-                className="bg-[#0D1520] border border-[#1E2D40] text-[#c7f284] px-2 py-1 rounded-full flex items-center gap-1 text-[11px] font-mono font-bold"
-              >
+              <div className="flex items-center gap-1 bg-[#0D1520] border border-[#1E2D40] text-[#c7f284] px-2 py-1 rounded-full text-[11px] font-mono font-bold">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#c7f284] animate-pulse" />
                 <span>{shortAddress}</span>
-              </button>
-            ) : (
-              <button
-                onClick={openWalletModal}
-                className="bg-[#c7f284] text-[#06090E] font-bold text-[11px] px-2.5 py-1 rounded-full flex items-center gap-1 transition-all shadow"
-              >
-                <Wallet className="w-3 h-3" />
-                <span>Connect</span>
-              </button>
-            )}
+                <button
+                  onClick={async () => { await disconnectWallet() }}
+                  className="ml-0.5 text-gray-400 hover:text-white transition-colors"
+                  aria-label="Disconnect wallet"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ) : null}
 
             {/* Phosphor Ranking Icon */}
             <button
