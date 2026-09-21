@@ -1,8 +1,8 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import {
-  LayoutDashboard, Users, AtSign, Wallet, ArrowUpDown,
-  Activity, Settings, LogOut, ChevronLeft, ChevronRight, Shield, Bot
+  LayoutDashboard, Users, AtSign, ClipboardList,
+  Activity, Settings, LogOut, ChevronLeft, ChevronRight, Shield
 } from 'lucide-react'
 
 interface AdminSidebarProps {
@@ -14,11 +14,9 @@ interface AdminSidebarProps {
 
 const navItems = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true },
-  { to: '/admin/bot', icon: Bot, label: 'Bot Operations' },
   { to: '/admin/users', icon: Users, label: 'Users' },
   { to: '/admin/x-accounts', icon: AtSign, label: 'X Accounts' },
-  { to: '/admin/wallets', icon: Wallet, label: 'Wallets' },
-  { to: '/admin/transactions', icon: ArrowUpDown, label: 'Transactions' },
+  { to: '/admin/submissions', icon: ClipboardList, label: 'Submissions' },
   { to: '/admin/activity', icon: Activity, label: 'Activity' },
   { to: '/admin/settings', icon: Settings, label: 'Settings' },
 ]

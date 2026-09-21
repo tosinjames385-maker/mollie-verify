@@ -1,18 +1,25 @@
 import { useEffect, useState, useMemo } from 'react'
 import { Search, ChevronLeft, ChevronRight, Heart, AlertTriangle, Share2, ChevronDown, Copy, Check } from 'lucide-react'
 import { demoSubmissions, Submission } from '../data/demoSubmissions'
+import { TokenImage } from '../components/TokenImage'
+import { getCoinImage, getProfileImage } from '../lib/images'
+import { searchLiveTokens } from '../lib/tokenSearch'
 import toast from 'react-hot-toast'
 
-const getAvatarUrl = (symbol: string, index: number = 0): string => {
-  const styles = ['bottts', 'avataaars', 'lorelei', 'adventurer', 'shapes', 'big-smile', 'identicon', 'thumbs']
-  const style = styles[Math.abs(index) % styles.length]
-  return `https://api.dicebear.com/7.x/${style}/svg?seed=${encodeURIComponent(symbol)}${index}`
+const NetVolume = ({ value }: { value?: string }) => {
+  const v = value || '—'
+  const color = v.startsWith('S:')
+    ? 'text-[#F87171]'
+    : v.startsWith('B:')
+      ? 'text-[#c7f284]'
+      : 'text-gray-200'
+  return <span className={`${color} font-semibold`}>{v}</span>
 }
 
 export const Submissions = () => {
   const [submissions, setSubmissions] = useState<Submission[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<string>('all')
+  const [filter, setFilter] = useState<string>('pending')
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [page, setPage] = useState(1)
@@ -20,6 +27,7 @@ export const Submissions = () => {
   const [sortBy, setSortBy] = useState('newest')
   const [sortOpen, setSortOpen] = useState(false)
   const [showMobileDetail, setShowMobileDetail] = useState(false)
+  const [remoteHits, setRemoteHits] = useState<Submission[]>([])
 
   useEffect(() => {
     loadSubmissions()
@@ -65,27 +73,40 @@ export const Submissions = () => {
     const mcs = ['—','$5K','$12K','$34K','$67K','$89K','$123K','$234K','$456K','$789K','$1.2M','$2.5M','$5.6M']
     const nets = ['—','B:$500','B:$1.2K','B:$3.4K','B:$8.9K','B:$15K','B:$23K','B:$45K','B:$78K','B:$134K','B:$234K','S:$5K','S:$12K']
 
-    const generated: Submission[] = extraSymbols.map((sym, i) => ({
-      id: `gen-${i + 52}`,
-      submissionType: 'verification',
-      status: statuses[i % statuses.length],
-      isExpress: i % 7 === 0,
-      submitterWallet: `${sym.slice(0,4).toLowerCase()}${i}xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU`,
-      submitterX: `@${sym}`,
-      tokenX: `@${sym}`,
-      createdAt: new Date(Date.now() - (i * 3600000 * 6)).toISOString(),
+    const generated: Submission[] = extraSymbols.map((sym, i) => {
+      const isPump = i % 3 !== 0
+      const suffix = isPump ? 'pump' : sym.slice(0, 4)
+      return {
+        id: `gen-${i + 52}`,
+        submissionType: 'verification',
+        status: statuses[i % statuses.length],
+        isExpress: i % 7 === 0,
+        submitterWallet: `${sym.slice(0, 4).toLowerCase()}${i}xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU`,
+        submitterX: `@${sym.toLowerCase()}`,
+        tokenX: `@${sym.toLowerCase()}`,
+        submitterAvatar: getProfileImage(sym, i),
+        createdAt: new Date(Date.now() - (i * 3600000 * 6)).toISOString(),
+        token: {
+          name: sym.charAt(0) + sym.slice(1).toLowerCase() + ' Token',
+          symbol: sym,
+          mintAddress: `${sym}${i}KxLm${(i * 7) % 9}pQrS${(i * 3) % 9}tUv${(i * 5) % 9}wYz${(i * 2) % 9}dC6eGhAaBbOoIiCcDd${i % 10}${suffix}`,
+          imageUrl: getCoinImage(sym, i),
+          marketCap: mcs[i % mcs.length],
+          netVolume: nets[i % nets.length],
+          timeAgo: timeAgos[i % timeAgos.length],
+          verified: isPump,
+        },
+      }
+    })
+
+    const all = [...demoSubmissions, ...generated].map((s, i) => ({
+      ...s,
+      submitterAvatar: s.submitterAvatar || getProfileImage(s.submitterX || s.id, i),
       token: {
-        name: sym.charAt(0) + sym.slice(1).toLowerCase() + ' Token',
-        symbol: sym,
-        mintAddress: `${sym}${i}KxLm${(i*7)%9}pQrS${(i*3)%9}tUv${(i*5)%9}wYz${(i*2)%9}dC6eGhAaBbOoIiCcDd${i%10}${sym.slice(0,3).toLowerCase()}`,
-        imageUrl: getAvatarUrl(sym, i),
-        marketCap: mcs[i % mcs.length],
-        netVolume: nets[i % nets.length],
-        timeAgo: timeAgos[i % timeAgos.length],
+        ...s.token,
+        imageUrl: s.token.imageUrl || getCoinImage(s.token.symbol, i),
       },
     }))
-
-    const all = [...demoSubmissions, ...generated]
     setSubmissions(all)
     if (all.length > 0) {
       setSelectedSubmission(all[0])
@@ -93,30 +114,87 @@ export const Submissions = () => {
     setLoading(false)
   }
 
-  const filteredSubmissions = useMemo(() => {
-    let result = submissions
+  useEffect(() => {
+    const q = searchQuery.trim()
+    if (q.length < 2) {
+      setRemoteHits([])
+      return
+    }
+    let cancelled = false
+    const timer = setTimeout(async () => {
+      const live = await searchLiveTokens(q)
+      if (cancelled) return
+      const localMints = new Set(submissions.map((s) => s.token.mintAddress.toLowerCase()))
+      const extras: Submission[] = live
+        .filter((t) => t.mintAddress && !localMints.has(t.mintAddress.toLowerCase()))
+        .slice(0, 16)
+        .map((t) => ({
+          id: `live-${t.mintAddress}`,
+          submissionType: 'verification',
+          status: 'pending',
+          isExpress: false,
+          submitterWallet: '',
+          submitterX: undefined,
+          tokenX: undefined,
+          createdAt: new Date().toISOString(),
+          token: {
+            name: t.name,
+            symbol: t.symbol,
+            mintAddress: t.mintAddress,
+            imageUrl: t.logo,
+            marketCap: t.marketCap || '—',
+            netVolume: '—',
+            timeAgo: '—',
+            verified: t.verified,
+          },
+          metrics: { vol24h: t.volume24h },
+        }))
+      setRemoteHits(extras)
+    }, 280)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [searchQuery, submissions])
 
-    if (filter === 'pending') {
-      result = result.filter(s => s.status === 'pending')
-    } else if (filter === 'approved') {
-      result = result.filter(s => s.status === 'approved')
-    } else if (filter === 'rejected') {
-      result = result.filter(s => s.status === 'rejected')
+  const filteredSubmissions = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    const isMintQuery = q.length >= 20
+
+    let result = submissions
+    if (!isMintQuery) {
+      if (filter === 'pending') result = result.filter(s => s.status === 'pending')
+      else if (filter === 'approved') result = result.filter(s => s.status === 'approved')
+      else if (filter === 'rejected') result = result.filter(s => s.status === 'rejected')
     }
 
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase()
+    if (q) {
       result = result.filter(s =>
-        s.token.symbol.toLowerCase().includes(query) ||
-        s.token.name.toLowerCase().includes(query) ||
-        s.token.mintAddress.toLowerCase().includes(query)
+        s.token.symbol.toLowerCase().includes(q) ||
+        s.token.name.toLowerCase().includes(q) ||
+        s.token.mintAddress.toLowerCase().includes(q) ||
+        (s.token.symbol === 'TBBB' && q.includes('ldfbrx'))
       )
+      const localMints = new Set(result.map((s) => s.token.mintAddress.toLowerCase()))
+      const extras = remoteHits.filter((s) => !localMints.has(s.token.mintAddress.toLowerCase()))
+      result = [...result, ...extras]
     }
 
     return result
-  }, [submissions, filter, searchQuery])
+  }, [submissions, filter, searchQuery, remoteHits])
 
   const isSearching = searchQuery.trim().length > 0
+
+  useEffect(() => {
+    if (searchQuery.trim().length < 20 || filteredSubmissions.length === 0) return
+    setSelectedSubmission(filteredSubmissions[0])
+    setShowMobileDetail(true)
+  }, [searchQuery, filteredSubmissions])
+
+  const pendingCount = useMemo(
+    () => submissions.filter(s => s.status === 'pending').length,
+    [submissions]
+  )
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(filteredSubmissions.length / 10)), [filteredSubmissions])
 
@@ -184,7 +262,7 @@ export const Submissions = () => {
 
   const filters = [
     { key: 'all', label: 'All' },
-    { key: 'pending', label: 'Pending' },
+    { key: 'pending', label: `Pending (${pendingCount})` },
     { key: 'approved', label: 'Approved' },
     { key: 'rejected', label: 'Rejected' },
   ]
@@ -238,36 +316,33 @@ export const Submissions = () => {
 
               {/* Search Results Header indicator if query exists */}
               {searchQuery.trim() && (
-                <div className="mb-2 text-xs font-semibold text-gray-400 px-1">
-                  Search results
+                <div className="mb-2 text-[11px] text-gray-500 px-1">
+                  Found {filteredSubmissions.length} result{filteredSubmissions.length === 1 ? '' : 's'}, paste CA to get more accurate results
                 </div>
               )}
 
               {/* Filters */}
-              {!searchQuery.trim() && (
-                <div className="flex items-center gap-1 mb-3.5 overflow-x-auto no-scrollbar pb-1">
-                  {filters.map((f) => {
-                    const isActive = filter === f.key
-                    return (
-                      <button
-                        key={f.key}
-                        onClick={() => setFilter(f.key)}
-                        className={`px-3 py-1.5 rounded-xl text-xs transition-all flex-shrink-0 ${
-                          isActive
-                            ? 'bg-[#182C1C] text-[#c7f284] font-semibold border border-[#2B472E]/50 shadow-sm'
-                            : 'text-[#8292A3] hover:text-white font-medium bg-transparent'
-                        }`}
-                      >
-                        {f.label}
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
+              <div className="flex items-center gap-1 mb-3.5 overflow-x-auto no-scrollbar pb-1">
+                {filters.map((f) => {
+                  const isActive = filter === f.key
+                  return (
+                    <button
+                      key={f.key}
+                      onClick={() => setFilter(f.key)}
+                      className={`px-3 py-1.5 rounded-xl text-xs transition-all flex-shrink-0 ${
+                        isActive
+                          ? 'bg-[#182C1C] text-[#c7f284] font-semibold border border-[#2B472E]/50 shadow-sm'
+                          : 'text-[#8292A3] hover:text-white font-medium bg-transparent'
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  )
+                })}
+              </div>
 
               {/* Sort Dropdown */}
-              {!searchQuery.trim() && (
-                <div className="flex items-center gap-2 mb-3">
+              <div className="flex items-center gap-2 mb-3">
                   <span className="text-[10px] text-gray-500 font-bold tracking-widest uppercase">SORT</span>
                   <div className="relative flex-1">
                     <button
@@ -294,7 +369,6 @@ export const Submissions = () => {
                     )}
                   </div>
                 </div>
-              )}
 
               {/* Token List */}
               <div className="space-y-1.5 max-h-[calc(100vh-270px)] overflow-y-auto pr-0.5">
@@ -326,20 +400,17 @@ export const Submissions = () => {
                       <div className="flex items-center gap-2.5">
                         {/* Token Icon */}
                         <div className="relative w-9 h-9 rounded-full overflow-hidden flex-shrink-0 bg-[#141D26] border border-[#1E2B38]/60 shadow-inner">
-                          <img
-                            src={submission.token.imageUrl || getAvatarUrl(submission.token.symbol, submission.id.length)}
+                          <TokenImage
+                            src={submission.token.imageUrl}
+                            symbol={submission.token.symbol}
+                            index={submission.id.length}
                             alt={submission.token.name}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              (e.currentTarget as HTMLImageElement).src = `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(submission.token.symbol)}`
-                            }}
                           />
-                          {/* Green DEX/pump pill badge overlay on bottom right of avatar */}
-                          {(submission.token.verified || submission.isExpress || submission.status === 'pending') && (
+                          {(submission.token.verified || (submission.token.mintAddress || '').toLowerCase().includes('pump')) && (
                             <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-[#06090E] rounded-full flex items-center justify-center p-0.5">
                               <div className="w-full h-full bg-[#182C1C] border border-[#c7f284] rounded-full flex items-center justify-center shadow-sm">
-                                <svg viewBox="0 0 24 24" fill="currentColor" className="w-2 h-2 text-[#c7f284] transform -rotate-45">
-                                  <path d="M4.5 10.5C3.5 11.5 3.5 13 4.5 14L10 19.5C11 20.5 12.5 20.5 13.5 19.5L19.5 13.5C20.5 12.5 20.5 11 19.5 10L14 4.5C13 3.5 11.5 3.5 10.5 4.5L4.5 10.5Z" />
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-2 h-2 text-[#c7f284]">
+                                  <path d="M5 12l4 4L19 6" strokeLinecap="round" strokeLinejoin="round" />
                                 </svg>
                               </div>
                             </div>
@@ -379,14 +450,15 @@ export const Submissions = () => {
                               </span>
                               <span className="text-gray-600">·</span>
                               <span>
-                                NET <span className="text-[#c7f284] font-semibold">{submission.token.netVolume || '—'}</span>
+                                NET <NetVolume value={submission.token.netVolume} />
                               </span>
                             </div>
                           </div>
                           
-                          {/* Right Column: Status Pill */}
-                          <div className="flex-shrink-0 self-center">
+                          {/* Right Column: Status + Express */}
+                          <div className="flex-shrink-0 self-start flex flex-col items-end gap-1">
                             {getStatusBadge(submission.status)}
+                            {submission.isExpress && getExpressBadge()}
                           </div>
                         </div>
                       </div>
@@ -427,27 +499,16 @@ export const Submissions = () => {
           </div>
 
           {/* Right Details Panel */}
-          <div className={`lg:col-span-8 space-y-4 ${showMobileDetail ? 'block' : 'hidden lg:block'}`}>
+          <div className="lg:col-span-8 space-y-4 hidden lg:block">
             {selectedSubmission ? (
               <>
-                <button 
-                  onClick={() => setShowMobileDetail(false)}
-                  className="lg:hidden flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors pb-2"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                  Back to list
-                </button>
-                {/* Token Header Card */}
                 <div className="bg-[#0B1118] border border-[#16212D] rounded-2xl p-5 shadow-xl">
                   <div className="flex items-start gap-4 mb-4">
                     <div className="w-16 h-16 rounded-full overflow-hidden bg-[#16212D] relative border border-[#1F2E3E] flex-shrink-0">
-                      <img
-                        src={selectedSubmission.token.imageUrl || getAvatarUrl(selectedSubmission.token.symbol)}
+                      <TokenImage
+                        src={selectedSubmission.token.imageUrl}
+                        symbol={selectedSubmission.token.symbol}
                         alt={selectedSubmission.token.name}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          (e.currentTarget as HTMLImageElement).src = `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(selectedSubmission.token.symbol)}`
-                        }}
                       />
                       {selectedSubmission.token.verified && (
                         <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 bg-[#c7f284] border-2 border-[#0B1118] rounded-full flex items-center justify-center text-black">
@@ -510,8 +571,8 @@ export const Submissions = () => {
                         Smart likes move pending submissions up the review queue. We periodically scan and add new smart likes accounts to our list from interactions on this site.
                       </p>
                     </div>
-                    <button className="text-sm font-semibold text-[#c7f284] hover:underline flex items-center gap-1 flex-shrink-0">
-                      Dashboard <ChevronRight className="w-4 h-4" />
+                    <button className="text-[12px] font-semibold text-[#06090E] bg-[#c7f284] hover:bg-[#b5e66f] px-3 py-1.5 rounded-lg flex items-center gap-1 flex-shrink-0">
+                      Dashboard <ChevronRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>
@@ -524,15 +585,19 @@ export const Submissions = () => {
                       <span className="text-gray-400">Submitter X</span>
                       <span className="text-white font-medium flex items-center gap-1.5">
                         {selectedSubmission.submitterX || '—'}
-                        <svg className="w-3.5 h-3.5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.835L1.254 2.25H8.08l4.253 5.622L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
-                        </svg>
+                        {selectedSubmission.submitterX && (
+                          <svg className="w-3.5 h-3.5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.835L1.254 2.25H8.08l4.253 5.622L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
+                          </svg>
+                        )}
                       </span>
                     </div>
                     <div className="flex items-center justify-between py-3 border-b border-[#16212D]/50">
                       <span className="text-gray-400">Submitter wallet</span>
                       <span className="text-white font-mono text-xs">
-                        {selectedSubmission.submitterWallet ? `${selectedSubmission.submitterWallet.slice(0, 4)}...${selectedSubmission.submitterWallet.slice(-4)}` : '—'}
+                        {selectedSubmission.submitterWallet
+                          ? `${selectedSubmission.submitterWallet.slice(0, 4)}...${selectedSubmission.submitterWallet.slice(-4)}`
+                          : '—'}
                       </span>
                     </div>
                     <div className="flex items-center justify-between py-3 border-b border-[#16212D]/50">
@@ -546,7 +611,7 @@ export const Submissions = () => {
                     </div>
                     <div className="flex items-center justify-between py-3 border-b border-[#16212D]/50">
                       <span className="text-gray-400">Submitted</span>
-                      <span className="text-white">{new Date(selectedSubmission.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}, {new Date(selectedSubmission.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
+                      <span className="text-white">{new Date(selectedSubmission.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })}, {new Date(selectedSubmission.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' })}</span>
                     </div>
                     <div className="flex items-center justify-between py-3">
                       <span className="text-gray-400">Last reviewed</span>
@@ -573,7 +638,7 @@ export const Submissions = () => {
                     <div>
                       <p className="text-[11px] text-gray-500 mb-1 font-semibold uppercase tracking-wide">24H VOL / NET</p>
                       <p className="text-white font-bold">
-                        {selectedSubmission.metrics?.vol24h || '—'} / <span className="text-[#c7f284]">{selectedSubmission.token.netVolume || '—'}</span>
+                        {selectedSubmission.metrics?.vol24h || '—'} / <NetVolume value={selectedSubmission.token.netVolume} />
                       </p>
                     </div>
                     <div>
@@ -648,13 +713,10 @@ export const Submissions = () => {
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-3">
                   <div className="w-14 h-14 rounded-full overflow-hidden bg-[#16212D] relative border border-[#1F2E3E]">
-                    <img
-                      src={selectedSubmission.token.imageUrl || getAvatarUrl(selectedSubmission.token.symbol)}
+                    <TokenImage
+                      src={selectedSubmission.token.imageUrl}
+                      symbol={selectedSubmission.token.symbol}
                       alt={selectedSubmission.token.name}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).src = `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(selectedSubmission.token.symbol)}`
-                      }}
                     />
                     {selectedSubmission.token.verified && (
                       <div className="absolute bottom-0 right-0 w-4 h-4 bg-[#c7f284] border-2 border-[#0B1118] rounded-full flex items-center justify-center text-black text-[8px] font-bold">
@@ -692,7 +754,10 @@ export const Submissions = () => {
                 </button>
                 <span className="text-gray-600">·</span>
                 <span className="flex items-center gap-1">
-                  <span>🕐</span>
+                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
+                  </svg>
                   {selectedSubmission.token.timeAgo}
                 </span>
               </div>
@@ -701,14 +766,14 @@ export const Submissions = () => {
             {/* Fast Track Banner */}
             <div className="bg-[#0B1118] border border-[#16212D] rounded-2xl p-4 mb-4 flex items-start gap-3">
               <Heart className="w-5 h-5 text-[#c7f284] mt-0.5 flex-shrink-0" />
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-white">Help fast-track this submission</p>
                 <p className="text-xs text-gray-400 mt-1 leading-relaxed">
                   Smart likes move pending submissions up the review queue. We periodically scan and add new smart likes accounts to our list from interactions on this site.
                 </p>
               </div>
-              <button className="text-sm font-semibold text-[#c7f284] hover:underline flex items-center gap-1 flex-shrink-0">
-                Dashboard <ChevronRight className="w-4 h-4" />
+              <button className="text-[12px] font-semibold text-[#06090E] bg-[#c7f284] hover:bg-[#b5e66f] px-3 py-1.5 rounded-lg flex items-center gap-1 flex-shrink-0 self-center">
+                Dashboard <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>
 
@@ -718,11 +783,13 @@ export const Submissions = () => {
               <div className="space-y-3 text-sm">
                 <div className="flex items-center justify-between py-2 border-b border-[#16212D]/50">
                   <span className="text-gray-400">Submitter X</span>
-                  <span className="text-white font-medium flex items-center gap-1">
+                  <span className="text-white font-medium flex items-center gap-1.5">
                     {selectedSubmission.submitterX || '—'}
-                    <svg className="w-3.5 h-3.5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.835L1.254 2.25H8.08l4.253 5.622L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
-                    </svg>
+                    {selectedSubmission.submitterX && (
+                      <svg className="w-3.5 h-3.5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.835L1.254 2.25H8.08l4.253 5.622L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
+                      </svg>
+                    )}
                   </span>
                 </div>
                 <div className="flex items-center justify-between py-2 border-b border-[#16212D]/50">
@@ -742,7 +809,7 @@ export const Submissions = () => {
                 </div>
                 <div className="flex items-center justify-between py-2 border-b border-[#16212D]/50">
                   <span className="text-gray-400">Submitted</span>
-                  <span className="text-white">{new Date(selectedSubmission.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}, {new Date(selectedSubmission.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
+                  <span className="text-white">{new Date(selectedSubmission.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })}, {new Date(selectedSubmission.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' })}</span>
                 </div>
                 <div className="flex items-center justify-between py-2">
                   <span className="text-gray-400">Last reviewed</span>
@@ -761,28 +828,28 @@ export const Submissions = () => {
               <h3 className="text-xs font-bold text-gray-500 tracking-wider mb-4 uppercase">METRICS</h3>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <p className="text-[11px] text-gray-500 mb-1">MC / FDV</p>
-                  <p className="text-white font-semibold">{selectedSubmission.token.marketCap || '—'}</p>
+                  <p className="text-[11px] text-gray-500 mb-1 font-semibold uppercase tracking-wide">MC / FDV</p>
+                  <p className="text-white font-bold">
+                    {selectedSubmission.token.marketCap || '—'} / {selectedSubmission.token.marketCap || '—'}
+                  </p>
                 </div>
                 <div>
-                  <p className="text-[11px] text-gray-500 mb-1">NET VOLUME</p>
-                  <p className="text-[#c7f284] font-semibold">{selectedSubmission.token.netVolume || '—'}</p>
+                  <p className="text-[11px] text-gray-500 mb-1 font-semibold uppercase tracking-wide">24H VOL / NET</p>
+                  <p className="text-white font-bold">
+                    {selectedSubmission.metrics?.vol24h || '—'} / <NetVolume value={selectedSubmission.token.netVolume} />
+                  </p>
                 </div>
                 <div>
-                  <p className="text-[11px] text-gray-500 mb-1">24H VOL</p>
-                  <p className="text-white font-semibold">{selectedSubmission.metrics?.vol24h || '—'}</p>
+                  <p className="text-[11px] text-gray-500 mb-1 font-semibold uppercase tracking-wide">LIQUIDITY</p>
+                  <p className="text-white font-bold">{selectedSubmission.metrics?.liquidity || '—'}</p>
                 </div>
                 <div>
-                  <p className="text-[11px] text-gray-500 mb-1">LIQUIDITY</p>
-                  <p className="text-white font-semibold">{selectedSubmission.metrics?.liquidity || '—'}</p>
+                  <p className="text-[11px] text-gray-500 mb-1 font-semibold uppercase tracking-wide">ORGANIC SCORE</p>
+                  <p className="text-white font-bold">{selectedSubmission.metrics?.organicScore || '—'}</p>
                 </div>
                 <div>
-                  <p className="text-[11px] text-gray-500 mb-1">ORGANIC SCORE</p>
-                  <p className="text-white font-semibold">{selectedSubmission.metrics?.organicScore || '—'}</p>
-                </div>
-                <div>
-                  <p className="text-[11px] text-gray-500 mb-1">LIKES / SMART LIKES</p>
-                  <p className="text-white font-semibold">{selectedSubmission.metrics?.likesSmartLikes || '—'}</p>
+                  <p className="text-[11px] text-gray-500 mb-1 font-semibold uppercase tracking-wide">LIKES / SMART LIKES</p>
+                  <p className="text-white font-bold">{selectedSubmission.metrics?.likesSmartLikes || '—'}</p>
                 </div>
               </div>
 

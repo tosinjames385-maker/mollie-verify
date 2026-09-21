@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Users, ArrowUpDown, Heart, Newspaper } from 'lucide-react'
 import { EmptyState } from '../../components/admin/EmptyState'
-import { ErrorState } from '../../components/admin/ErrorState'
+import { DEMO_ADMIN_ACTIVITY, adminFetchJson } from '../../lib/adminDemo'
 
 interface ActivityEvent {
   id: string
@@ -32,24 +32,15 @@ function timeAgo(date: string): string {
 export const AdminActivity: React.FC = () => {
   const [events, setEvents] = useState<ActivityEvent[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
-    setError('')
-    try {
-      const res = await fetch('/api/admin/activity?limit=50', { credentials: 'include' })
-      if (!res.ok) throw new Error()
-      setEvents(await res.json())
-    } catch {
-      setError('Failed to load activity')
-    }
+    const data = await adminFetchJson<ActivityEvent[]>('/api/admin/activity?limit=50', DEMO_ADMIN_ACTIVITY)
+    setEvents(Array.isArray(data) ? data : DEMO_ADMIN_ACTIVITY)
     setLoading(false)
   }, [])
 
   useEffect(() => { load() }, [load])
-
-  if (error) return <ErrorState message={error} onRetry={load} />
 
   return (
     <div className="space-y-4">

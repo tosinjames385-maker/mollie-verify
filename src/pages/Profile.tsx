@@ -77,7 +77,14 @@ export const Profile = () => {
             {/* Avatar Circle */}
             <div className="relative w-24 h-24 rounded-full bg-[#0099FF] flex items-center justify-center text-white text-4xl font-extrabold shadow-lg overflow-hidden border-2 border-[#1E2D40]">
               {user.avatar ? (
-                <img src={user.avatar} alt={user.displayName} className="w-full h-full object-cover" />
+                <img
+                  src={user.avatar}
+                  alt={user.displayName}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).src = `https://api.dicebear.com/7.x/adventurer/png?seed=${encodeURIComponent(user.username)}&size=128`
+                  }}
+                />
               ) : (
                 user.displayName.charAt(0).toLowerCase()
               )}

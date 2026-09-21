@@ -26,8 +26,8 @@ export const AdminSettings: React.FC = () => {
                 <p className="text-xs font-semibold text-gray-300">X OAuth</p>
                 <p className="text-[10px] text-gray-500 mt-0.5">Twitter/X authentication integration</p>
               </div>
-              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${process.env.X_CLIENT_ID ? 'text-[#c7f284] bg-[#c7f284]/10' : 'text-yellow-400 bg-yellow-400/10'}`}>
-                {process.env.X_CLIENT_ID ? 'Configured' : 'Not Configured'}
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full text-yellow-400 bg-yellow-400/10">
+                Optional
               </span>
             </div>
           </div>
@@ -35,8 +35,8 @@ export const AdminSettings: React.FC = () => {
           <div className="p-3 bg-[#060A0E] rounded-lg border border-[#16212D]">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-semibold text-gray-300">Database</p>
-                <p className="text-[10px] text-gray-500 mt-0.5">PostgreSQL via Prisma</p>
+                <p className="text-xs font-semibold text-gray-300">Jupiter Token Search</p>
+                <p className="text-[10px] text-gray-500 mt-0.5">Live verified token catalog and mint lookup</p>
               </div>
               <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full text-[#c7f284] bg-[#c7f284]/10">Connected</span>
             </div>

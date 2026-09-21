@@ -1,13 +1,19 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Users, AtSign, Wallet, ArrowUpDown, Shield, Heart,
+  Users, AtSign, ArrowUpDown, Shield, Heart,
   Clock, CheckCircle, XCircle, Newspaper
 } from 'lucide-react'
 import { StatCard } from '../../components/admin/StatCard'
 import { StatusBadge } from '../../components/admin/StatusBadge'
 import { EmptyState } from '../../components/admin/EmptyState'
-import { ErrorState } from '../../components/admin/ErrorState'
+import {
+  DEMO_ADMIN_STATS,
+  DEMO_ADMIN_ACTIVITY,
+  DEMO_ADMIN_HEALTH,
+  DEMO_ADMIN_CHARTS,
+  adminFetchJson,
+} from '../../lib/adminDemo'
 
 interface DashboardStats {
   users: { total: number; trend: string; last30d: number }
@@ -64,48 +70,28 @@ export const AdminDashboard: React.FC = () => {
   const [chartData, setChartData] = useState<ChartData | null>(null)
   const [health, setHealth] = useState<HealthService[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
   const [chartDays, setChartDays] = useState(30)
 
   const load = useCallback(async () => {
     setLoading(true)
-    setError('')
-    try {
-      const [sRes, aRes, hRes] = await Promise.all([
-        fetch('/api/admin/stats', { credentials: 'include' }),
-        fetch('/api/admin/activity?limit=15', { credentials: 'include' }),
-        fetch('/api/admin/health', { credentials: 'include' }),
-      ])
-
-      if (sRes.status === 401) { setError('Not authenticated. Please sign in with X first.'); setLoading(false); return }
-      if (sRes.status === 403) { setError('Admin access required. Your account does not have admin privileges.'); setLoading(false); return }
-
-      const [s, a, h] = await Promise.all([
-        sRes.json(),
-        aRes.json(),
-        hRes.json(),
-      ])
-
-      setStats(s)
-      setActivity(a)
-      setHealth(h.services || [])
-    } catch {
-      setError('Failed to load dashboard data. Is the server running on port 3001?')
-    }
+    const [s, a, h] = await Promise.all([
+      adminFetchJson('/api/admin/stats', DEMO_ADMIN_STATS),
+      adminFetchJson('/api/admin/activity?limit=15', DEMO_ADMIN_ACTIVITY),
+      adminFetchJson('/api/admin/health', DEMO_ADMIN_HEALTH),
+    ])
+    setStats(s)
+    setActivity(Array.isArray(a) ? a : DEMO_ADMIN_ACTIVITY)
+    setHealth((h as any).services || DEMO_ADMIN_HEALTH.services)
     setLoading(false)
   }, [])
 
   const loadChart = useCallback(async (days: number) => {
-    try {
-      const d = await fetch(`/api/admin/charts?days=${days}`, { credentials: 'include' }).then(r => r.ok ? r.json() : Promise.reject())
-      setChartData(d)
-    } catch {}
+    const d = await adminFetchJson(`/api/admin/charts?days=${days}`, DEMO_ADMIN_CHARTS(days))
+    setChartData(d)
   }, [])
 
   useEffect(() => { load() }, [load])
   useEffect(() => { loadChart(chartDays) }, [chartDays, loadChart])
-
-  if (error) return <div className="p-4 lg:p-6"><ErrorState message={error} onRetry={load} /></div>
 
   return (
     <div className="space-y-4 lg:space-y-6">
@@ -119,15 +105,15 @@ export const AdminDashboard: React.FC = () => {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard title="Total Users" value={stats?.users.total ?? '—'} icon={<Users className="w-4 h-4" />} trend={stats?.users.trend} description={`${stats?.users.last30d ?? 0} new in 30d`} loading={loading} onClick={() => navigate('/admin/users')} />
         <StatCard title="X Accounts" value={stats?.xAccounts.total ?? '—'} icon={<AtSign className="w-4 h-4" />} trend={stats?.xAccounts.trend} description="Connected X accounts" loading={loading} onClick={() => navigate('/admin/x-accounts')} />
-        <StatCard title="Wallets" value={stats?.wallets.total ?? '—'} icon={<Wallet className="w-4 h-4" />} trend={stats?.wallets.trend} description="Connected wallets" loading={loading} onClick={() => navigate('/admin/wallets')} />
-        <StatCard title="Submissions" value={stats?.submissions.total ?? '—'} icon={<ArrowUpDown className="w-4 h-4" />} trend={`${stats?.submissions.pending ?? 0} pending`} description={`${stats?.submissions.approved ?? 0} approved`} loading={loading} onClick={() => navigate('/admin/transactions')} />
+        <StatCard title="Pending Review" value={stats?.submissions.pending ?? '—'} icon={<Clock className="w-4 h-4" />} description="Awaiting review" loading={loading} onClick={() => navigate('/admin/submissions')} />
+        <StatCard title="Submissions" value={stats?.submissions.total ?? '—'} icon={<ArrowUpDown className="w-4 h-4" />} trend={`${stats?.submissions.pending ?? 0} pending`} description={`${stats?.submissions.approved ?? 0} approved`} loading={loading} onClick={() => navigate('/admin/submissions')} />
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard title="Verified Tokens" value={stats?.tokens.verified ?? '—'} icon={<Shield className="w-4 h-4" />} description={`of ${stats?.tokens.total ?? 0} total`} loading={loading} />
         <StatCard title="Total Likes" value={stats?.likes ?? '—'} icon={<Heart className="w-4 h-4" />} description="Token likes" loading={loading} />
-        <StatCard title="Pending Review" value={stats?.submissions.pending ?? '—'} icon={<Clock className="w-4 h-4" />} description="Awaiting review" loading={loading} />
-        <StatCard title="News Pending" value={stats?.news.pending ?? '—'} icon={<Newspaper className="w-4 h-4" />} description="Awaiting moderation" loading={loading} />
+        <StatCard title="Approved" value={stats?.submissions.approved ?? '—'} icon={<CheckCircle className="w-4 h-4" />} description="Verified submissions" loading={loading} />
+        <StatCard title="Rejected" value={stats?.submissions.rejected ?? '—'} icon={<XCircle className="w-4 h-4" />} description="Rejected submissions" loading={loading} />
       </div>
 
       {/* Chart + Activity */}

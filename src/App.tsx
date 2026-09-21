@@ -14,11 +14,9 @@ import { Leaderboard } from './pages/Leaderboard'
 import { Profile } from './pages/Profile'
 import { AdminLayout } from './components/admin/AdminLayout'
 import { AdminDashboard } from './pages/admin/Dashboard'
-import { AdminBot } from './pages/admin/Bot'
 import { AdminUsers } from './pages/admin/Users'
 import { AdminXAccounts } from './pages/admin/XAccounts'
-import { AdminWallets } from './pages/admin/Wallets'
-import { AdminTransactions } from './pages/admin/Transactions'
+import { AdminSubmissions } from './pages/admin/Submissions'
 import { AdminActivity } from './pages/admin/Activity'
 import { AdminSettings } from './pages/admin/Settings'
 import { AuthCallback } from './pages/AuthCallback'
@@ -34,11 +32,9 @@ function App() {
             {/* Admin routes */}
             <Route path="/admin" element={<AdminLayout />}>
               <Route index element={<AdminDashboard />} />
-              <Route path="bot" element={<AdminBot />} />
               <Route path="users" element={<AdminUsers />} />
               <Route path="x-accounts" element={<AdminXAccounts />} />
-              <Route path="wallets" element={<AdminWallets />} />
-              <Route path="transactions" element={<AdminTransactions />} />
+              <Route path="submissions" element={<AdminSubmissions />} />
               <Route path="activity" element={<AdminActivity />} />
               <Route path="settings" element={<AdminSettings />} />
             </Route>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import {
   X,
@@ -9,11 +9,7 @@ import {
   ExternalLink,
   LogOut,
   RefreshCw,
-  QrCode,
-  Smartphone,
   Check,
-  Zap,
-  Globe,
   ShieldCheck,
   AlertTriangle
 } from 'lucide-react'
@@ -42,6 +38,12 @@ const MASTER_WALLETS: WalletItemConfig[] = [
     name: 'Social Login',
     subtitle: 'prev. ⚡ Quick Account',
     icon: 'https://www.google.com/favicon.ico',
+  },
+  {
+    name: 'Phantom',
+    adapterName: 'Phantom',
+    icon: 'https://raw.githubusercontent.com/solana-labs/wallet-adapter/master/packages/wallets/phantom/images/phantom-icon.svg',
+    url: 'https://phantom.app'
   },
   {
     name: 'Solflare',
@@ -151,13 +153,6 @@ export const ConnectWalletSidebar: React.FC<ConnectWalletSidebarProps> = ({ isOp
   const [qrSessionId, setQrSessionId] = useState<string>('')
   const [qrTimeLeft, setQrTimeLeft] = useState<number>(120)
   const [qrExpired, setQrExpired] = useState<boolean>(false)
-
-  // Detect real installed wallet adapters from browser extension
-  const installedAdapters = useMemo(() => {
-    return wallets.filter(
-      (w) => w.readyState === WalletReadyState.Installed || w.readyState === WalletReadyState.Loadable
-    )
-  }, [wallets])
 
   // Mount animation handling
   useEffect(() => {
@@ -487,11 +482,9 @@ export const ConnectWalletSidebar: React.FC<ConnectWalletSidebarProps> = ({ isOp
             <>
               {/* ─── RECOMMENDED SECTION ───────────────────────────── */}
               <div className="space-y-3">
-                {/* Card 1: Jupiter Extension (Recommended) */}
                 <button
-                  onClick={() => handleConnectWalletItem({ name: 'Phantom', adapterName: 'Phantom', icon: 'https://station.jup.ag/favicon.ico' })}
-                  disabled={connecting}
-                  className="w-full text-left relative bg-[#0C1520] hover:bg-[#111C2B] border border-[#1E3024] hover:border-[#27442B] rounded-2xl p-4 transition-all active:scale-[0.99] group cursor-pointer shadow-lg disabled:opacity-60"
+                  onClick={openQrView}
+                  className="w-full text-left relative bg-[#0C1520] hover:bg-[#111C2B] border border-[#1E3024] hover:border-[#27442B] rounded-2xl p-4 transition-all active:scale-[0.99] group cursor-pointer shadow-lg"
                 >
                   <span className="absolute top-3 right-3 bg-[#182B1B] text-[#9EE838] border border-[#27442B] text-[10px] font-bold px-2.5 py-0.5 rounded-md tracking-tight">
                     Recommended
@@ -504,27 +497,9 @@ export const ConnectWalletSidebar: React.FC<ConnectWalletSidebarProps> = ({ isOp
                     </div>
                     <div>
                       <h3 className="text-sm font-bold text-white group-hover:text-[#B7F34A] transition-colors leading-tight">
-                        Jupiter Extension
+                        Jupiter Mobile App
                       </h3>
                       <p className="text-xs text-gray-400 font-medium mt-0.5">Instant trades with auto-approvals!</p>
-                    </div>
-                  </div>
-                </button>
-
-                {/* Card 2: Jupiter Mobile */}
-                <button
-                  onClick={openQrView}
-                  className="w-full text-left bg-[#0C1520] hover:bg-[#111C2B] border border-[#162232] hover:border-[#22354E] rounded-2xl p-4 transition-all active:scale-[0.99] group cursor-pointer shadow-md"
-                >
-                  <div className="flex items-center gap-3.5">
-                    <div className="w-10 h-10 rounded-xl bg-[#09111A] border border-[#1A283A] flex items-center justify-center flex-shrink-0 text-[#B7F34A]">
-                      <QrCode className="w-5 h-5 text-[#00D2B8]" />
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-bold text-white group-hover:text-white transition-colors leading-tight">
-                        Jupiter Mobile
-                      </h3>
-                      <p className="text-xs text-gray-400 font-medium mt-0.5">Scan QR code to connect</p>
                     </div>
                   </div>
                 </button>
@@ -534,7 +509,6 @@ export const ConnectWalletSidebar: React.FC<ConnectWalletSidebarProps> = ({ isOp
               <div className="space-y-2.5">
                 <h3 className="text-xs font-semibold text-gray-300">Installed</h3>
                 <div className="flex items-center gap-3 overflow-x-auto pb-1 no-scrollbar">
-                  {/* Metamask / Fox */}
                   <button
                     onClick={() => handleConnectWalletItem({ name: 'Ethereum Wallet', icon: 'https://raw.githubusercontent.com/MetaMask/brand-resources/master/SVG/metamask-fox.svg' })}
                     disabled={connecting}
@@ -544,7 +518,6 @@ export const ConnectWalletSidebar: React.FC<ConnectWalletSidebarProps> = ({ isOp
                     <img src="https://raw.githubusercontent.com/MetaMask/brand-resources/master/SVG/metamask-fox.svg" alt="MetaMask" className="w-8 h-8 object-contain" />
                   </button>
 
-                  {/* Brave Lion / Solflare */}
                   <button
                     onClick={() => handleConnectWalletItem({ name: 'Solflare', adapterName: 'Solflare', icon: 'https://raw.githubusercontent.com/solana-labs/wallet-adapter/master/packages/wallets/solflare/images/solflare-icon.svg' })}
                     disabled={connecting}
@@ -554,17 +527,6 @@ export const ConnectWalletSidebar: React.FC<ConnectWalletSidebarProps> = ({ isOp
                     <img src="https://raw.githubusercontent.com/solana-labs/wallet-adapter/master/packages/wallets/solflare/images/solflare-icon.svg" alt="Solflare" className="w-7 h-7 object-contain" />
                   </button>
 
-                  {/* Backpack */}
-                  <button
-                    onClick={() => handleConnectWalletItem({ name: 'Backpack', adapterName: 'Backpack', icon: 'https://raw.githubusercontent.com/solana-labs/wallet-adapter/master/packages/wallets/backpack/images/backpack-icon.svg' })}
-                    disabled={connecting}
-                    className="w-[68px] h-[68px] sm:w-[64px] sm:h-[64px] rounded-2xl bg-[#0D1623] border border-[#1A283A] hover:border-[#2C415C] hover:bg-[#131F30] flex items-center justify-center flex-shrink-0 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
-                    title="Backpack"
-                  >
-                    <img src="https://raw.githubusercontent.com/solana-labs/wallet-adapter/master/packages/wallets/backpack/images/backpack-icon.svg" alt="Backpack" className="w-7 h-7 object-contain" />
-                  </button>
-
-                  {/* Phantom / Ghost */}
                   <button
                     onClick={() => handleConnectWalletItem({ name: 'Phantom', adapterName: 'Phantom', icon: 'https://raw.githubusercontent.com/solana-labs/wallet-adapter/master/packages/wallets/phantom/images/phantom-icon.svg' })}
                     disabled={connecting}
@@ -601,7 +563,7 @@ export const ConnectWalletSidebar: React.FC<ConnectWalletSidebarProps> = ({ isOp
 
               {/* ─── GRID LIST OF WALLETS ───────────────────────────── */}
               {isWalletListExpanded && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 animate-fadeIn">
+                <div className="grid grid-cols-1 gap-2.5 animate-fadeIn">
                   {MASTER_WALLETS.map((item) => (
                     <button
                       key={item.name}

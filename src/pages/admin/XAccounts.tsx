@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { DataTable, Column } from '../../components/admin/DataTable'
 import { StatusBadge } from '../../components/admin/StatusBadge'
-import { ErrorState } from '../../components/admin/ErrorState'
+import { DEMO_ADMIN_X_ACCOUNTS, adminFetchJson, paginate } from '../../lib/adminDemo'
 
 interface XAccount {
   id: string
@@ -21,23 +21,24 @@ export const AdminXAccounts: React.FC = () => {
   const [pages, setPages] = useState(1)
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
-    setError('')
-    try {
-      const params = new URLSearchParams({ page: String(page), limit: String(limit) })
-      if (search) params.set('search', search)
-      const res = await fetch(`/api/admin/x-accounts?${params}`, { credentials: 'include' })
-      if (!res.ok) throw new Error()
-      const data = await res.json()
-      setAccounts(data.accounts)
-      setTotal(data.total)
-      setPages(data.pages)
-    } catch {
-      setError('Failed to load X accounts')
-    }
+    const params = new URLSearchParams({ page: String(page), limit: String(limit) })
+    if (search) params.set('search', search)
+    const data = await adminFetchJson<{ accounts: XAccount[]; total: number; pages: number }>(
+      `/api/admin/x-accounts?${params}`,
+      (() => {
+        const paged = paginate(DEMO_ADMIN_X_ACCOUNTS, page, limit, search, (a, q) =>
+          (a.xUsername || '').toLowerCase().includes(q) ||
+          (a.displayName || '').toLowerCase().includes(q)
+        )
+        return { accounts: paged.items, total: paged.total, pages: paged.pages }
+      })()
+    )
+    setAccounts(data.accounts || [])
+    setTotal(data.total || 0)
+    setPages(data.pages || 1)
     setLoading(false)
   }, [page, limit, search])
 
@@ -93,8 +94,6 @@ export const AdminXAccounts: React.FC = () => {
       },
     },
   ]
-
-  if (error) return <ErrorState message={error} onRetry={load} />
 
   return (
     <div className="space-y-4">

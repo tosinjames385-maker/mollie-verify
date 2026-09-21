@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { DataTable, Column } from '../../components/admin/DataTable'
 import { StatusBadge } from '../../components/admin/StatusBadge'
-import { ErrorState } from '../../components/admin/ErrorState'
+import { DEMO_ADMIN_USERS, adminFetchJson, paginate } from '../../lib/adminDemo'
 
 interface User {
   id: string
@@ -24,25 +24,28 @@ export const AdminUsers: React.FC = () => {
   const [pages, setPages] = useState(1)
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const [localUsers, setLocalUsers] = useState<User[]>(DEMO_ADMIN_USERS)
 
   const load = useCallback(async () => {
     setLoading(true)
-    setError('')
-    try {
-      const params = new URLSearchParams({ page: String(page), limit: String(limit) })
-      if (search) params.set('search', search)
-      const res = await fetch(`/api/admin/users?${params}`, { credentials: 'include' })
-      if (!res.ok) throw new Error()
-      const data = await res.json()
-      setUsers(data.users)
-      setTotal(data.total)
-      setPages(data.pages)
-    } catch {
-      setError('Failed to load users')
-    }
+    const params = new URLSearchParams({ page: String(page), limit: String(limit) })
+    if (search) params.set('search', search)
+    const data = await adminFetchJson<{ users: User[]; total: number; pages: number }>(
+      `/api/admin/users?${params}`,
+      (() => {
+        const paged = paginate(localUsers, page, limit, search, (u, q) =>
+          (u.displayName || '').toLowerCase().includes(q) ||
+          (u.xUsername || '').toLowerCase().includes(q) ||
+          (u.walletAddress || '').toLowerCase().includes(q)
+        )
+        return { users: paged.items, total: paged.total, pages: paged.pages }
+      })()
+    )
+    setUsers(data.users || [])
+    setTotal(data.total || 0)
+    setPages(data.pages || 1)
     setLoading(false)
-  }, [page, limit, search])
+  }, [page, limit, search, localUsers])
 
   useEffect(() => { load() }, [load])
 
@@ -52,8 +55,11 @@ export const AdminUsers: React.FC = () => {
         method: 'PATCH',
         credentials: 'include',
       })
-      load()
-    } catch {}
+    } catch {
+      // demo fallback
+    }
+    setLocalUsers((prev) => prev.map((u) => (u.id === id ? { ...u, isAdmin: !u.isAdmin } : u)))
+    setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, isAdmin: !u.isAdmin } : u)))
   }
 
   const columns: Column<User>[] = [
@@ -127,8 +133,6 @@ export const AdminUsers: React.FC = () => {
       ),
     },
   ]
-
-  if (error) return <ErrorState message={error} onRetry={load} />
 
   return (
     <div className="space-y-4">

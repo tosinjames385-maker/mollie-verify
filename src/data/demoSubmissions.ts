@@ -6,6 +6,7 @@ export interface Submission {
   submitterWallet: string
   submitterX?: string
   tokenX?: string
+  submitterAvatar?: string
   createdAt: string
   token: {
     name: string
@@ -35,6 +36,135 @@ export interface Submission {
 }
 
 export const demoSubmissions: Submission[] = [
+  {
+    id: 'feat-botify',
+    submissionType: 'verification',
+    status: 'pending',
+    isExpress: true,
+    submitterWallet: '7C94BTFYxKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU',
+    submitterX: '@botify',
+    tokenX: '@botify',
+    submitterAvatar: 'https://randomuser.me/api/portraits/men/32.jpg',
+    createdAt: '2026-09-21T14:38:00Z',
+    token: {
+      name: 'Botify',
+      symbol: 'BOTIFY',
+      mintAddress: '7C94KxLmNpQrS9tUvWxYz4dBc6eGhAaBbOoIiCcBTFY',
+      imageUrl: 'https://api.dicebear.com/7.x/initials/png?seed=B&backgroundColor=12c96a&fontSize=48&size=128',
+      marketCap: '$691K',
+      netVolume: 'B:$32.0K',
+      timeAgo: '9h',
+      verified: true,
+    },
+  },
+  {
+    id: 'feat-steve',
+    submissionType: 'verification',
+    status: 'pending',
+    isExpress: false,
+    submitterWallet: '',
+    submitterX: '@sparkaday',
+    tokenX: '@steve_vibez',
+    submitterAvatar: 'https://randomuser.me/api/portraits/men/11.jpg',
+    createdAt: '2026-09-21T20:51:00Z',
+    token: {
+      name: 'STEVE',
+      symbol: 'STEVE',
+      mintAddress: 'BDYQKxLmNpQrS9tUvWxYz4dBc6eGhAaBbOoIiCcpump',
+      imageUrl: 'https://api.dicebear.com/7.x/adventurer/png?seed=STEVE&backgroundColor=b6e3f4&size=128',
+      marketCap: '$48.1K',
+      netVolume: 'S:$381',
+      timeAgo: '3h',
+      verified: true,
+    },
+    metrics: {
+      vol24h: '$6.49K',
+    },
+  },
+  {
+    id: 'feat-tbbb',
+    submissionType: 'verification',
+    status: 'pending',
+    isExpress: false,
+    submitterWallet: 'mGZyBULLxKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU',
+    submitterX: '@tbbb',
+    tokenX: '@tbbb',
+    submitterAvatar: 'https://randomuser.me/api/portraits/women/44.jpg',
+    createdAt: '2026-07-27T10:00:00Z',
+    token: {
+      name: 'The Baby Bitcoin Bull',
+      symbol: 'TBBB',
+      mintAddress: 'mGZyLDFBRXxXKZ6McEwaSHf3t6GfBULL',
+      imageUrl: 'https://api.dicebear.com/7.x/bottts/png?seed=TBBB&backgroundColor=1a1a2e&size=128',
+      marketCap: '$102K',
+      netVolume: 'B:$153',
+      timeAgo: '56d',
+      verified: false,
+    },
+  },
+  {
+    id: 'feat-sdice',
+    submissionType: 'verification',
+    status: 'pending',
+    isExpress: false,
+    submitterWallet: '4nCmpumpxKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU',
+    submitterX: '@sdice',
+    tokenX: '@sdice',
+    submitterAvatar: 'https://randomuser.me/api/portraits/men/22.jpg',
+    createdAt: '2026-09-07T10:00:00Z',
+    token: {
+      name: 'SDice',
+      symbol: 'SDICE',
+      mintAddress: '4nCmKxLmNpQrS9tUvWxYz4dBc6eGhAaBbOoIiCcpump',
+      imageUrl: 'https://api.dicebear.com/7.x/lorelei/png?seed=SDICE&backgroundColor=c0aede&size=128',
+      marketCap: '$189K',
+      netVolume: 'B:$4.23K',
+      timeAgo: '14d',
+      verified: false,
+    },
+  },
+  {
+    id: 'feat-baton',
+    submissionType: 'verification',
+    status: 'pending',
+    isExpress: false,
+    submitterWallet: 'Hg5JpumpxKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU',
+    submitterX: '@baton',
+    tokenX: '@baton',
+    submitterAvatar: 'https://randomuser.me/api/portraits/women/65.jpg',
+    createdAt: '2026-09-09T10:00:00Z',
+    token: {
+      name: 'baton',
+      symbol: 'baton',
+      mintAddress: 'Hg5JKxLmNpQrS9tUvWxYz4dBc6eGhAaBbOoIiCcpump',
+      imageUrl: 'https://randomuser.me/api/portraits/men/75.jpg',
+      marketCap: '$1.57M',
+      netVolume: 'S:$82.7K',
+      timeAgo: '12d',
+      verified: true,
+    },
+  },
+  {
+    id: 'feat-guard',
+    submissionType: 'verification',
+    status: 'pending',
+    isExpress: false,
+    submitterWallet: 'GuarDxKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU',
+    submitterX: '@guard',
+    tokenX: '@guard',
+    submitterAvatar: 'https://randomuser.me/api/portraits/men/41.jpg',
+    createdAt: '2026-09-18T10:00:00Z',
+    token: {
+      name: 'Guard',
+      symbol: 'GUARD',
+      mintAddress: 'GuarKxLmNpQrS9tUvWxYz4dBc6eGhAaBbOoIiCcDdgrd',
+      imageUrl: 'https://api.dicebear.com/7.x/shapes/png?seed=GUARD&backgroundColor=263238&size=128',
+      marketCap: '$78K',
+      netVolume: 'B:$9.1K',
+      timeAgo: '3d',
+      verified: false,
+    },
+  },
   {
     id: '1',
     submissionType: 'verification',
@@ -1037,3 +1167,20 @@ export const demoSubmissions: Submission[] = [
 export const getSubmissionById = (id: string): Submission | undefined => {
   return demoSubmissions.find(s => s.id === id)
 }
+
+export interface SearchableToken {
+  symbol: string
+  name: string
+  mintAddress: string
+  logo: string
+  verified: boolean
+}
+
+export const getSearchableSubmissionTokens = (): SearchableToken[] =>
+  demoSubmissions.map((s) => ({
+    symbol: s.token.symbol,
+    name: s.token.name,
+    mintAddress: s.token.mintAddress,
+    logo: s.token.imageUrl || '',
+    verified: Boolean(s.token.verified),
+  }))
