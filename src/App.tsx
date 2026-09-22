@@ -20,10 +20,12 @@ import { AdminSubmissions } from './pages/admin/Submissions'
 import { AdminActivity } from './pages/admin/Activity'
 import { AdminSettings } from './pages/admin/Settings'
 import { AuthCallback } from './pages/AuthCallback'
+import { DocumentTitle } from './components/DocumentTitle'
 
 function App() {
   return (
     <BrowserRouter>
+      <DocumentTitle />
       <AuthProvider>
         <WalletProvider>
           <Routes>
