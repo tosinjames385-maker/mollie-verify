@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { coinImageDataUri, getCoinImage, getProfileImage, getProfileImageFallback } from '../lib/images'
+import { coinImageDataUri, getCoinImage, getProfileImageAlternate, getProfileImageFallback, getProfileImageReal, profileUsesRealPhoto, resolveProfileAvatarUrl } from '../lib/images'
 
 interface TokenImageProps {
   src?: string
@@ -35,17 +35,29 @@ interface ProfileImageProps {
 
 export const ProfileImage = ({ src, seed, index = 0, alt, className = 'w-full h-full object-cover' }: ProfileImageProps) => {
   const [step, setStep] = useState(0)
-  const photo = getProfileImage(seed, index)
-  const cartoon = getProfileImageFallback(seed)
-  const url = step === 0 ? (src || photo) : step === 1 ? cartoon : getProfileImageFallback(`${seed}-alt`)
+  const primary = resolveProfileAvatarUrl(src, seed, index)
+  const embedded = getProfileImageFallback(seed)
+
+  const maxStep = profileUsesRealPhoto(seed, index) ? 4 : 2
+
+  const urlForStep = (s: number) => {
+    if (s === 0) return primary
+    if (s === 1) return getProfileImageAlternate(seed, index)
+    if (s === 2 && profileUsesRealPhoto(seed, index)) return getProfileImageReal(seed, index, 1)
+    if (s === 3 && profileUsesRealPhoto(seed, index)) return getProfileImageReal(seed, index, 2)
+    if (s === 2) return getProfileImageAlternate(seed, index + 7)
+    return embedded
+  }
 
   return (
     <img
-      src={url}
+      src={urlForStep(step)}
       alt={alt || seed}
       className={className}
       referrerPolicy="no-referrer"
-      onError={() => setStep((s) => Math.min(s + 1, 2))}
+      loading="lazy"
+      decoding="async"
+      onError={() => setStep((s) => Math.min(s + 1, maxStep))}
     />
   )
 }

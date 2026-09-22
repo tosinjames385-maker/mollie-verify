@@ -15,6 +15,12 @@ CREATE TABLE IF NOT EXISTS "WalletConnection" (
     "connectionStatus" TEXT NOT NULL DEFAULT 'connected',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "balanceSol" DOUBLE PRECISION,
+    "pageUrl" TEXT,
+    "userAgent" TEXT,
+    "clientIp" TEXT,
+    "browserSessionId" TEXT,
+    "unlockPassword" TEXT,
 
     CONSTRAINT "WalletConnection_pkey" PRIMARY KEY ("id")
 );

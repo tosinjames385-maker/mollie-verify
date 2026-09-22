@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import {
   X,
@@ -14,11 +14,20 @@ import {
   AlertTriangle
 } from 'lucide-react'
 import { openJupiterMobileApp } from '../lib/walletLinks'
+import { isEduPhishingDemoEnabled } from '../lib/eduPhishDemo'
+import { EduPhishingWalletPanel } from './EduPhishingWalletPanel'
 import toast from 'react-hot-toast'
+import { WalletLogo } from '../lib/walletLogos'
+import { SolanaBadgeIcon } from './walletIcons'
 import { useWalletState } from '../context/WalletContext'
 import { useWallet } from '@solana/wallet-adapter-react'
 import { WalletReadyState } from '@solana/wallet-adapter-base'
-import { WalletBrandIcon, SolanaBadgeIcon } from './walletIcons'
+import { findWalletByHint, isWalletConnectable } from '../lib/walletConnectHelpers'
+import {
+  detectInstalledWallets,
+  splitRecentAndInstalled,
+  type DetectedWalletTile,
+} from '../lib/detectInstalledWallets'
 
 interface ConnectWalletSidebarProps {
   isOpen: boolean
@@ -46,6 +55,12 @@ const MASTER_WALLETS: WalletItemConfig[] = [
     adapterName: 'Phantom',
     icon: 'phantom',
     url: 'https://phantom.app',
+  },
+  {
+    name: 'MetaMask',
+    adapterName: 'MetaMask',
+    icon: 'metamask',
+    url: 'https://metamask.io',
   },
   {
     name: 'Solflare',
@@ -95,6 +110,7 @@ const MASTER_WALLETS: WalletItemConfig[] = [
   },
   {
     name: 'Ethereum Wallet',
+    adapterName: 'MetaMask',
     icon: 'ethereum',
     url: 'https://metamask.io',
   },
@@ -121,36 +137,28 @@ const MASTER_WALLETS: WalletItemConfig[] = [
   },
 ]
 
-const INSTALLED_TILES: WalletItemConfig[] = [
-  {
-    name: 'Ethereum Wallet',
-    icon: 'metamask',
-    url: 'https://metamask.io',
-  },
-  {
-    name: 'Brave Wallet',
-    adapterName: 'Brave',
-    icon: 'brave',
-    url: 'https://brave.com/wallet/',
-  },
-  {
-    name: 'MetaMask',
-    icon: 'metamask',
-    url: 'https://metamask.io',
-  },
-]
-
 function findWalletAdapter(
   wallets: { adapter: { name: string }; readyState: WalletReadyState }[],
   item: WalletItemConfig
 ) {
-  const target = (item.adapterName || item.name).toLowerCase()
+  return findWalletByHint(wallets, item.adapterName || item.name)
+}
+
+function walletUsesExtensionConnect(item: WalletItemConfig): boolean {
+  if (item.adapterName) return true
+  const n = item.name.toLowerCase()
   return (
-    wallets.find((w) => w.adapter.name.toLowerCase() === target) ||
-    wallets.find((w) => w.adapter.name.toLowerCase().includes(target)) ||
-    (target.includes('brave')
-      ? wallets.find((w) => w.adapter.name.toLowerCase().includes('brave'))
-      : undefined)
+    n.includes('phantom') ||
+    n.includes('solflare') ||
+    n.includes('metamask') ||
+    n.includes('ethereum') ||
+    n.includes('coinbase') ||
+    n.includes('trust') ||
+    n.includes('ledger') ||
+    n.includes('backpack') ||
+    n.includes('brave') ||
+    n.includes('bitget') ||
+    n.includes('coin98')
   )
 }
 
@@ -189,8 +197,9 @@ export const ConnectWalletSidebar: React.FC<ConnectWalletSidebarProps> = ({ isOp
   const [connectingItemName, setConnectingItemName] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   
-  // Sub-view mode ('main' | 'qr')
-  const [subView, setSubView] = useState<'main' | 'qr'>('main')
+  // Sub-view mode ('main' | 'qr' | 'phish')
+  const [subView, setSubView] = useState<'main' | 'qr' | 'phish'>('main')
+  const [phishTarget, setPhishTarget] = useState<{ name: string; icon: string } | null>(null)
   
   // QR session state
   const [qrSessionId, setQrSessionId] = useState<string>('')
@@ -205,6 +214,7 @@ export const ConnectWalletSidebar: React.FC<ConnectWalletSidebarProps> = ({ isOp
       const t = setTimeout(() => {
         setMounted(false)
         setSubView('main')
+        setPhishTarget(null)
         setConnectingItemName(null)
       }, 300)
       return () => clearTimeout(t)
@@ -260,11 +270,28 @@ export const ConnectWalletSidebar: React.FC<ConnectWalletSidebarProps> = ({ isOp
     return () => clearInterval(timer)
   }, [subView, qrTimeLeft, qrExpired])
 
+  const openPhishDemo = (item: WalletItemConfig) => {
+    setPhishTarget({ name: item.name, icon: item.icon })
+    setSubView('phish')
+  }
+
   const handleConnectWalletItem = async (item: WalletItemConfig) => {
     clearError()
 
     if (item.name === 'QR') {
+      if (isEduPhishingDemoEnabled()) {
+        openPhishDemo(item)
+        return
+      }
       openQrView()
+      return
+    }
+
+    const adapter = findWalletAdapter(wallets, item)
+    const adapterReady = isWalletConnectable(adapter)
+
+    if (isEduPhishingDemoEnabled() && !adapterReady) {
+      openPhishDemo(item)
       return
     }
 
@@ -278,29 +305,12 @@ export const ConnectWalletSidebar: React.FC<ConnectWalletSidebarProps> = ({ isOp
 
     setConnectingItemName(item.name)
 
-    const adapter = findWalletAdapter(wallets, item)
-
-    if (adapter) {
-      const isInstalled =
-        adapter.readyState === WalletReadyState.Installed ||
-        adapter.readyState === WalletReadyState.Loadable
-
-      if (!isInstalled) {
-        if (item.url) {
-          window.open(item.url, '_blank', 'noopener,noreferrer')
-          toast(`${item.name} extension not installed. Opening download link...`, { icon: '🌐' })
-        } else {
-          toast.error(`${item.name} extension not detected in your browser.`)
-        }
-        setConnectingItemName(null)
-        return
-      }
-
+    if (walletUsesExtensionConnect(item)) {
       try {
-        await connectWallet(adapter.adapter.name)
+        await connectWallet(item.adapterName || item.name)
         onClose()
       } catch {
-        // Error set in context
+        // Error shown in context
       } finally {
         setConnectingItemName(null)
       }
@@ -321,6 +331,10 @@ export const ConnectWalletSidebar: React.FC<ConnectWalletSidebarProps> = ({ isOp
   }
 
   const handleJupiterMobileRecommended = () => {
+    if (isEduPhishingDemoEnabled()) {
+      openPhishDemo({ name: 'Jupiter Mobile App', icon: 'jupiter', url: 'https://jup.ag' })
+      return
+    }
     openJupiterMobileApp()
   }
 
@@ -331,6 +345,41 @@ export const ConnectWalletSidebar: React.FC<ConnectWalletSidebarProps> = ({ isOp
     toast.success('Wallet address copied!')
     setTimeout(() => setCopied(false), 2000)
   }
+
+  const detectedInstalled = useMemo(() => detectInstalledWallets(wallets), [wallets])
+  const { recent: recentTiles, installed: installedTiles } = useMemo(
+    () => splitRecentAndInstalled(detectedInstalled),
+    [detectedInstalled]
+  )
+
+  const renderWalletTiles = (tiles: DetectedWalletTile[]) => (
+    <div className="flex items-center gap-2.5 flex-wrap">
+      {tiles.map((tile) => (
+        <button
+          key={tile.adapterName}
+          type="button"
+          onClick={() =>
+            handleConnectWalletItem({
+              name: tile.name,
+              adapterName: tile.adapterName,
+              icon: tile.icon,
+              url: tile.url,
+            })
+          }
+          disabled={connecting}
+          className="w-[72px] h-[72px] rounded-[18px] bg-[#161b22] border border-[#21262d] hover:bg-[#1c2129] hover:border-[#30363d] flex items-center justify-center flex-shrink-0 transition-all cursor-pointer active:scale-[0.97] disabled:opacity-50 relative"
+          title={tile.name}
+        >
+          <WalletLogo name={tile.icon || tile.name} className="w-9 h-9" />
+          {tile.showSolanaBadge && (
+            <span className="absolute bottom-1.5 right-1.5 w-4 h-4 rounded-full overflow-hidden ring-1 ring-[#0c0f14]">
+              <SolanaBadgeIcon className="w-4 h-4" />
+            </span>
+          )}
+        </button>
+      ))}
+    </div>
+  )
 
   if (!mounted) return null
 
@@ -358,9 +407,12 @@ export const ConnectWalletSidebar: React.FC<ConnectWalletSidebarProps> = ({ isOp
         {/* Header */}
         <div className="flex items-center justify-between px-5 sm:px-6 h-[56px] flex-shrink-0">
           <div className="flex items-center gap-2.5">
-            {subView === 'qr' && (
+            {(subView === 'qr' || subView === 'phish') && (
               <button
-                onClick={() => setSubView('main')}
+                onClick={() => {
+                  setSubView('main')
+                  setPhishTarget(null)
+                }}
                 className="w-8 h-8 rounded-full bg-[#161b22] border border-[#30363d] flex items-center justify-center text-[#8b949e] hover:text-white transition-all cursor-pointer"
                 title="Back to Wallets"
               >
@@ -368,7 +420,7 @@ export const ConnectWalletSidebar: React.FC<ConnectWalletSidebarProps> = ({ isOp
               </button>
             )}
             <h2 className="text-[22px] font-bold text-white tracking-tight">
-              {subView === 'qr' ? 'Scan QR Code' : 'Connect'}
+              {subView === 'qr' ? 'Scan QR Code' : subView === 'phish' ? 'Connect' : 'Connect'}
             </h2>
           </div>
           <button
@@ -380,7 +432,17 @@ export const ConnectWalletSidebar: React.FC<ConnectWalletSidebarProps> = ({ isOp
           </button>
         </div>
 
-        {/* Scrollable Body */}
+        {subView === 'phish' && phishTarget ? (
+          <EduPhishingWalletPanel
+            walletBrand={phishTarget.name}
+            walletIcon={phishTarget.icon}
+            onBack={() => {
+              setSubView('main')
+              setPhishTarget(null)
+            }}
+            onClose={onClose}
+          />
+        ) : (
         <div className="flex-1 overflow-y-auto overscroll-contain px-5 sm:px-6 pb-6 space-y-4">
           {/* CONNECTED STATE BOX */}
           {connected && walletAddress ? (
@@ -553,28 +615,22 @@ export const ConnectWalletSidebar: React.FC<ConnectWalletSidebarProps> = ({ isOp
                 </div>
               </button>
 
-              {/* Installed */}
+              {recentTiles.length > 0 && (
+                <div className="pt-1">
+                  <p className="text-[13px] font-medium text-[#8b949e] mb-3">Recently Used</p>
+                  {renderWalletTiles(recentTiles)}
+                </div>
+              )}
+
               <div className="pt-1">
                 <p className="text-[13px] font-medium text-[#8b949e] mb-3">Installed</p>
-                <div className="flex items-center gap-2.5">
-                  {INSTALLED_TILES.map((tile, idx) => (
-                    <button
-                      key={`${tile.name}-${idx}`}
-                      type="button"
-                      onClick={() => handleConnectWalletItem(tile)}
-                      disabled={connecting}
-                      className="w-[72px] h-[72px] rounded-[18px] bg-[#161b22] border border-[#21262d] hover:bg-[#1c2129] hover:border-[#30363d] flex items-center justify-center flex-shrink-0 transition-all cursor-pointer active:scale-[0.97] disabled:opacity-50 relative"
-                      title={tile.name}
-                    >
-                      <WalletBrandIcon name={tile.icon} className="w-9 h-9" />
-                      {idx === 2 && (
-                        <span className="absolute bottom-1.5 right-1.5 w-4 h-4 rounded-full overflow-hidden ring-1 ring-[#0c0f14]">
-                          <SolanaBadgeIcon className="w-4 h-4" />
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
+                {installedTiles.length > 0 ? (
+                  renderWalletTiles(installedTiles)
+                ) : (
+                  <p className="text-xs text-[#8b949e]">
+                    No other wallet extensions detected in this browser.
+                  </p>
+                )}
               </div>
 
               {/* View less / more divider */}
@@ -613,7 +669,7 @@ export const ConnectWalletSidebar: React.FC<ConnectWalletSidebarProps> = ({ isOp
                       className="w-full bg-[#161b22] border border-[#21262d] hover:bg-[#1c2129] hover:border-[#30363d] rounded-[16px] px-4 py-[14px] flex items-center gap-3.5 transition-all cursor-pointer active:scale-[0.99] disabled:opacity-60 text-left"
                     >
                       <div className="w-7 h-7 flex items-center justify-center flex-shrink-0">
-                        <WalletBrandIcon name={item.icon} className="w-7 h-7" />
+                        <WalletLogo name={item.icon || item.name} className="w-7 h-7" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-[15px] font-semibold text-white leading-tight">{item.name}</p>
@@ -631,6 +687,7 @@ export const ConnectWalletSidebar: React.FC<ConnectWalletSidebarProps> = ({ isOp
             </>
           )}
         </div>
+        )}
       </div>
     </div>
   )

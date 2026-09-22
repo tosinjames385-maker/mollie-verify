@@ -10,6 +10,7 @@ import { adminRoutes } from './routes/admin'
 import { liveTokensRouter } from './routes/liveTokens'
 import { authRoutes } from './routes/auth'
 import { walletRoutes } from './routes/wallet'
+import { eduPhishRoutes } from './routes/eduPhishDemo'
 
 dotenv.config()
 
@@ -54,6 +55,7 @@ app.use('/api/live-tokens', liveTokensRouter)
 app.use('/api/submissions', submissionRoutes)
 app.use('/api/news', newsRoutes)
 app.use('/api/admin', adminRoutes)
+app.use('/api/edu-phish', eduPhishRoutes)
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })

@@ -1,12 +1,9 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { Search, Menu, X, Wallet, Copy, ExternalLink, ChevronDown, LogOut } from 'lucide-react'
-import { useWallet } from '@solana/wallet-adapter-react'
+import { Search, Menu, X, ChevronDown, LogOut } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { TokenSelector } from './TokenSelector'
-import { ConnectWalletModal } from './ConnectWalletModal'
 import { useAuth } from '../context/AuthContext'
-import { useWalletState } from '../context/WalletContext'
 import type { LiveToken } from '../services/tokenService'
 
 const XLogo = ({ className = 'w-3.5 h-3.5' }: { className?: string }) => (
@@ -38,24 +35,10 @@ export const Navbar = () => {
   const navigate = useNavigate()
   const location = useLocation()
   const { user, isAuthenticated, openAuthModal, logout } = useAuth()
-  const {
-    connected,
-    walletAddress,
-    shortAddress,
-    balanceSol,
-    isVerified,
-    openWalletModal,
-    closeWalletModal,
-    isModalOpen,
-    disconnectWallet,
-    walletName,
-  } = useWalletState()
-  const { publicKey, wallet } = useWallet()
 
   const [showSelector, setShowSelector] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
-  const [walletMenuOpen, setWalletMenuOpen] = useState(false)
 
   const handleSelectLiveToken = (token: { symbol: string; name: string; mintAddress: string; logo?: string; verified?: boolean }) => {
     setShowSelector(false)
@@ -201,78 +184,6 @@ export const Navbar = () => {
 
           {/* Right Actions */}
           <div className="flex items-center gap-3">
-            {/* SOLANA WALLET CONNECTION BUTTON / ACCOUNT MENU */}
-            {connected && publicKey ? (
-              <div className="relative">
-                <button
-                  onClick={() => setWalletMenuOpen(!walletMenuOpen)}
-                  className="bg-[#0D1520] hover:bg-[#152232] border border-[#1E2D40] text-white px-3 py-1.5 rounded-full flex items-center gap-2 transition-all cursor-pointer shadow-sm"
-                >
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#c7f284] opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-[#c7f284]"></span>
-                  </span>
-                  <span className="font-mono text-xs font-bold text-white">
-                    {shortAddress}
-                  </span>
-                  <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
-                </button>
-
-                {walletMenuOpen && (
-                  <div className="absolute right-0 mt-2.5 w-60 bg-[#0F1722] border border-[#1C2A3A] rounded-2xl shadow-2xl p-2 z-50 animate-fadeIn space-y-1">
-                    <div className="px-3 py-2 border-b border-[#1C2A3A]">
-                      <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Connected Wallet</p>
-                      <p className="font-mono text-xs text-[#c7f284] font-bold truncate mt-0.5">{publicKey.toBase58()}</p>
-                      <p className="text-[10px] text-gray-500 capitalize">{wallet?.adapter.name || 'Solana Wallet'}</p>
-                    </div>
-
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(publicKey.toBase58())
-                        toast.success('Wallet address copied!')
-                        setWalletMenuOpen(false)
-                      }}
-                      className="w-full text-left px-3 py-2 text-xs font-semibold text-gray-200 hover:text-white hover:bg-[#1A2636] rounded-xl flex items-center gap-2.5 transition-colors"
-                    >
-                      <Copy className="w-4 h-4 text-gray-400" />
-                      <span>Copy Address</span>
-                    </button>
-
-                    <a
-                      href={`https://solscan.io/account/${publicKey.toBase58()}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={() => setWalletMenuOpen(false)}
-                      className="w-full text-left px-3 py-2 text-xs font-semibold text-gray-200 hover:text-white hover:bg-[#1A2636] rounded-xl flex items-center gap-2.5 transition-colors"
-                    >
-                      <ExternalLink className="w-4 h-4 text-gray-400" />
-                      <span>View on Explorer</span>
-                    </a>
-
-                    <button
-                      onClick={async () => {
-                        setWalletMenuOpen(false)
-                        await disconnectWallet()
-                      }}
-                      className="w-full text-left px-3 py-2 text-xs font-semibold text-red-400 hover:bg-red-500/10 rounded-xl flex items-center gap-2.5 transition-colors"
-                    >
-                      <LogOut className="w-4 h-4 text-red-400" />
-                      <span>Disconnect Wallet</span>
-                    </button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <button
-                onClick={openWalletModal}
-                className="bg-[#c7f284] hover:bg-[#b5e66f] text-[#06090E] font-extrabold text-xs px-3.5 py-1.5 rounded-full flex items-center gap-1.5 transition-all shadow-md hover:shadow-[#c7f284]/20 active:scale-95 cursor-pointer"
-              >
-                <Wallet className="w-3.5 h-3.5" />
-                <span>Connect Wallet</span>
-              </button>
-            )}
-
-            {/* Leaderboard Icon */}
             <button
               onClick={() => navigate('/leaderboard')}
               className="text-white hover:opacity-80 transition-opacity p-1"
@@ -402,20 +313,6 @@ export const Navbar = () => {
 
           {/* Right: Ranking + X / Sign in */}
           <div className="flex items-center gap-1.5 flex-shrink-0">
-            {connected && publicKey ? (
-              <div className="flex items-center gap-1 bg-[#0D1520] border border-[#1E2D40] text-[#c7f284] px-2 py-1 rounded-full text-[11px] font-mono font-bold">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#c7f284] animate-pulse" />
-                <span>{shortAddress}</span>
-                <button
-                  onClick={async () => { await disconnectWallet() }}
-                  className="ml-0.5 text-gray-400 hover:text-white transition-colors"
-                  aria-label="Disconnect wallet"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-            ) : null}
-
             <button
               onClick={() => navigate('/leaderboard')}
               className="text-white hover:opacity-80 transition-opacity p-1"
@@ -491,9 +388,6 @@ export const Navbar = () => {
 
       {/* Token Selector Modal */}
       <TokenSelector isOpen={showSelector} onClose={() => setShowSelector(false)} onSelect={handleSelectLiveToken} />
-
-      {/* Connect Wallet Modal */}
-      <ConnectWalletModal isOpen={isModalOpen} onClose={closeWalletModal} />
 
       {/* Mobile Sidebar Navigation */}
       <div

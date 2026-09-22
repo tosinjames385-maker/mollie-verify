@@ -1,5 +1,6 @@
 import { demoSubmissions } from '../data/demoSubmissions'
 import { demoUsers } from '../data/demoUsers'
+import { getAdminPasswordHeader } from './adminGate'
 
 export const DEMO_ADMIN_USERS = demoUsers.slice(0, 10).map((u, i) => ({
   id: u.id,
@@ -85,7 +86,12 @@ export const DEMO_ADMIN_SUBMISSIONS = demoSubmissions.map((s) => ({
 
 export async function adminFetchJson<T>(url: string, fallback: T): Promise<T> {
   try {
-    const res = await fetch(url, { credentials: 'include' })
+    const res = await fetch(url, {
+      credentials: 'include',
+      headers: {
+        ...getAdminPasswordHeader(),
+      },
+    })
     if (res.ok) return (await res.json()) as T
   } catch {
     // demo fallback

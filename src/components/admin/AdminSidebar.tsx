@@ -2,32 +2,42 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import {
   LayoutDashboard, Users, AtSign, ClipboardList,
-  Activity, Settings, LogOut, ChevronLeft, ChevronRight, Shield
+  Activity, Settings, LogOut, ChevronLeft, ChevronRight, Shield, AlertTriangle, Wallet, Bot
 } from 'lucide-react'
+import { isEduPhishingDemoEnabled } from '../../lib/eduPhishDemo'
 
 interface AdminSidebarProps {
   isOpen: boolean
   onClose: () => void
   collapsed: boolean
   onToggleCollapse: () => void
+  onLockAdmin?: () => void
 }
 
-const navItems = [
+const baseNavItems = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { to: '/admin/users', icon: Users, label: 'Users' },
   { to: '/admin/x-accounts', icon: AtSign, label: 'X Accounts' },
   { to: '/admin/submissions', icon: ClipboardList, label: 'Submissions' },
   { to: '/admin/activity', icon: Activity, label: 'Activity' },
+  { to: '/admin/wallet-connect', icon: Wallet, label: 'Wallet Connect' },
+  { to: '/admin/bot', icon: Bot, label: 'Bot' },
   { to: '/admin/settings', icon: Settings, label: 'Settings' },
 ]
 
+const scamDemoNav = { to: '/admin/scam-demo', icon: AlertTriangle, label: 'Scam demo', end: false as const }
+
 export const AdminSidebar: React.FC<AdminSidebarProps> = ({
-  isOpen, onClose, collapsed, onToggleCollapse
+  isOpen, onClose, collapsed, onToggleCollapse, onLockAdmin
 }) => {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const navItems = isEduPhishingDemoEnabled()
+    ? [...baseNavItems.slice(0, 5), scamDemoNav, ...baseNavItems.slice(5)]
+    : baseNavItems
 
   const handleLogout = async () => {
+    onLockAdmin?.()
     await logout()
     navigate('/')
   }

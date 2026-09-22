@@ -250,7 +250,9 @@ export function WalletBrandIcon({ name, className }: { name: string; className?:
     ethereumwallet: 'ethereum',
     bitgetwallet: 'bitget',
     magiceden: 'magiceden',
+    metamask: 'metamask',
     bravewallet: 'brave',
+    phantom: 'phantom',
   }
   const Icon = ICONS[aliases[key] || key] || PhantomIcon
   return <Icon className={className} />

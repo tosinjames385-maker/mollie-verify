@@ -77,15 +77,89 @@ export function getCoinImage(symbol: string, index = 0): string {
   return `https://api.dicebear.com/7.x/${style}/png?seed=${encodeURIComponent(symbol)}&backgroundColor=${bg}&size=128`
 }
 
-/** Random real-looking profile photo. */
-export function getProfileImage(seed: string, index = 0): string {
-  const n = (hashSeed(seed) + index) % 99
-  const gender = (hashSeed(seed) + index) % 2 === 0 ? 'men' : 'women'
-  return `https://randomuser.me/api/portraits/${gender}/${n}.jpg`
+/** Hosts that often block hotlinking or fail on production/CDN. */
+const BLOCKED_AVATAR_HOSTS = ['randomuser.me', 'i.pravatar.cc', 'unsplash.com']
+
+export function isBlockedAvatarUrl(url?: string): boolean {
+  if (!url) return false
+  const lower = url.toLowerCase()
+  return BLOCKED_AVATAR_HOSTS.some((host) => lower.includes(host))
 }
 
+/** Prefer stored URL; replace broken/generated hosts with mixed real/cartoon avatar. */
+export function isGeneratedAvatarUrl(url: string): boolean {
+  const lower = url.toLowerCase()
+  return (
+    lower.includes('dicebear.com') ||
+    lower.includes('randomuser.me') ||
+    lower.includes('xsgames.co/randomusers') ||
+    lower.includes('i.pravatar.cc')
+  )
+}
+
+export function resolveProfileAvatarUrl(src: string | undefined, seed: string, index = 0): string {
+  if (src && !isBlockedAvatarUrl(src) && !isGeneratedAvatarUrl(src)) return src
+  return getProfileImage(seed, index)
+}
+
+const PROFILE_CARTOON_STYLES = ['lorelei', 'adventurer', 'personas', 'avataaars'] as const
+
+/** Share of submitters with real human portrait photos (rest use cartoon avatars). */
+export const PROFILE_REAL_RATIO = 82
+
+export function profileUsesRealPhoto(seed: string, index = 0): boolean {
+  return (hashSeed(seed) + index * 13) % 100 < PROFILE_REAL_RATIO
+}
+
+function humanPortraitIndex(seed: string, index: number): { n: number; male: boolean } {
+  const h = hashSeed(seed) + index * 31
+  return { n: (h % 99), male: h % 2 === 0 }
+}
+
+/** Real human face photo — stable per seed (not landscapes / illustrations). */
+export function getProfileImageReal(seed: string, index = 0, variant = 0): string {
+  const { n, male } = humanPortraitIndex(seed, index)
+
+  if (variant === 0) {
+    const folder = male ? 'male' : 'female'
+    const num = ((hashSeed(seed + String(index)) % 70) + 1)
+    return `https://xsgames.co/randomusers/assets/avatars/${folder}/${num}.jpg`
+  }
+
+  if (variant === 1) {
+    const folder = male ? 'men' : 'women'
+    return `https://randomuser.me/api/portraits/${folder}/${n}.jpg`
+  }
+
+  return `https://i.pravatar.cc/128?u=${encodeURIComponent(`vrfd-${seed}-${index}`)}`
+}
+
+/** Cartoon / illustrated avatar (Dicebear). */
+export function getProfileImageCartoon(seed: string, index = 0): string {
+  const style = PROFILE_CARTOON_STYLES[(hashSeed(seed) + index) % PROFILE_CARTOON_STYLES.length]
+  const bg = DICEBEAR_BGS[(hashSeed(seed) + index) % DICEBEAR_BGS.length]
+  return `https://api.dicebear.com/7.x/${style}/png?seed=${encodeURIComponent(seed)}&backgroundColor=${bg}&size=128`
+}
+
+/** ~82% human portraits, ~18% cartoon — deterministic per submitter. */
+export function getProfileImage(seed: string, index = 0): string {
+  return profileUsesRealPhoto(seed, index)
+    ? getProfileImageReal(seed, index)
+    : getProfileImageCartoon(seed, index)
+}
+
+/** Opposite style for onError fallback (real ↔ cartoon). */
+export function getProfileImageAlternate(seed: string, index = 0): string {
+  return profileUsesRealPhoto(seed, index)
+    ? getProfileImageCartoon(seed, index)
+    : getProfileImageReal(seed, index)
+}
+
+/** Always loads — embedded SVG, no network. */
 export function getProfileImageFallback(seed: string): string {
-  return `https://api.dicebear.com/7.x/adventurer/png?seed=${encodeURIComponent(seed)}&size=128&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`
+  const [a, b] = COIN_COLORS[hashSeed(seed) % COIN_COLORS.length]
+  const letter = seed.replace(/^@/, '').trim() || 'user'
+  return letterAvatarDataUri(letter, a, b)
 }
 
 const sunriseSvg = encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">

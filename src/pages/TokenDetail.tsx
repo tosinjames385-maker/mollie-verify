@@ -18,7 +18,7 @@ import toast from 'react-hot-toast'
 import { AddMetadataModal } from '../components/AddMetadataModal'
 import { VerifyTokenModal } from '../components/VerifyTokenModal'
 import { AddNewsModal } from '../components/AddNewsModal'
-import { ConnectWalletSidebar } from '../components/ConnectWalletSidebar'
+import { WalletConnectControl } from '../components/WalletConnectControl'
 import { TokenDetailSkeleton } from '../components/Skeleton'
 import { getTokenByMint, LiveToken } from '../services/tokenService'
 
@@ -50,7 +50,6 @@ export const TokenDetail = () => {
   const [showVerify, setShowVerify] = useState(false)
   const [showAddNews, setShowAddNews] = useState(false)
   const [submissionHistoryOpen, setSubmissionHistoryOpen] = useState(false)
-  const [showConnectWallet, setShowConnectWallet] = useState(false)
 
   useEffect(() => {
     const t = setTimeout(() => setInitialLoading(false), 600)
@@ -218,12 +217,7 @@ export const TokenDetail = () => {
           >
             Trade
           </a>
-          <button 
-            onClick={() => setShowConnectWallet(true)}
-            className="flex-1 md:flex-initial md:w-[140px] px-4 py-2 md:py-1.5 bg-[#091018] border border-[#B7F34A]/60 text-[#B7F34A] hover:bg-[#B7F34A]/10 rounded-lg font-bold text-sm transition-colors text-center"
-          >
-            Connect Wallet
-          </button>
+          <WalletConnectControl variant="hero" />
         </div>
       </div>
 
@@ -509,10 +503,6 @@ export const TokenDetail = () => {
         />
       )}
 
-      <ConnectWalletSidebar 
-        isOpen={showConnectWallet} 
-        onClose={() => setShowConnectWallet(false)} 
-      />
     </div>
   )
 }

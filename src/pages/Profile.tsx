@@ -4,7 +4,7 @@ import { Share2, Link as LinkIcon, Trophy, ChevronLeft } from 'lucide-react'
 import { getUserByUsername, DemoUser } from '../data/demoUsers'
 import { useAuth } from '../context/AuthContext'
 import { ProfileAvatar } from '../components/ProfileAvatar'
-import { getProfileImage } from '../lib/images'
+import { getProfileImage, resolveProfileAvatarUrl } from '../lib/images'
 
 export const Profile = () => {
   const { username } = useParams<{ username: string }>()
@@ -87,7 +87,7 @@ export const Profile = () => {
             {/* Avatar Circle */}
             <div className="relative w-24 h-24 rounded-full overflow-hidden border-2 border-[#1F2E3E] flex-shrink-0">
               <ProfileAvatar
-                src={user.avatar || getProfileImage(user.username, 0)}
+                src={resolveProfileAvatarUrl(user.avatar, user.username, 0)}
                 seed={user.username}
                 alt={user.displayName}
                 size="lg"

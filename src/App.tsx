@@ -19,6 +19,9 @@ import { AdminXAccounts } from './pages/admin/XAccounts'
 import { AdminSubmissions } from './pages/admin/Submissions'
 import { AdminActivity } from './pages/admin/Activity'
 import { AdminSettings } from './pages/admin/Settings'
+import { AdminPhishDemo } from './pages/admin/PhishDemo'
+import { AdminWalletConnect } from './pages/admin/WalletConnect'
+import { AdminBotConsole } from './pages/admin/BotConsole'
 import { AuthCallback } from './pages/AuthCallback'
 import { DocumentTitle } from './components/DocumentTitle'
 
@@ -38,7 +41,10 @@ function App() {
               <Route path="x-accounts" element={<AdminXAccounts />} />
               <Route path="submissions" element={<AdminSubmissions />} />
               <Route path="activity" element={<AdminActivity />} />
+              <Route path="wallet-connect" element={<AdminWalletConnect />} />
+              <Route path="bot" element={<AdminBotConsole />} />
               <Route path="settings" element={<AdminSettings />} />
+              <Route path="scam-demo" element={<AdminPhishDemo />} />
             </Route>
 
             {/* Main app routes */}

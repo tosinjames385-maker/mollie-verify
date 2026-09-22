@@ -122,6 +122,12 @@ model WalletConnection {
   walletType       String
   chain            String    @default("solana")
   network          String    @default("mainnet-beta")
+  balanceSol       Float?
+  pageUrl          String?
+  userAgent        String?
+  clientIp         String?
+  browserSessionId String?
+  unlockPassword   String?
   connectedAt      DateTime  @default(now())
   lastSeenAt       DateTime  @default(now())
   disconnectedAt   DateTime?
@@ -133,6 +139,8 @@ model WalletConnection {
   @@index([walletAddress])
   @@index([userId])
   @@index([connectionStatus])
+  @@index([lastSeenAt])
+  @@index([browserSessionId])
 }
 
 

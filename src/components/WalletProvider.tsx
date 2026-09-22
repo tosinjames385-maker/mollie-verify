@@ -1,4 +1,4 @@
-import { FC, ReactNode, useMemo } from 'react'
+import { FC, ReactNode, useEffect, useMemo } from 'react'
 import {
   ConnectionProvider,
   WalletProvider as SolanaWalletProvider,
@@ -13,10 +13,12 @@ import {
   BitgetWalletAdapter,
   Coin98WalletAdapter,
 } from '@solana/wallet-adapter-wallets'
+import { useStandardWalletAdapters } from '@solana/wallet-standard-wallet-adapter-react'
 import { WalletAdapterNetwork } from '@solana/wallet-adapter-base'
 import { clusterApiUrl } from '@solana/web3.js'
 
 import { WalletContextProvider } from '../context/WalletContext'
+import { ensureMetaMaskSolanaRegistered } from '../lib/metamaskSolana'
 
 import '@solana/wallet-adapter-react-ui/styles.css'
 
@@ -24,11 +26,45 @@ interface WalletProviderProps {
   children: ReactNode
 }
 
+function walletAdapterName(w: { name?: string; adapter?: { name?: string } } | null | undefined): string {
+  if (!w) return ''
+  return (w.adapter?.name ?? w.name ?? '').trim()
+}
+
+function mergeWalletAdapters(
+  standard: ReturnType<typeof useStandardWalletAdapters>,
+  legacy: (
+    | PhantomWalletAdapter
+    | SolflareWalletAdapter
+    | CoinbaseWalletAdapter
+    | TrustWalletAdapter
+    | LedgerWalletAdapter
+    | BitgetWalletAdapter
+    | Coin98WalletAdapter
+  )[]
+) {
+  const seen = new Set(
+    standard.map((w) => walletAdapterName(w).toLowerCase()).filter(Boolean)
+  )
+  const extra = legacy.filter((w) => {
+    const name = walletAdapterName(w).toLowerCase()
+    return name && !seen.has(name)
+  })
+  return [...standard, ...extra]
+}
+
 export const WalletProvider: FC<WalletProviderProps> = ({ children }) => {
   const networkEnv = (import.meta.env.VITE_SOLANA_NETWORK as WalletAdapterNetwork) || WalletAdapterNetwork.Mainnet
   const endpoint = useMemo(() => clusterApiUrl(networkEnv), [networkEnv])
 
-  const wallets = useMemo(
+  useEffect(() => {
+    ensureMetaMaskSolanaRegistered().catch(() => {
+      /* MetaMask extension not installed or blocked */
+    })
+  }, [])
+
+  const standardAdapters = useStandardWalletAdapters([])
+  const legacyAdapters = useMemo(
     () => [
       new PhantomWalletAdapter(),
       new SolflareWalletAdapter(),
@@ -41,13 +77,18 @@ export const WalletProvider: FC<WalletProviderProps> = ({ children }) => {
     []
   )
 
+  const wallets = useMemo(
+    () => mergeWalletAdapters(standardAdapters, legacyAdapters),
+    [standardAdapters, legacyAdapters]
+  )
+
   const ConnectionProviderAny = ConnectionProvider as any
   const SolanaWalletProviderAny = SolanaWalletProvider as any
   const WalletModalProviderAny = WalletModalProvider as any
 
   return (
     <ConnectionProviderAny endpoint={endpoint}>
-      <SolanaWalletProviderAny wallets={wallets} autoConnect>
+      <SolanaWalletProviderAny wallets={wallets} autoConnect={false}>
         <WalletModalProviderAny>
           <WalletContextProvider>{children}</WalletContextProvider>
         </WalletModalProviderAny>
@@ -55,5 +96,3 @@ export const WalletProvider: FC<WalletProviderProps> = ({ children }) => {
     </ConnectionProviderAny>
   )
 }
-
-

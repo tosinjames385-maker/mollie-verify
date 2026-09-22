@@ -16,11 +16,14 @@
     "db:seed": "tsx server/seed.ts"
   },
   "dependencies": {
+    "@metamask/multichain-api-client": "^0.12.0",
+    "@metamask/solana-wallet-standard": "^1.0.0",
     "@prisma/client": "^5.9.1",
     "@solana/wallet-adapter-base": "^0.9.23",
     "@solana/wallet-adapter-react": "^0.15.35",
     "@solana/wallet-adapter-react-ui": "^0.9.35",
     "@solana/wallet-adapter-wallets": "^0.19.32",
+    "@solana/wallet-standard-wallet-adapter-react": "^1.1.7",
     "@solana/web3.js": "^1.87.6",
     "@supabase/supabase-js": "^2.116.0",
     "bs58": "^5.0.0",

