@@ -1,219 +1,282 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Bot, Cpu, Radio, Shield, Zap } from 'lucide-react'
-import { adminFetchJson } from '../../lib/adminDemo'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Activity, Cpu, Radio, Shield, Terminal, Zap } from 'lucide-react'
+import { nextOpsLine, opsHexDump, opsTargets, type OpsLine, type OpsTarget } from '../../lib/botOpsSim'
 
-interface BotStatus {
-  mode: string
-  armed: boolean
-  uptimeMs: number
-  nodes: number
-  cpu: number
-  ram: number
-  latencyMs: number
-  packets: number
-  label: string
+function pad(n: number, size = 2) {
+  return String(n).padStart(size, '0')
 }
 
-interface FeedLine {
-  id: string
-  ts: string
-  line: string
-}
-
-const FALLBACK_STATUS: BotStatus = {
-  mode: 'standby',
-  armed: false,
-  uptimeMs: 0,
-  nodes: 12,
-  cpu: 22,
-  ram: 44,
-  latencyMs: 14,
-  packets: 9100,
-  label: 'SIMULATION — bot performs no live actions',
-}
-
-function formatUptime(ms: number) {
+function formatClock(ms: number) {
   const s = Math.floor(ms / 1000)
-  const m = Math.floor(s / 60)
-  const h = Math.floor(m / 60)
-  return `${String(h).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  return `${pad(h)}:${pad(m)}:${pad(s % 60)}`
 }
 
-function MatrixRain() {
-  const cols = useMemo(
-    () =>
-      Array.from({ length: 18 }, (_, i) => ({
-        delay: `${(i % 7) * 0.35}s`,
-        duration: `${3.2 + (i % 5) * 0.4}s`,
-        chars: '01ABCDEF<>/\\$#*'.repeat(8),
-      })),
-    []
-  )
+function formatStamp(ts: number) {
+  const d = new Date(ts)
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}`
+}
+
+const LEVEL_COLOR: Record<OpsLine['level'], string> = {
+  info: 'text-[#9ca8b8]',
+  ok: 'text-[#7dffb3]',
+  warn: 'text-[#f5d36c]',
+  crit: 'text-[#ff7a7a]',
+  sys: 'text-[#6ee0ff]',
+}
+
+const STATE_COLOR: Record<OpsTarget['state'], string> = {
+  OPEN: 'text-[#8ad4ff]',
+  LIVE: 'text-[#7dffb3]',
+  AUTH: 'text-[#f5d36c]',
+  HOLD: 'text-[#6b7787]',
+}
+
+function Metric({
+  label,
+  value,
+  sub,
+  icon: Icon,
+}: {
+  label: string
+  value: string
+  sub?: string
+  icon: typeof Cpu
+}) {
   return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-[0.18]">
-      <div className="flex h-full gap-2 font-mono text-[10px] leading-3 text-[#c7f284]">
-        {cols.map((c, i) => (
-          <div
-            key={i}
-            className="animate-[botfall_4s_linear_infinite] whitespace-pre"
-            style={{ animationDelay: c.delay, animationDuration: c.duration }}
-          >
-            {c.chars.split('').join('\n')}
-          </div>
-        ))}
+    <div className="bg-[#070c12] border border-[#1a2633] rounded-lg px-3 py-2.5">
+      <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.16em] text-[#6b7787]">
+        <span>{label}</span>
+        <Icon className="w-3.5 h-3.5 text-[#c7f284]" />
       </div>
+      <p className="mt-1 font-mono text-lg font-semibold text-[#e8ffe9] leading-none">{value}</p>
+      {sub && <p className="mt-1 text-[10px] text-[#5d6b7a] font-mono">{sub}</p>}
     </div>
   )
 }
 
 export const AdminBotConsole: React.FC = () => {
-  const [status, setStatus] = useState<BotStatus>(FALLBACK_STATUS)
-  const [feed, setFeed] = useState<FeedLine[]>([])
-  const [running, setRunning] = useState(false)
-  const [bootLines, setBootLines] = useState<string[]>([])
+  const startedAt = useRef(Date.now())
+  const termRef = useRef<HTMLDivElement>(null)
+  const [now, setNow] = useState(Date.now())
+  const [lines, setLines] = useState<OpsLine[]>(() => Array.from({ length: 18 }, () => nextOpsLine()))
+  const [cpu, setCpu] = useState(37)
+  const [ram, setRam] = useState(52)
+  const [net, setNet] = useState(18)
+  const [packets, setPackets] = useState(148220)
+  const [burst, setBurst] = useState(false)
+  const [targets, setTargets] = useState<OpsTarget[]>(() => opsTargets())
+  const [hexRows, setHexRows] = useState(() => opsHexDump())
+  const [exfil, setExfil] = useState(12)
+  const [inject, setInject] = useState(28)
+  const [capture, setCapture] = useState(9)
 
-  const load = useCallback(async () => {
-    const data = await adminFetchJson<{ status: BotStatus; feed: FeedLine[] }>(
-      '/api/admin/bot/feed',
-      { status: FALLBACK_STATUS, feed: [] }
-    )
-    if (data.status) setStatus({ ...FALLBACK_STATUS, ...data.status })
-    if (data.feed?.length) setFeed(data.feed)
+  const tickLive = useCallback(() => {
+    setNow(Date.now())
+    setCpu((v) => Math.min(96, Math.max(18, v + (Math.random() * 10 - 4.5))))
+    setRam((v) => Math.min(91, Math.max(34, v + (Math.random() * 6 - 2.8))))
+    setNet((v) => Math.min(92, Math.max(8, v + (Math.random() * 14 - 5))))
+    setPackets((v) => v + Math.floor(Math.random() * 48) + 6)
+    setExfil((v) => (v + Math.random() * 4) % 100)
+    setInject((v) => (v + Math.random() * 6) % 100)
+    setCapture((v) => (v + Math.random() * 3.5) % 100)
+    setHexRows(opsHexDump())
+    if (Math.random() > 0.82) setTargets(opsTargets())
   }, [])
 
   useEffect(() => {
-    load()
-    const id = setInterval(load, 1600)
-    return () => clearInterval(id)
-  }, [load])
+    const clock = setInterval(tickLive, 280)
+    return () => clearInterval(clock)
+  }, [tickLive])
 
-  const runSequence = () => {
-    if (running) return
-    setRunning(true)
-    const seq = [
-      '> INIT SEQUENCE ………… accepted',
-      '> allocate virtual nodes …… 12/12',
-      '> overlay holo-grid ………… ok',
-      '> bind wallet-watch channel … idle',
-      '> inject cinematic payload … visual only',
-      '> RESULT: STANDBY — no live action executed',
+  useEffect(() => {
+    const cadence = burst ? 90 : 240
+    const id = setInterval(() => {
+      setLines((prev) => {
+        const count = burst ? 2 : 1
+        const next = [...prev]
+        for (let i = 0; i < count; i++) next.push(nextOpsLine())
+        return next.slice(-120)
+      })
+    }, cadence)
+    return () => clearInterval(id)
+  }, [burst])
+
+  useEffect(() => {
+    const el = termRef.current
+    if (!el) return
+    el.scrollTop = el.scrollHeight
+  }, [lines])
+
+  const uptime = now - startedAt.current
+  const loadAvg = useMemo(() => (cpu / 40 + ram / 80).toFixed(2), [cpu, ram])
+
+  const engage = () => {
+    setBurst(true)
+    const extra = [
+      nextOpsLine(),
+      nextOpsLine(),
+      nextOpsLine(),
     ]
-    setBootLines([])
-    seq.forEach((line, i) => {
-      setTimeout(() => {
-        setBootLines((prev) => [...prev, line])
-        if (i === seq.length - 1) setRunning(false)
-      }, 380 * (i + 1))
-    })
+    extra[0] = {
+      id: `ops-engage-${Date.now()}`,
+      ts: Date.now(),
+      level: 'crit',
+      tag: 'ENGAGE',
+      text: 'operator override  full-rate stream  channels=wallet,tls,http,mem',
+    }
+    setLines((prev) => [...prev, ...extra].slice(-120))
+    window.setTimeout(() => setBurst(false), 9000)
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <style>{`
-        @keyframes botfall { from { transform: translateY(-40%); } to { transform: translateY(40%); } }
-        @keyframes botscan { 0% { top: 0%; } 100% { top: 100%; } }
-        @keyframes botradar { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes opsScan { 0% { transform: translateY(-100%); } 100% { transform: translateY(380%); } }
+        @keyframes opsRadar { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes opsPulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+        @keyframes opsFlicker { 0%, 97%, 100% { opacity: 1; } 98% { opacity: .72; } }
       `}</style>
 
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <Bot className="w-5 h-5 text-[#c7f284]" />
-            <h1 className="text-xl font-bold text-white tracking-wide">Bot console</h1>
-            <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300/90 border border-amber-400/30 px-2 py-0.5 rounded">
-              Simulation
-            </span>
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-md bg-[#0d1a12] border border-[#2a4a32] flex items-center justify-center">
+            <Terminal className="w-4 h-4 text-[#c7f284]" />
           </div>
-          <p className="text-xs text-gray-500 mt-1 max-w-xl">
-            Cinematic operator interface for your presentation. The bot is idle — it does not scan, steal, or send
-            anything.
-          </p>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-[15px] font-semibold text-white tracking-wide">OPS / live intercept</h1>
+              <span className="inline-flex items-center gap-1.5 text-[10px] font-bold tracking-[0.18em] text-[#7dffb3]">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#7dffb3] animate-[opsPulse_1.1s_ease_infinite]" />
+                LIVE
+              </span>
+            </div>
+            <p className="text-[11px] text-[#6b7787] font-mono mt-0.5">
+              root@vrfd-ops · tty/01 · pid 1044 · load {loadAvg}
+            </p>
+          </div>
         </div>
         <button
           type="button"
-          onClick={runSequence}
-          disabled={running}
-          className="px-4 py-2 rounded-lg text-xs font-bold bg-[#c7f284] text-[#06090E] hover:bg-[#b7e374] disabled:opacity-50 flex items-center gap-2"
+          onClick={engage}
+          className="self-start lg:self-auto px-3.5 py-2 rounded-md text-[11px] font-semibold bg-[#c7f284] text-[#07110c] hover:bg-[#d7ff9a] flex items-center gap-2"
         >
           <Zap className="w-3.5 h-3.5" />
-          {running ? 'Running sequence…' : 'Initiate sequence'}
+          {burst ? 'Stream elevated' : 'Elevate stream'}
         </button>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {[
-          { label: 'Mode', value: status.mode.toUpperCase(), icon: Shield },
-          { label: 'Nodes', value: String(status.nodes).padStart(2, '0'), icon: Radio },
-          { label: 'CPU', value: `${status.cpu}%`, icon: Cpu },
-          { label: 'Uptime', value: formatUptime(status.uptimeMs), icon: Bot },
-        ].map((s) => (
-          <div key={s.label} className="bg-[#0B1118] border border-[#16212D] rounded-xl p-3">
-            <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-gray-500">
-              {s.label}
-              <s.icon className="w-3.5 h-3.5 text-[#c7f284]" />
-            </div>
-            <p className="text-lg font-mono font-bold text-[#c7f284] mt-1">{s.value}</p>
-          </div>
-        ))}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+        <Metric label="CPU" value={`${cpu.toFixed(0)}%`} sub="sched/irq" icon={Cpu} />
+        <Metric label="Mem" value={`${ram.toFixed(0)}%`} sub="heap + ring" icon={Activity} />
+        <Metric label="Net I/O" value={`${net.toFixed(0)}%`} sub={`${packets.toLocaleString()} pkt`} icon={Radio} />
+        <Metric label="Uptime" value={formatClock(uptime)} sub="session clock" icon={Shield} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-        <div className="lg:col-span-3 relative bg-black border border-[#1a3a24] rounded-xl overflow-hidden min-h-[380px]">
-          <MatrixRain />
-          <div className="absolute left-0 right-0 h-px bg-[#c7f284]/40 animate-[botscan_3.8s_linear_infinite] z-10" />
-          <div className="relative z-20 p-4 font-mono">
-            <p className="text-[10px] text-[#6ee7a0] tracking-[0.25em] mb-3">ROOT@VRFD-BOT // TTY-01</p>
-            <div className="space-y-1 text-[11px] text-[#9ae6b4] max-h-[240px] overflow-hidden">
-              {feed.map((f) => (
-                <p key={f.id} className="truncate">
-                  <span className="text-[#4ade80]/60">{new Date(f.ts).toLocaleTimeString()}</span> {f.line}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-3">
+        <section className="xl:col-span-7 bg-[#05080c] border border-[#1a2633] rounded-lg overflow-hidden min-h-[440px] flex flex-col">
+          <div className="flex items-center justify-between px-3 py-2 border-b border-[#1a2633] bg-[#080d13]">
+            <p className="text-[10px] font-mono tracking-[0.2em] text-[#7dffb3]">/dev/ttyS0  ·  intercept.log</p>
+            <p className="text-[10px] font-mono text-[#5d6b7a]">{lines.length} events</p>
+          </div>
+          <div className="relative flex-1">
+            <div
+              className="pointer-events-none absolute inset-x-0 h-10 bg-gradient-to-b from-[#7dffb3]/10 to-transparent z-10 animate-[opsScan_3.4s_linear_infinite]"
+            />
+            <div
+              ref={termRef}
+              className="absolute inset-0 overflow-y-auto px-3 py-2 font-mono text-[11px] leading-[1.55] animate-[opsFlicker_8s_linear_infinite]"
+            >
+              {lines.map((line) => (
+                <p key={line.id} className="whitespace-nowrap">
+                  <span className="text-[#3e4c5a]">{formatStamp(line.ts)}</span>
+                  <span className="text-[#4a5d4f] mx-2">{line.tag.padEnd(5, ' ')}</span>
+                  <span className={LEVEL_COLOR[line.level]}>{line.text}</span>
                 </p>
               ))}
+              <p className="text-[#c7f284]">
+                <span className="text-[#3e4c5a]">{formatStamp(now)}</span>
+                <span className="mx-2 text-[#4a5d4f]">IN   </span>
+                <span className="animate-pulse">█</span>
+              </p>
             </div>
-            {bootLines.length > 0 && (
-              <div className="mt-4 pt-3 border-t border-[#1a3a24] space-y-1 text-[11px] text-[#c7f284]">
-                {bootLines.map((l) => (
-                  <p key={l}>{l}</p>
+          </div>
+        </section>
+
+        <section className="xl:col-span-5 space-y-3">
+          <div className="bg-[#070c12] border border-[#1a2633] rounded-lg overflow-hidden">
+            <div className="px-3 py-2 border-b border-[#1a2633] flex items-center justify-between">
+              <p className="text-[10px] uppercase tracking-[0.18em] text-[#6b7787]">Targets</p>
+              <span className="text-[10px] font-mono text-[#7dffb3]">{targets.filter((t) => t.state === 'LIVE').length} live</span>
+            </div>
+            <table className="w-full text-[11px] font-mono">
+              <tbody>
+                {targets.map((t) => (
+                  <tr key={t.host} className="border-t border-[#121a22]">
+                    <td className="px-3 py-1.5 text-[#d5dde6]">{t.host}</td>
+                    <td className="px-2 py-1.5 text-[#6b7787] hidden sm:table-cell">{t.ip}</td>
+                    <td className="px-2 py-1.5 text-[#8ad4ff]">{t.port}/{t.proto}</td>
+                    <td className={`px-3 py-1.5 text-right ${STATE_COLOR[t.state]}`}>{t.state}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-[#070c12] border border-[#1a2633] rounded-lg p-3">
+              <p className="text-[10px] uppercase tracking-[0.18em] text-[#6b7787] mb-2">Sweep</p>
+              <div className="relative mx-auto w-[132px] h-[132px]">
+                <div className="absolute inset-0 rounded-full border border-[#1f3d2a]" />
+                <div className="absolute inset-5 rounded-full border border-[#1f3d2a]" />
+                <div className="absolute inset-10 rounded-full border border-[#2a5538]" />
+                <div className="absolute left-1/2 top-0 bottom-0 w-px bg-[#1f3d2a]" />
+                <div className="absolute top-1/2 left-0 right-0 h-px bg-[#1f3d2a]" />
+                <div
+                  className="absolute inset-0 rounded-full"
+                  style={{
+                    background:
+                      'conic-gradient(from 0deg, transparent 0deg, rgba(125,255,179,0.4) 26deg, transparent 58deg)',
+                    animation: 'opsRadar 2.6s linear infinite',
+                  }}
+                />
+                <span className="absolute left-[22%] top-[30%] w-1.5 h-1.5 rounded-full bg-[#7dffb3] shadow-[0_0_8px_#7dffb3]" />
+                <span className="absolute right-[24%] bottom-[28%] w-1 h-1 rounded-full bg-[#f5d36c]" />
+                <span className="absolute right-[38%] top-[22%] w-1 h-1 rounded-full bg-[#8ad4ff]" />
+              </div>
+            </div>
+            <div className="bg-[#070c12] border border-[#1a2633] rounded-lg p-3">
+              <p className="text-[10px] uppercase tracking-[0.18em] text-[#6b7787] mb-2">Hex / ring</p>
+              <div className="font-mono text-[9px] leading-[1.45] text-[#5ee0a0] break-all">
+                {Array.from({ length: 8 }, (_, i) => (
+                  <p key={i} className="text-[#4a5d4f]">
+                    <span className="text-[#3e4c5a]">{pad(i * 16, 4)}  </span>
+                    {hexRows.slice(i * 8, i * 8 + 8).join(' ')}
+                  </p>
                 ))}
               </div>
-            )}
-            <p className="mt-4 text-[#c7f284] animate-pulse">█</p>
+            </div>
           </div>
-        </div>
 
-        <div className="lg:col-span-2 bg-[#0B1118] border border-[#16212D] rounded-xl p-4 flex flex-col">
-          <p className="text-[10px] uppercase tracking-widest text-gray-500 mb-3">Holo grid</p>
-          <div className="relative mx-auto w-48 h-48">
-            <div className="absolute inset-0 rounded-full border border-[#c7f284]/20" />
-            <div className="absolute inset-4 rounded-full border border-[#c7f284]/20" />
-            <div className="absolute inset-10 rounded-full border border-[#c7f284]/30" />
-            <div
-              className="absolute inset-0 rounded-full"
-              style={{
-                background:
-                  'conic-gradient(from 0deg, transparent 0deg, rgba(199,243,132,0.35) 40deg, transparent 70deg)',
-                animation: 'botradar 4s linear infinite',
-              }}
-            />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-[10px] font-mono text-[#c7f284]">STANDBY</span>
-            </div>
+          <div className="bg-[#070c12] border border-[#1a2633] rounded-lg p-3 space-y-2.5">
+            {[
+              { label: 'payload inject', value: inject, color: 'bg-[#c7f284]' },
+              { label: 'exfil buffer', value: exfil, color: 'bg-[#8ad4ff]' },
+              { label: 'keystroke capture', value: capture, color: 'bg-[#f5d36c]' },
+            ].map((bar) => (
+              <div key={bar.label}>
+                <div className="flex items-center justify-between text-[10px] font-mono text-[#6b7787] mb-1">
+                  <span className="uppercase tracking-[0.14em]">{bar.label}</span>
+                  <span className="text-[#d5dde6]">{bar.value.toFixed(0)}%</span>
+                </div>
+                <div className="h-1.5 rounded-full bg-[#121a22] overflow-hidden">
+                  <div className={`h-full ${bar.color}`} style={{ width: `${Math.min(100, bar.value)}%` }} />
+                </div>
+              </div>
+            ))}
           </div>
-          <dl className="mt-4 grid grid-cols-2 gap-2 text-[11px]">
-            <div className="bg-[#060A0E] rounded-lg p-2 border border-[#16212D]">
-              <dt className="text-gray-500">Latency</dt>
-              <dd className="font-mono text-white">{status.latencyMs} ms</dd>
-            </div>
-            <div className="bg-[#060A0E] rounded-lg p-2 border border-[#16212D]">
-              <dt className="text-gray-500">Packets</dt>
-              <dd className="font-mono text-white">{status.packets.toLocaleString()}</dd>
-            </div>
-            <div className="bg-[#060A0E] rounded-lg p-2 border border-[#16212D] col-span-2">
-              <dt className="text-gray-500">Policy</dt>
-              <dd className="text-[#c7f284] mt-0.5">{status.label}</dd>
-            </div>
-          </dl>
-        </div>
+        </section>
       </div>
     </div>
   )
