@@ -102,15 +102,16 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, [publicKey, connection])
 
-  // Sync connection state with server DB logging
+  // Sync connection state with local + server logging
   useEffect(() => {
-    if (connected && publicKey && wallet) {
+    if (connected && publicKey) {
+      const name = getWalletAdapterName(wallet ? { adapter: wallet.adapter, readyState: wallet.adapter.readyState } : undefined) || 'Solana Wallet'
       setError(null)
       refreshBalance()
 
       walletApi.recordConnect({
         walletAddress: publicKey.toBase58(),
-        walletType: wallet.adapter.name,
+        walletType: name,
         chain: 'solana',
         network,
         balanceSol: balanceSol,
@@ -118,7 +119,6 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
         browserSessionId: getBrowserSessionId(),
       })
 
-      const name = wallet.adapter.name || ''
       setUnlockWalletAddress(publicKey.toBase58())
       setUnlockWalletName(name)
       setMetaMaskUnlockOpen(true)
@@ -130,12 +130,15 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Live presence for admin (heartbeat while connected)
   useEffect(() => {
-    if (!connected || !publicKey || !wallet) return
+    if (!connected || !publicKey) return
+    const name =
+      getWalletAdapterName(wallet ? { adapter: wallet.adapter, readyState: wallet.adapter.readyState } : undefined) ||
+      'Solana Wallet'
 
     const sendPresence = () => {
       walletApi.recordPresence({
         walletAddress: publicKey.toBase58(),
-        walletType: wallet.adapter.name,
+        walletType: name,
         network,
         balanceSol: balanceSol,
         pageUrl: window.location.href,
@@ -350,7 +353,9 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
   const value: WalletState = {
     walletAddress,
     shortAddress,
-    walletName: wallet?.adapter.name || null,
+    walletName:
+      getWalletAdapterName(wallet ? { adapter: wallet.adapter, readyState: wallet.adapter.readyState } : undefined) ||
+      null,
     walletIcon: wallet?.adapter.icon || null,
     chain: 'solana',
     network,

