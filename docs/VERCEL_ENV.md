@@ -18,13 +18,15 @@ This project is a **Vite frontend**. On Vercel you only need the **`VITE_*`** va
 
 Copy values from [`.env.example`](../.env.example). Do **not** paste `YOUR_PROJECT_REF` into Vercel — that host does not exist and X login fails with “This site can’t be reached”.
 
-In **Supabase → Authentication → URL configuration** add:
+In **Supabase → Authentication → URL configuration** set **exactly** these (do not use `verifiedup.ag` — that domain does not exist):
 
 - Site URL: `https://www.verifiedjup.ag`
 - Redirect URLs:
   - `https://www.verifiedjup.ag/**`
   - `https://www.verifiedjup.ag/auth/x/callback`
   - `https://verifiedjup.ag/**`
+
+Remove any `verifiedup.ag` Site URL / redirect. After X login, GoTrue sends users to Site URL; a dead host shows “DNS address could not be found”.
 
 Enable the **X** provider (not the older **Twitter** provider) in Supabase Auth.
 

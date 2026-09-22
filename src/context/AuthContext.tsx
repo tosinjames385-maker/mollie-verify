@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
+import { getAuthCallbackUrl, withForcedOAuthRedirect } from '../lib/authRedirect'
 
 export interface UserProfile {
   id: string
@@ -98,6 +99,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
         setUser(mapSupabaseUserToProfile(session.user))
+        if (typeof window !== 'undefined' && window.location.hash.includes('access_token')) {
+          window.history.replaceState({}, '', '/submissions')
+        }
       } else if (event === 'SIGNED_OUT') {
         setUser(null)
       }
@@ -111,7 +115,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loginWithX = async () => {
     try {
-      const redirectUrl = `${window.location.origin}/auth/x/callback`
+      const redirectUrl = getAuthCallbackUrl()
       const { data, error } = await supabase.auth.signInWithOAuth({
         // This project has the X provider enabled, not the legacy Twitter provider.
         provider: 'x' as 'twitter',
@@ -130,7 +134,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return
       }
 
-      window.location.assign(data.url)
+      window.location.assign(withForcedOAuthRedirect(data.url, redirectUrl))
     } catch (err: any) {
       toast.error(err?.message || 'Failed to connect to X. Please try again.')
     }
