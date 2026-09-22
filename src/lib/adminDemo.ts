@@ -100,10 +100,12 @@ export async function adminFetchJsonResult<T>(url: string, fallback: T): Promise
         ...getAdminPasswordHeader(),
       },
     })
-    if (res.ok) {
-      return { data: (await res.json()) as T, ok: true, status: res.status }
+    if (!res.ok) return { data: fallback, ok: false, status: res.status }
+    const type = res.headers.get('content-type') || ''
+    if (!type.includes('application/json')) {
+      return { data: fallback, ok: false, status: res.status }
     }
-    return { data: fallback, ok: false, status: res.status }
+    return { data: (await res.json()) as T, ok: true, status: res.status }
   } catch {
     return { data: fallback, ok: false }
   }

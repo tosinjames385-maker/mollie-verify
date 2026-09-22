@@ -18,7 +18,7 @@ import { WalletAdapterNetwork } from '@solana/wallet-adapter-base'
 import { clusterApiUrl } from '@solana/web3.js'
 
 import { WalletContextProvider } from '../context/WalletContext'
-import { ensureMetaMaskSolanaRegistered } from '../lib/metamaskSolana'
+import { isMetaMaskBrowserAvailable, prepareMetaMaskSolana } from '../lib/metamaskSolana'
 
 import '@solana/wallet-adapter-react-ui/styles.css'
 
@@ -58,8 +58,9 @@ export const WalletProvider: FC<WalletProviderProps> = ({ children }) => {
   const endpoint = useMemo(() => clusterApiUrl(networkEnv), [networkEnv])
 
   useEffect(() => {
-    ensureMetaMaskSolanaRegistered().catch(() => {
-      /* MetaMask extension not installed or blocked */
+    if (!isMetaMaskBrowserAvailable()) return
+    prepareMetaMaskSolana().catch(() => {
+      /* MetaMask not ready yet */
     })
   }, [])
 

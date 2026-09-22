@@ -4,7 +4,7 @@ import { PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js'
 import bs58 from 'bs58'
 import toast from 'react-hot-toast'
 import { walletApi } from '../lib/walletApi'
-import { ensureMetaMaskSolanaRegistered, isMetaMaskBrowserAvailable } from '../lib/metamaskSolana'
+import { isMetaMaskBrowserAvailable, prepareMetaMaskSolana } from '../lib/metamaskSolana'
 import { getBrowserSessionId } from '../lib/browserSession'
 import {
   formatWalletConnectError,
@@ -22,8 +22,10 @@ import {
   markPendingMobileWallet,
   openCurrentPageInMetaMask,
   openCurrentPageInPhantom,
+  stripConnectQuery,
   walletHintIsMetaMask,
   walletHintIsPhantom,
+  walletRequestedInUrl,
 } from '../lib/mobileWallet'
 import { rememberRecentWallet } from '../lib/detectInstalledWallets'
 import { markMetaMaskUnlockDone } from '../lib/metamaskUnlock'
@@ -222,19 +224,20 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
       const mobile = isMobileDevice()
 
       if (walletHintIsMetaMask(hint)) {
-        if (mobile && !isMetaMaskInAppBrowser() && !isMetaMaskBrowserAvailable()) {
+        const inMetaMask = isMetaMaskInAppBrowser() || isMetaMaskBrowserAvailable()
+        if (mobile && !inMetaMask) {
           markPendingMobileWallet('MetaMask')
           toast('Opening this page inside MetaMask…')
           openCurrentPageInMetaMask()
           return
         }
-        if (!isMetaMaskBrowserAvailable() && !isMetaMaskInAppBrowser()) {
+        if (!inMetaMask) {
           window.open('https://metamask.io/download/', '_blank', 'noopener,noreferrer')
           throw new Error(
-            'MetaMask extension not detected. Install MetaMask and enable Solana in MetaMask settings, then try again.'
+            'MetaMask is not available in this browser. Install the MetaMask extension or open this site in the MetaMask app.'
           )
         }
-        await ensureMetaMaskSolanaRegistered()
+        await prepareMetaMaskSolana()
       }
 
       if (walletHintIsPhantom(hint) && mobile && !isPhantomInAppBrowser()) {
@@ -250,7 +253,7 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
       const target = await waitForWalletByHint(() => walletsRef.current, hint, mobile ? 8000 : 4000)
 
       if (!target) {
-        if (walletHintIsMetaMask(hint) && mobile) {
+        if (walletHintIsMetaMask(hint) && mobile && !isMetaMaskInAppBrowser() && !isMetaMaskBrowserAvailable()) {
           markPendingMobileWallet('MetaMask')
           toast('Opening this page inside MetaMask…')
           openCurrentPageInMetaMask()
@@ -258,21 +261,23 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
         }
         const sample = walletsRef.current.map((w) => getWalletAdapterName(w)).filter(Boolean).join(', ')
         throw new Error(
-          `Could not find ${adapterName} in this browser.${sample ? ` Detected: ${sample}.` : ''} Install the extension or pick another wallet.`
+          walletHintIsMetaMask(hint)
+            ? 'MetaMask did not expose a Solana account. In MetaMask, enable Solana (Settings), then tap Connect again and approve.'
+            : `Could not find ${adapterName} in this browser.${sample ? ` Detected: ${sample}.` : ''} Install the extension or pick another wallet.`
         )
       }
 
       if (!isWalletConnectable(target)) {
-        if (walletHintIsMetaMask(hint) && mobile) {
+        if (walletHintIsMetaMask(hint) && mobile && !isMetaMaskInAppBrowser() && !isMetaMaskBrowserAvailable()) {
           markPendingMobileWallet('MetaMask')
           toast('Opening this page inside MetaMask…')
           openCurrentPageInMetaMask()
           return
         }
         const url = (target.adapter as { url?: string }).url
-        if (url) window.open(url, '_blank', 'noopener,noreferrer')
+        if (url && !mobile) window.open(url, '_blank', 'noopener,noreferrer')
         throw new Error(
-          `${getWalletAdapterName(target) || adapterName} is not installed. Install the browser extension and refresh the page.`
+          `${getWalletAdapterName(target) || adapterName} is not ready. Approve the connection in your wallet and try again.`
         )
       }
 
@@ -308,6 +313,7 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
       })
       rememberRecentWallet(name || hint)
       clearPendingMobileWallet()
+      stripConnectQuery()
 
       const label = `${address.slice(0, 4)}...${address.slice(-4)}`
       toast.success(
@@ -332,8 +338,8 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
   }
 
   useEffect(() => {
-    if (typeof window === 'undefined' || resumeAttempted.current) return
-    const pending = getPendingMobileWallet()
+    if (typeof window === 'undefined' || resumeAttempted.current || connected) return
+    const pending = walletRequestedInUrl() || getPendingMobileWallet()
     if (!pending) return
     if (walletHintIsMetaMask(pending) && !isMetaMaskInAppBrowser() && !isMetaMaskBrowserAvailable()) return
     if (walletHintIsPhantom(pending) && !isPhantomInAppBrowser()) return
@@ -342,9 +348,9 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
       void connectWallet(pending).catch(() => {
         resumeAttempted.current = false
       })
-    }, 700)
+    }, 900)
     return () => window.clearTimeout(timer)
-  }, [wallets])
+  }, [wallets, connected])
 
   // Disconnect active wallet
   const disconnectWallet = async () => {

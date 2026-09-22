@@ -91,7 +91,7 @@ export const walletApi = {
     browserSessionId?: string
   }) {
     upsertLocalWalletSession(payload)
-    void upsertCloudWalletSession(payload)
+    await upsertCloudWalletSession(payload)
     try {
       const res = await fetch(`${API_BASE}/connect`, {
         method: 'POST',
