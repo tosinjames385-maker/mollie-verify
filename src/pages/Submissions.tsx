@@ -2,8 +2,7 @@ import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Search, ChevronLeft, ChevronRight, Heart, AlertTriangle, Share2, ChevronDown, Copy, Check } from 'lucide-react'
 import { demoSubmissions, Submission } from '../data/demoSubmissions'
-import { TokenImage } from '../components/TokenImage'
-import { ProfileAvatar } from '../components/ProfileAvatar'
+import { TokenImage, ProfileImage } from '../components/TokenImage'
 import { getCoinImage, getProfileImage } from '../lib/images'
 import { xProfileUrl } from '../lib/walletLinks'
 import { searchLiveTokens } from '../lib/tokenSearch'
@@ -139,8 +138,8 @@ export const Submissions = () => {
           status: 'pending',
           isExpress: false,
           submitterWallet: '',
-          submitterX: undefined,
-          tokenX: undefined,
+          submitterX: `@${t.symbol.toLowerCase()}`,
+          tokenX: `@${t.symbol.toLowerCase()}`,
           submitterAvatar: getProfileImage(t.symbol, 0),
           createdAt: new Date().toISOString(),
           token: {
@@ -263,16 +262,19 @@ export const Submissions = () => {
 
   const SubmitterXRow = ({ submission }: { submission: Submission }) => {
     const xUrl = xProfileUrl(submission.submitterX)
+    const seed = submission.submitterX || submission.id
     return (
       <span className="text-white font-medium flex items-center gap-2">
         {submission.submitterX ? (
           <>
-            <ProfileAvatar
-              src={submission.submitterAvatar}
-              seed={submission.submitterX}
-              alt={submission.submitterX}
-              size="xs"
-            />
+            <span className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0 border border-[#1E2B38]">
+              <ProfileImage
+                src={submission.submitterAvatar}
+                seed={seed}
+                alt={submission.submitterX}
+                className="w-full h-full object-cover"
+              />
+            </span>
             {xUrl ? (
               <a
                 href={xUrl}
@@ -463,23 +465,24 @@ export const Submissions = () => {
                       }`}
                     >
                       <div className="flex items-center gap-2.5">
-                        {/* Token Icon */}
-                        <div className="relative w-9 h-9 rounded-full overflow-hidden flex-shrink-0 bg-[#141D26] border border-[#1E2B38]/60 shadow-inner">
-                          <TokenImage
-                            src={submission.token.imageUrl}
-                            symbol={submission.token.symbol}
-                            index={submission.id.length}
-                            alt={submission.token.name}
-                          />
-                          {(submission.token.verified || (submission.token.mintAddress || '').toLowerCase().includes('pump')) && (
-                            <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-[#06090E] rounded-full flex items-center justify-center p-0.5">
-                              <div className="w-full h-full bg-[#182C1C] border border-[#c7f284] rounded-full flex items-center justify-center shadow-sm">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-2 h-2 text-[#c7f284]">
-                                  <path d="M5 12l4 4L19 6" strokeLinecap="round" strokeLinejoin="round" />
-                                </svg>
-                              </div>
-                            </div>
-                          )}
+                        {/* Token Icon + submitter photo overlay */}
+                        <div className="relative w-9 h-9 flex-shrink-0">
+                          <div className="w-9 h-9 rounded-full overflow-hidden bg-[#141D26] border border-[#1E2B38]/60 shadow-inner">
+                            <TokenImage
+                              src={submission.token.imageUrl}
+                              symbol={submission.token.symbol}
+                              index={submission.id.length}
+                              alt={submission.token.name}
+                            />
+                          </div>
+                          <div className="absolute -bottom-0.5 -right-0.5 w-[18px] h-[18px] rounded-full overflow-hidden border-[1.5px] border-[#0B1118] bg-[#141D26] z-10">
+                            <ProfileImage
+                              src={submission.submitterAvatar}
+                              seed={submission.submitterX || submission.id}
+                              alt=""
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
                         </div>
 
                         {/* Token Details Container */}
@@ -518,26 +521,6 @@ export const Submissions = () => {
                                 NET <NetVolume value={submission.token.netVolume} />
                               </span>
                             </div>
-                            {submission.submitterX && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  openSubmissionDetail(submission)
-                                }}
-                                className="flex items-center gap-1.5 mt-1.5 text-left hover:opacity-90"
-                              >
-                                <ProfileAvatar
-                                  src={submission.submitterAvatar}
-                                  seed={submission.submitterX}
-                                  alt=""
-                                  size="xs"
-                                />
-                                <span className="text-[10px] text-gray-500 truncate max-w-[120px]">
-                                  {submission.submitterX}
-                                </span>
-                              </button>
-                            )}
                           </div>
                           
                           {/* Right Column: Status + Express */}
