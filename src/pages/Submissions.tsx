@@ -465,22 +465,22 @@ export const Submissions = () => {
                       }`}
                     >
                       <div className="flex items-center gap-2.5">
-                        {/* Token Icon + submitter photo overlay */}
+                        {/* Submitter photo as the main avatar, token as the small badge */}
                         <div className="relative w-9 h-9 flex-shrink-0">
                           <div className="w-9 h-9 rounded-full overflow-hidden bg-[#141D26] border border-[#1E2B38]/60 shadow-inner">
+                            <ProfileImage
+                              src={submission.submitterAvatar}
+                              seed={submission.submitterX || submission.id}
+                              alt={submission.submitterX || submission.token.symbol}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <div className="absolute -bottom-0.5 -right-0.5 w-[18px] h-[18px] rounded-full overflow-hidden border-[1.5px] border-[#0B1118] bg-[#141D26] z-10">
                             <TokenImage
                               src={submission.token.imageUrl}
                               symbol={submission.token.symbol}
                               index={submission.id.length}
                               alt={submission.token.name}
-                            />
-                          </div>
-                          <div className="absolute -bottom-0.5 -right-0.5 w-[18px] h-[18px] rounded-full overflow-hidden border-[1.5px] border-[#0B1118] bg-[#141D26] z-10">
-                            <ProfileImage
-                              src={submission.submitterAvatar}
-                              seed={submission.submitterX || submission.id}
-                              alt=""
-                              className="w-full h-full object-cover"
                             />
                           </div>
                         </div>
@@ -585,21 +585,22 @@ export const Submissions = () => {
 
                 <div className="bg-[#0B1118] border border-[#16212D] rounded-2xl p-5 shadow-xl">
                   <div className="flex items-start gap-4 mb-4">
-                    <div className="w-16 h-16 rounded-full overflow-hidden bg-[#16212D] relative border border-[#1F2E3E] flex-shrink-0">
-                      <TokenImage
-                        src={selectedSubmission.token.imageUrl}
-                        symbol={selectedSubmission.token.symbol}
-                        alt={selectedSubmission.token.name}
-                      />
-                      {selectedSubmission.token.verified && (
-                        <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 bg-[#c7f284] border-2 border-[#0B1118] rounded-full flex items-center justify-center text-black">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3">
-                            <path d="M10 14.5a4 4 0 1 1 5.5-5.5" />
-                            <path d="M14 10.5 9.5 15" />
-                            <path d="M9.5 15a4 4 0 1 1-5.5-5.5l4.5-4.5a4 4 0 1 1 5.5 5.5Z" />
-                          </svg>
-                        </div>
-                      )}
+                    <div className="relative w-16 h-16 flex-shrink-0">
+                      <div className="w-16 h-16 rounded-full overflow-hidden bg-[#16212D] border border-[#1F2E3E]">
+                        <ProfileImage
+                          src={selectedSubmission.submitterAvatar}
+                          seed={selectedSubmission.submitterX || selectedSubmission.id}
+                          alt={selectedSubmission.submitterX || selectedSubmission.token.symbol}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div className="absolute -bottom-0.5 -right-0.5 w-6 h-6 rounded-full overflow-hidden border-2 border-[#0B1118] bg-[#16212D] z-10">
+                        <TokenImage
+                          src={selectedSubmission.token.imageUrl}
+                          symbol={selectedSubmission.token.symbol}
+                          alt={selectedSubmission.token.name}
+                        />
+                      </div>
                     </div>
                     
                     <div className="flex-1 min-w-0">

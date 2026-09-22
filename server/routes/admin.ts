@@ -1,23 +1,10 @@
-import { Router, Request, Response } from 'express'
+import { Router } from 'express'
 import { prisma } from '../prisma'
 import { requireAdmin, AuthRequest } from '../middleware/auth'
 import { supabaseServer } from '../supabase'
 
 export const adminRoutes = Router()
 
-// Debug endpoint to check session state
-adminRoutes.get('/debug', async (req: Request, res: Response) => {
-  const session = req.session as any
-  res.json({
-    sessionId: session?.id || null,
-    userId: session?.userId || null,
-    hasSession: !!session?.userId,
-    cookies: req.headers.cookie || 'none',
-    sessionData: JSON.stringify(session || {}).slice(0, 200),
-  })
-})
-
-// ─── Dashboard Stats ───────────────────────────────────────────
 adminRoutes.get('/stats', requireAdmin, async (_req, res) => {
   try {
     const now = new Date()

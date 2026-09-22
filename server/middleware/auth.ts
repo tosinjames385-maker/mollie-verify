@@ -109,7 +109,7 @@ export const requireAdmin = async (
       const user = await prisma.user.findUnique({
         where: { walletAddress },
       })
-      req.isAdmin = user?.isAdmin ?? true
+      req.isAdmin = user?.isAdmin === true
       authenticated = true
     }
   }
@@ -121,7 +121,6 @@ export const requireAdmin = async (
   }
 
   if (!authenticated) {
-    console.log('[AdminAuth] 401 - No session, no wallet. Session ID:', session?.id)
     return res.status(401).json({ error: 'Not authenticated' })
   }
 
@@ -130,7 +129,6 @@ export const requireAdmin = async (
   }
 
   if (!req.isAdmin) {
-    console.log('[AdminAuth] 403 - User not admin. userId:', req.userId, 'wallet:', req.walletAddress)
     return res.status(403).json({ error: 'Admin access required' })
   }
 

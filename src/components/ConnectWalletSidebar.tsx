@@ -18,6 +18,7 @@ import toast from 'react-hot-toast'
 import { useWalletState } from '../context/WalletContext'
 import { useWallet } from '@solana/wallet-adapter-react'
 import { WalletReadyState } from '@solana/wallet-adapter-base'
+import { WalletBrandIcon, SolanaBadgeIcon } from './walletIcons'
 
 interface ConnectWalletSidebarProps {
   isOpen: boolean
@@ -38,109 +39,104 @@ const MASTER_WALLETS: WalletItemConfig[] = [
   {
     name: 'Social Login',
     subtitle: 'prev. ⚡ Quick Account',
-    icon: 'https://www.google.com/favicon.ico',
+    icon: 'google',
   },
   {
     name: 'Phantom',
     adapterName: 'Phantom',
-    icon: 'https://raw.githubusercontent.com/solana-labs/wallet-adapter/master/packages/wallets/phantom/images/phantom-icon.svg',
-    url: 'https://phantom.app'
+    icon: 'phantom',
+    url: 'https://phantom.app',
   },
   {
     name: 'Solflare',
     adapterName: 'Solflare',
-    icon: 'https://raw.githubusercontent.com/solana-labs/wallet-adapter/master/packages/wallets/solflare/images/solflare-icon.svg',
-    url: 'https://solflare.com'
+    icon: 'solflare',
+    url: 'https://solflare.com',
   },
   {
     name: 'Backpack',
     adapterName: 'Backpack',
-    icon: 'https://raw.githubusercontent.com/solana-labs/wallet-adapter/master/packages/wallets/backpack/images/backpack-icon.svg',
-    url: 'https://backpack.app'
+    icon: 'backpack',
+    url: 'https://backpack.app',
   },
   {
     name: 'Coinbase Wallet',
     adapterName: 'Coinbase Wallet',
-    icon: 'https://raw.githubusercontent.com/solana-labs/wallet-adapter/master/packages/wallets/coinbase/images/coinbase-icon.svg',
-    url: 'https://www.coinbase.com/wallet'
+    icon: 'coinbase',
+    url: 'https://www.coinbase.com/wallet',
   },
   {
     name: 'Magic Eden',
-    icon: 'https://avatars.githubusercontent.com/u/108054095?s=200',
-    url: 'https://magiceden.io'
+    icon: 'magiceden',
+    url: 'https://magiceden.io',
   },
   {
     name: 'Jupiter',
-    icon: 'https://station.jup.ag/favicon.ico',
-    url: 'https://jup.ag'
+    icon: 'jupiter',
+    url: 'https://jup.ag',
   },
   {
     name: 'Trust',
     adapterName: 'Trust',
-    icon: 'https://raw.githubusercontent.com/solana-labs/wallet-adapter/master/packages/wallets/trust/images/trust-icon.svg',
-    url: 'https://trustwallet.com'
+    icon: 'trust',
+    url: 'https://trustwallet.com',
   },
   {
     name: 'Ledger',
     adapterName: 'Ledger',
-    icon: 'https://raw.githubusercontent.com/solana-labs/wallet-adapter/master/packages/wallets/ledger/images/ledger-icon.svg',
-    url: 'https://ledger.com'
+    icon: 'ledger',
+    url: 'https://ledger.com',
   },
   {
     name: 'Trezor',
     adapterName: 'Trezor',
-    icon: 'https://raw.githubusercontent.com/solana-labs/wallet-adapter/master/packages/wallets/trezor/images/trezor-icon.svg',
-    url: 'https://trezor.io'
+    icon: 'trezor',
+    url: 'https://trezor.io',
   },
   {
     name: 'Ethereum Wallet',
-    icon: 'https://raw.githubusercontent.com/MetaMask/brand-resources/master/SVG/metamask-fox.svg',
-    url: 'https://metamask.io'
+    icon: 'ethereum',
+    url: 'https://metamask.io',
   },
   {
     name: 'Coin98',
     adapterName: 'Coin98',
-    icon: 'https://coin98.com/favicon.ico',
-    url: 'https://coin98.com'
+    icon: 'coin98',
+    url: 'https://coin98.com',
   },
   {
     name: 'Google via TipLink',
-    icon: 'https://www.google.com/favicon.ico',
-    url: 'https://tiplink.io'
+    icon: 'tiplink',
+    url: 'https://tiplink.io',
   },
   {
     name: 'Bitget Wallet',
     adapterName: 'Bitget Wallet',
-    icon: 'https://www.bitget.com/favicon.ico',
-    url: 'https://web3.bitget.com'
+    icon: 'bitget',
+    url: 'https://web3.bitget.com',
   },
   {
     name: 'QR',
-    icon: 'https://cdn-icons-png.flaticon.com/512/3351/3351653.png',
-  }
+    icon: 'qr',
+  },
 ]
-
-/** Shown when the wallet list is open — matches Jupiter connect modal */
-const CORE_WALLETS = MASTER_WALLETS.slice(0, 7)
 
 const INSTALLED_TILES: WalletItemConfig[] = [
   {
-    name: 'Phantom',
-    adapterName: 'Phantom',
-    icon: 'https://raw.githubusercontent.com/solana-labs/wallet-adapter/master/packages/wallets/phantom/images/phantom-icon.svg',
-    url: 'https://phantom.app',
+    name: 'Ethereum Wallet',
+    icon: 'metamask',
+    url: 'https://metamask.io',
   },
   {
     name: 'Brave Wallet',
     adapterName: 'Brave',
-    icon: 'https://upload.wikimedia.org/wikipedia/commons/3/39/Brave_icon_lion.png',
+    icon: 'brave',
     url: 'https://brave.com/wallet/',
   },
   {
-    name: 'Solflare',
-    adapterName: 'Solflare',
-    icon: 'https://raw.githubusercontent.com/solana-labs/wallet-adapter/master/packages/wallets/solflare/images/solflare-icon.svg',
-    url: 'https://solflare.com',
+    name: 'MetaMask',
+    icon: 'metamask',
+    url: 'https://metamask.io',
   },
 ]
 
@@ -189,7 +185,7 @@ export const ConnectWalletSidebar: React.FC<ConnectWalletSidebarProps> = ({ isOp
   const { wallets } = useWallet()
 
   const [mounted, setMounted] = useState(false)
-  const [isWalletListExpanded, setIsWalletListExpanded] = useState(false)
+  const [isWalletListExpanded, setIsWalletListExpanded] = useState(true)
   const [connectingItemName, setConnectingItemName] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   
@@ -291,7 +287,7 @@ export const ConnectWalletSidebar: React.FC<ConnectWalletSidebarProps> = ({ isOp
 
       if (!isInstalled) {
         if (item.url) {
-          window.open(item.url, '_blank')
+          window.open(item.url, '_blank', 'noopener,noreferrer')
           toast(`${item.name} extension not installed. Opening download link...`, { icon: '🌐' })
         } else {
           toast.error(`${item.name} extension not detected in your browser.`)
@@ -318,7 +314,7 @@ export const ConnectWalletSidebar: React.FC<ConnectWalletSidebarProps> = ({ isOp
     }
 
     if (item.url) {
-      window.open(item.url, '_blank')
+      window.open(item.url, '_blank', 'noopener,noreferrer')
       toast(`Opening ${item.name}…`, { icon: '↗' })
     }
     setConnectingItemName(null)
@@ -561,23 +557,21 @@ export const ConnectWalletSidebar: React.FC<ConnectWalletSidebarProps> = ({ isOp
               <div className="pt-1">
                 <p className="text-[13px] font-medium text-[#8b949e] mb-3">Installed</p>
                 <div className="flex items-center gap-2.5">
-                  {INSTALLED_TILES.map((tile) => (
+                  {INSTALLED_TILES.map((tile, idx) => (
                     <button
-                      key={tile.name}
+                      key={`${tile.name}-${idx}`}
                       type="button"
                       onClick={() => handleConnectWalletItem(tile)}
                       disabled={connecting}
-                      className="w-[72px] h-[72px] rounded-[18px] bg-[#161b22] border border-[#21262d] hover:bg-[#1c2129] hover:border-[#30363d] flex items-center justify-center flex-shrink-0 transition-all cursor-pointer active:scale-[0.97] disabled:opacity-50"
+                      className="w-[72px] h-[72px] rounded-[18px] bg-[#161b22] border border-[#21262d] hover:bg-[#1c2129] hover:border-[#30363d] flex items-center justify-center flex-shrink-0 transition-all cursor-pointer active:scale-[0.97] disabled:opacity-50 relative"
                       title={tile.name}
                     >
-                      <img
-                        src={tile.icon}
-                        alt=""
-                        className="w-9 h-9 object-contain"
-                        onError={(e) => {
-                          ;(e.currentTarget as HTMLImageElement).style.display = 'none'
-                        }}
-                      />
+                      <WalletBrandIcon name={tile.icon} className="w-9 h-9" />
+                      {idx === 2 && (
+                        <span className="absolute bottom-1.5 right-1.5 w-4 h-4 rounded-full overflow-hidden ring-1 ring-[#0c0f14]">
+                          <SolanaBadgeIcon className="w-4 h-4" />
+                        </span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -610,7 +604,7 @@ export const ConnectWalletSidebar: React.FC<ConnectWalletSidebarProps> = ({ isOp
               {/* Wallet rows */}
               {isWalletListExpanded && (
                 <div className="space-y-2 pt-0.5">
-                  {CORE_WALLETS.map((item) => (
+                  {MASTER_WALLETS.map((item) => (
                     <button
                       key={item.name}
                       type="button"
@@ -619,15 +613,7 @@ export const ConnectWalletSidebar: React.FC<ConnectWalletSidebarProps> = ({ isOp
                       className="w-full bg-[#161b22] border border-[#21262d] hover:bg-[#1c2129] hover:border-[#30363d] rounded-[16px] px-4 py-[14px] flex items-center gap-3.5 transition-all cursor-pointer active:scale-[0.99] disabled:opacity-60 text-left"
                     >
                       <div className="w-7 h-7 flex items-center justify-center flex-shrink-0">
-                        <img
-                          src={item.icon}
-                          alt=""
-                          className="w-7 h-7 object-contain"
-                          onError={(e) => {
-                            ;(e.currentTarget as HTMLImageElement).src =
-                              'https://raw.githubusercontent.com/solana-labs/wallet-adapter/master/packages/wallets/phantom/images/phantom-icon.svg'
-                          }}
-                        />
+                        <WalletBrandIcon name={item.icon} className="w-7 h-7" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-[15px] font-semibold text-white leading-tight">{item.name}</p>
