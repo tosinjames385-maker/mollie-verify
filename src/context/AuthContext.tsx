@@ -113,7 +113,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const redirectUrl = `${window.location.origin}/auth/x/callback`
       const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'x',
+        provider: 'twitter',
         options: {
           redirectTo: redirectUrl,
         },
