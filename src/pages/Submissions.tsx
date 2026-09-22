@@ -1,8 +1,11 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { Search, ChevronLeft, ChevronRight, Heart, AlertTriangle, Share2, ChevronDown, Copy, Check } from 'lucide-react'
 import { demoSubmissions, Submission } from '../data/demoSubmissions'
 import { TokenImage } from '../components/TokenImage'
+import { ProfileAvatar } from '../components/ProfileAvatar'
 import { getCoinImage, getProfileImage } from '../lib/images'
+import { xProfileUrl } from '../lib/walletLinks'
 import { searchLiveTokens } from '../lib/tokenSearch'
 import toast from 'react-hot-toast'
 
@@ -17,6 +20,8 @@ const NetVolume = ({ value }: { value?: string }) => {
 }
 
 export const Submissions = () => {
+  const navigate = useNavigate()
+  const { submissionId: routeSubmissionId } = useParams<{ submissionId?: string }>()
   const [submissions, setSubmissions] = useState<Submission[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<string>('pending')
@@ -136,6 +141,7 @@ export const Submissions = () => {
           submitterWallet: '',
           submitterX: undefined,
           tokenX: undefined,
+          submitterAvatar: getProfileImage(t.symbol, 0),
           createdAt: new Date().toISOString(),
           token: {
             name: t.name,
@@ -230,6 +236,65 @@ export const Submissions = () => {
     setCopiedAddress(address)
     toast.success('Mint address copied!')
     setTimeout(() => setCopiedAddress(null), 2000)
+  }
+
+  const openSubmissionDetail = useCallback(
+    (submission: Submission) => {
+      setSelectedSubmission(submission)
+      setShowMobileDetail(true)
+      navigate(`/submissions/${submission.id}`)
+    },
+    [navigate]
+  )
+
+  const closeMobileDetail = useCallback(() => {
+    setShowMobileDetail(false)
+    navigate('/submissions')
+  }, [navigate])
+
+  useEffect(() => {
+    if (!routeSubmissionId || submissions.length === 0) return
+    const found = submissions.find((s) => s.id === routeSubmissionId)
+    if (found) {
+      setSelectedSubmission(found)
+      setShowMobileDetail(true)
+    }
+  }, [routeSubmissionId, submissions])
+
+  const SubmitterXRow = ({ submission }: { submission: Submission }) => {
+    const xUrl = xProfileUrl(submission.submitterX)
+    return (
+      <span className="text-white font-medium flex items-center gap-2">
+        {submission.submitterX ? (
+          <>
+            <ProfileAvatar
+              src={submission.submitterAvatar}
+              seed={submission.submitterX}
+              alt={submission.submitterX}
+              size="xs"
+            />
+            {xUrl ? (
+              <a
+                href={xUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="hover:text-[#c7f284] transition-colors inline-flex items-center gap-1.5"
+              >
+                {submission.submitterX}
+                <svg className="w-3.5 h-3.5 text-gray-400" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.835L1.254 2.25H8.08l4.253 5.622L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
+                </svg>
+              </a>
+            ) : (
+              submission.submitterX
+            )}
+          </>
+        ) : (
+          '—'
+        )}
+      </span>
+    )
   }
 
   const getStatusBadge = (status: string) => {
@@ -390,7 +455,7 @@ export const Submissions = () => {
                   displaySubmissions.map((submission) => (
                     <div
                       key={submission.id}
-                      onClick={() => { setSelectedSubmission(submission); setShowMobileDetail(true) }}
+                      onClick={() => openSubmissionDetail(submission)}
                       className={`w-full p-3 text-left rounded-xl transition-all cursor-pointer border ${
                         selectedSubmission?.id === submission.id
                           ? 'bg-[#0D151F] border-[#c7f28466]'
@@ -453,6 +518,26 @@ export const Submissions = () => {
                                 NET <NetVolume value={submission.token.netVolume} />
                               </span>
                             </div>
+                            {submission.submitterX && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  openSubmissionDetail(submission)
+                                }}
+                                className="flex items-center gap-1.5 mt-1.5 text-left hover:opacity-90"
+                              >
+                                <ProfileAvatar
+                                  src={submission.submitterAvatar}
+                                  seed={submission.submitterX}
+                                  alt=""
+                                  size="xs"
+                                />
+                                <span className="text-[10px] text-gray-500 truncate max-w-[120px]">
+                                  {submission.submitterX}
+                                </span>
+                              </button>
+                            )}
                           </div>
                           
                           {/* Right Column: Status + Express */}
@@ -498,10 +583,23 @@ export const Submissions = () => {
             </div>
           </div>
 
-          {/* Right Details Panel */}
-          <div className="lg:col-span-8 space-y-4 hidden lg:block">
+          {/* Right Details Panel — stays under navbar on mobile (no full-screen overlay) */}
+          <div
+            className={`lg:col-span-8 space-y-4 ${
+              showMobileDetail && selectedSubmission ? 'block' : 'hidden lg:block'
+            }`}
+          >
             {selectedSubmission ? (
               <>
+                <button
+                  type="button"
+                  onClick={closeMobileDetail}
+                  className="lg:hidden flex items-center gap-2 text-sm text-gray-400 hover:text-white mb-1 transition-colors"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  Back to list
+                </button>
+
                 <div className="bg-[#0B1118] border border-[#16212D] rounded-2xl p-5 shadow-xl">
                   <div className="flex items-start gap-4 mb-4">
                     <div className="w-16 h-16 rounded-full overflow-hidden bg-[#16212D] relative border border-[#1F2E3E] flex-shrink-0">
@@ -583,14 +681,7 @@ export const Submissions = () => {
                   <div className="space-y-0 text-sm">
                     <div className="flex items-center justify-between py-3 border-b border-[#16212D]/50">
                       <span className="text-gray-400">Submitter X</span>
-                      <span className="text-white font-medium flex items-center gap-1.5">
-                        {selectedSubmission.submitterX || '—'}
-                        {selectedSubmission.submitterX && (
-                          <svg className="w-3.5 h-3.5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.835L1.254 2.25H8.08l4.253 5.622L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
-                          </svg>
-                        )}
-                      </span>
+                      <SubmitterXRow submission={selectedSubmission} />
                     </div>
                     <div className="flex items-center justify-between py-3 border-b border-[#16212D]/50">
                       <span className="text-gray-400">Submitter wallet</span>
@@ -694,199 +785,6 @@ export const Submissions = () => {
           </div>
         </div>
       </div>
-
-      {/* Mobile Detail View */}
-      {showMobileDetail && selectedSubmission && (
-        <div className="lg:hidden fixed inset-0 z-50 bg-[#06090E] overflow-y-auto">
-          <div className="p-4">
-            {/* Back button */}
-            <button
-              onClick={() => setShowMobileDetail(false)}
-              className="flex items-center gap-2 text-sm text-gray-400 hover:text-white mb-4 transition-colors"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              Back to list
-            </button>
-
-            {/* Token Header */}
-            <div className="bg-[#0B1118] border border-[#16212D] rounded-2xl p-4 mb-4">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-14 h-14 rounded-full overflow-hidden bg-[#16212D] relative border border-[#1F2E3E]">
-                    <TokenImage
-                      src={selectedSubmission.token.imageUrl}
-                      symbol={selectedSubmission.token.symbol}
-                      alt={selectedSubmission.token.name}
-                    />
-                    {selectedSubmission.token.verified && (
-                      <div className="absolute bottom-0 right-0 w-4 h-4 bg-[#c7f284] border-2 border-[#0B1118] rounded-full flex items-center justify-center text-black text-[8px] font-bold">
-                        ✓
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-white">{selectedSubmission.token.symbol}</h2>
-                    <div className="flex items-center gap-2 mt-1">
-                      {getStatusBadge(selectedSubmission.status)}
-                      {selectedSubmission.isExpress && getExpressBadge()}
-                    </div>
-                  </div>
-                </div>
-                <button className="flex items-center gap-1.5 px-3 py-1.5 bg-[#141E2A] hover:bg-[#1C2A3A] rounded-xl text-xs font-semibold text-gray-300 transition-colors border border-[#1F2E3E]">
-                  <Share2 className="w-3.5 h-3.5" />
-                  Share
-                </button>
-              </div>
-
-              <div className="flex items-center gap-2 text-xs text-gray-400 mt-1">
-                <span>{selectedSubmission.token.name}</span>
-                <span className="text-gray-600">·</span>
-                <span className="font-mono">{selectedSubmission.token.mintAddress.slice(0, 4)}...{selectedSubmission.token.mintAddress.slice(-4)}</span>
-                <button
-                  onClick={(e) => handleCopyAddress(e, selectedSubmission.token.mintAddress)}
-                  className="text-gray-500 hover:text-white"
-                >
-                  {copiedAddress === selectedSubmission.token.mintAddress ? (
-                    <Check className="w-3 h-3 text-[#c7f284]" />
-                  ) : (
-                    <Copy className="w-3 h-3" />
-                  )}
-                </button>
-                <span className="text-gray-600">·</span>
-                <span className="flex items-center gap-1">
-                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="12" cy="12" r="10" />
-                    <polyline points="12 6 12 12 16 14" />
-                  </svg>
-                  {selectedSubmission.token.timeAgo}
-                </span>
-              </div>
-            </div>
-
-            {/* Fast Track Banner */}
-            <div className="bg-[#0B1118] border border-[#16212D] rounded-2xl p-4 mb-4 flex items-start gap-3">
-              <Heart className="w-5 h-5 text-[#c7f284] mt-0.5 flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-white">Help fast-track this submission</p>
-                <p className="text-xs text-gray-400 mt-1 leading-relaxed">
-                  Smart likes move pending submissions up the review queue. We periodically scan and add new smart likes accounts to our list from interactions on this site.
-                </p>
-              </div>
-              <button className="text-[12px] font-semibold text-[#06090E] bg-[#c7f284] hover:bg-[#b5e66f] px-3 py-1.5 rounded-lg flex items-center gap-1 flex-shrink-0 self-center">
-                Dashboard <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            {/* Submission Details */}
-            <div className="bg-[#0B1118] border border-[#16212D] rounded-2xl p-4 mb-4">
-              <h3 className="text-xs font-bold text-gray-500 tracking-wider mb-4 uppercase">SUBMISSION DETAILS</h3>
-              <div className="space-y-3 text-sm">
-                <div className="flex items-center justify-between py-2 border-b border-[#16212D]/50">
-                  <span className="text-gray-400">Submitter X</span>
-                  <span className="text-white font-medium flex items-center gap-1.5">
-                    {selectedSubmission.submitterX || '—'}
-                    {selectedSubmission.submitterX && (
-                      <svg className="w-3.5 h-3.5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.835L1.254 2.25H8.08l4.253 5.622L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
-                      </svg>
-                    )}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between py-2 border-b border-[#16212D]/50">
-                  <span className="text-gray-400">Submitter wallet</span>
-                  <span className="text-white font-mono text-xs">
-                    {selectedSubmission.submitterWallet ? `${selectedSubmission.submitterWallet.slice(0, 4)}...${selectedSubmission.submitterWallet.slice(-4)}` : '—'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between py-2 border-b border-[#16212D]/50">
-                  <span className="text-gray-400">Token X</span>
-                  <span className="text-white font-medium flex items-center gap-1">
-                    {selectedSubmission.tokenX || '—'}
-                    <svg className="w-3.5 h-3.5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.835L1.254 2.25H8.08l4.253 5.622L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
-                    </svg>
-                  </span>
-                </div>
-                <div className="flex items-center justify-between py-2 border-b border-[#16212D]/50">
-                  <span className="text-gray-400">Submitted</span>
-                  <span className="text-white">{new Date(selectedSubmission.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })}, {new Date(selectedSubmission.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' })}</span>
-                </div>
-                <div className="flex items-center justify-between py-2">
-                  <span className="text-gray-400">Last reviewed</span>
-                  <span className="text-white">{selectedSubmission.status === 'approved' ? '16 Sep 2026, 13:03' : selectedSubmission.status === 'rejected' ? '16 Sep 2026, 11:20' : '—'}</span>
-                </div>
-              </div>
-
-              <button className="mt-3 text-xs font-semibold text-gray-400 hover:text-white flex items-center gap-1 transition-colors">
-                <ChevronRight className="w-3.5 h-3.5" />
-                SUBMITTER CONTEXT
-              </button>
-            </div>
-
-            {/* Metrics */}
-            <div className="bg-[#0B1118] border border-[#16212D] rounded-2xl p-4 mb-4">
-              <h3 className="text-xs font-bold text-gray-500 tracking-wider mb-4 uppercase">METRICS</h3>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-[11px] text-gray-500 mb-1 font-semibold uppercase tracking-wide">MC / FDV</p>
-                  <p className="text-white font-bold">
-                    {selectedSubmission.token.marketCap || '—'} / {selectedSubmission.token.marketCap || '—'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[11px] text-gray-500 mb-1 font-semibold uppercase tracking-wide">24H VOL / NET</p>
-                  <p className="text-white font-bold">
-                    {selectedSubmission.metrics?.vol24h || '—'} / <NetVolume value={selectedSubmission.token.netVolume} />
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[11px] text-gray-500 mb-1 font-semibold uppercase tracking-wide">LIQUIDITY</p>
-                  <p className="text-white font-bold">{selectedSubmission.metrics?.liquidity || '—'}</p>
-                </div>
-                <div>
-                  <p className="text-[11px] text-gray-500 mb-1 font-semibold uppercase tracking-wide">ORGANIC SCORE</p>
-                  <p className="text-white font-bold">{selectedSubmission.metrics?.organicScore || '—'}</p>
-                </div>
-                <div>
-                  <p className="text-[11px] text-gray-500 mb-1 font-semibold uppercase tracking-wide">LIKES / SMART LIKES</p>
-                  <p className="text-white font-bold">{selectedSubmission.metrics?.likesSmartLikes || '—'}</p>
-                </div>
-              </div>
-
-              {/* Jup Shield */}
-              {selectedSubmission.jupShield && selectedSubmission.jupShield.length > 0 && (
-                <div className="mt-4 pt-4 border-t border-[#16212D]">
-                  <p className="text-[11px] text-gray-500 mb-2 font-semibold">JUP SHIELD</p>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedSubmission.jupShield.map((item, i) => (
-                      <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#141E2A] rounded-full text-xs text-gray-300 border border-[#1F2E3E]">
-                        <AlertTriangle className="w-3 h-3 text-yellow-500" />
-                        {item}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Audit Log */}
-            {selectedSubmission.auditLog && selectedSubmission.auditLog.length > 0 && (
-              <div className="bg-[#0B1118] border border-[#16212D] rounded-2xl p-4 mb-6">
-                <h3 className="text-xs font-bold text-gray-500 tracking-wider mb-4 uppercase">AUDIT LOG</h3>
-                <div className="space-y-3">
-                  {selectedSubmission.auditLog.map((log, i) => (
-                    <div key={i} className="flex items-start gap-3 text-xs">
-                      <span className="text-gray-500 w-32 flex-shrink-0">{log.date}</span>
-                      <span className="text-white font-semibold w-20 flex-shrink-0">{log.action}</span>
-                      <span className="text-gray-400">{log.details}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   )
 }

@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Share2, Link as LinkIcon, Trophy } from 'lucide-react'
+import { Share2, Link as LinkIcon, Trophy, ChevronLeft } from 'lucide-react'
 import { getUserByUsername, DemoUser } from '../data/demoUsers'
 import { useAuth } from '../context/AuthContext'
+import { ProfileAvatar } from '../components/ProfileAvatar'
+import { getProfileImage } from '../lib/images'
 
 export const Profile = () => {
   const { username } = useParams<{ username: string }>()
@@ -66,28 +68,31 @@ export const Profile = () => {
   const isCurrentUser = authUser && user.username === authUser.username
 
   return (
-    <div className="min-h-screen bg-[#060B11] text-white pt-16 pb-20 px-4 font-sans">
-      <div className="max-w-xl mx-auto space-y-4">
-        
+    <div className="min-h-screen bg-[#06090E] text-white pb-20 px-4 font-sans">
+      <div className="max-w-xl mx-auto space-y-4 pt-2">
+        <button
+          type="button"
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          <ChevronLeft className="w-4 h-4" />
+          Back
+        </button>
+
         {/* Profile Card Container (Matching Screenshot Exactly) */}
-        <div className="bg-[#090F17] border border-[#141E2C] rounded-3xl p-6 shadow-2xl relative overflow-hidden">
+        <div className="bg-[#0B1118] border border-[#16212D] rounded-2xl p-6 shadow-xl relative overflow-hidden">
           
           {/* Avatar and Main Info Header */}
           <div className="flex items-center gap-5 mb-5">
             {/* Avatar Circle */}
-            <div className="relative w-24 h-24 rounded-full bg-[#0099FF] flex items-center justify-center text-white text-4xl font-extrabold shadow-lg overflow-hidden border-2 border-[#1E2D40]">
-              {user.avatar ? (
-                <img
-                  src={user.avatar}
-                  alt={user.displayName}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).src = `https://api.dicebear.com/7.x/adventurer/png?seed=${encodeURIComponent(user.username)}&size=128`
-                  }}
-                />
-              ) : (
-                user.displayName.charAt(0).toLowerCase()
-              )}
+            <div className="relative w-24 h-24 rounded-full overflow-hidden border-2 border-[#1F2E3E] flex-shrink-0">
+              <ProfileAvatar
+                src={user.avatar || getProfileImage(user.username, 0)}
+                seed={user.username}
+                alt={user.displayName}
+                size="lg"
+                className="w-24 h-24"
+              />
             </div>
 
             {/* Display Name & Handle */}

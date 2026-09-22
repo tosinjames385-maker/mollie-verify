@@ -43,7 +43,7 @@ function App() {
             <Route path="/" element={<Layout />}>
               <Route index element={<Navigate to="/submissions" replace />} />
               <Route path="token/:mintAddress" element={<TokenDetail />} />
-              <Route path="submissions" element={<Submissions />} />
+              <Route path="submissions/:submissionId?" element={<Submissions />} />
               <Route path="apis" element={<APIs />} />
               <Route path="faq" element={<FAQ />} />
               <Route path="media" element={<Media />} />

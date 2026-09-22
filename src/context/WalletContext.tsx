@@ -148,7 +148,7 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
       if (adapterName) {
         const target = wallets.find(
           (w) => w.adapter.name.toLowerCase() === adapterName.toLowerCase()
-        )
+        ) || wallets.find((w) => w.adapter.name.toLowerCase().includes(adapterName.toLowerCase()))
         if (target) {
           if (
             target.readyState !== WalletReadyState.Installed &&
@@ -159,7 +159,7 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
             throw new Error(`${adapterName} extension is not installed in your browser. Opening official download link...`)
           }
           select(target.adapter.name)
-          await new Promise((r) => setTimeout(r, 100))
+          await new Promise((r) => setTimeout(r, 250))
         }
       }
       await connect()
