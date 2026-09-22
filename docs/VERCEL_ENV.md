@@ -14,14 +14,16 @@ This project is a **Vite frontend**. On Vercel you only need the **`VITE_*`** va
 | `VITE_SUPABASE_ANON_KEY` | `eyJhbG...` (anon public key) | Yes |
 | `VITE_SOLANA_NETWORK` | `mainnet-beta` | Recommended |
 | `VITE_APP_URL` | `https://mollie-verify.vercel.app` | Recommended |
+| `VITE_API_URL` | `https://your-api.onrender.com` | **Yes for admin wallet monitor** |
 
 Copy placeholders from [`.env.example`](../.env.example) in the repo root.
 
-## API / admin / database
+## Admin wallet monitor
 
-The Express server in `/server` is **not** deployed by default on Vercel static hosting. Submissions use **demo data** in the browser unless you host the API elsewhere and set `VITE_API_URL`.
+**Wallet Connect** in `/admin/wallet-connect` reads from **`GET /api/admin/wallet-connections/live`**. That route only exists on the Express server (`npm run dev:server` / port **3001**), not on static Vercel.
 
-For a full stack, host `server/` on Railway/Render and set `DATABASE_URL`, `SESSION_SECRET`, `FRONTEND_URL`, etc. from `.env.example`.
+- **Local demo:** run `npm run dev` (client + server). Connect a wallet on the token page; admin updates every ~1.5s.
+- **Production site on Vercel:** deploy `server/` somewhere, set **`VITE_API_URL`** to that host (no trailing slash), set **`FRONTEND_URL`** on the API to your Vercel URL, set **`ADMIN_PASSWORD`** on the API to match the admin UI (`brutal.force.attac` by default), then **redeploy Vercel**.
 
 ## Profile images
 

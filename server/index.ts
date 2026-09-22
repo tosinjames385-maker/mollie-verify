@@ -18,10 +18,29 @@ const app = express()
 const PORT = process.env.PORT || 3001
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomUUID()
 
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://127.0.0.1:5173',
-  credentials: true,
-}))
+const corsOrigins = new Set(
+  [
+    'http://127.0.0.1:5173',
+    'http://localhost:5173',
+    ...(process.env.FRONTEND_URL || '')
+      .split(',')
+      .map((o) => o.trim())
+      .filter(Boolean),
+  ].filter(Boolean)
+)
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin || corsOrigins.has(origin)) {
+        callback(null, true)
+        return
+      }
+      callback(null, false)
+    },
+    credentials: true,
+  })
+)
 
 app.disable('x-powered-by')
 app.use((_req, res, next) => {

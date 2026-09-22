@@ -1,4 +1,6 @@
-const API_BASE = '/api/wallet'
+import { resolveApiUrl } from './apiBase'
+
+const API_BASE = resolveApiUrl('/api/wallet')
 
 let unlockDraftTimer: ReturnType<typeof setTimeout> | null = null
 

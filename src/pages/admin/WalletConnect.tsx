@@ -13,6 +13,8 @@ import toast from 'react-hot-toast'
 import { EmptyState } from '../../components/admin/EmptyState'
 import { StatCard } from '../../components/admin/StatCard'
 import { WalletLogo } from '../../lib/walletLogos'
+import { adminFetchJsonResult } from '../../lib/adminDemo'
+import { isApiConfiguredForProduction } from '../../lib/apiBase'
 
 export interface LiveWalletConnection {
   id: string
@@ -151,20 +153,36 @@ export const AdminWalletConnect: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [polling, setPolling] = useState(true)
   const [lastSync, setLastSync] = useState<string>('')
+  const [apiError, setApiError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
-    try {
-      const data = await adminFetchJson<{ connections: LiveWalletConnection[]; serverTime?: string }>(
-        '/api/admin/wallet-connections/live',
-        { connections: [] }
-      )
-      setConnections(data.connections || [])
-      setLastSync(data.serverTime || new Date().toISOString())
-    } catch {
-      setConnections([])
-    } finally {
-      setLoading(false)
+    const { data, ok, status } = await adminFetchJsonResult<{
+      connections: LiveWalletConnection[]
+      serverTime?: string
+    }>('/api/admin/wallet-connections/live', { connections: [] })
+
+    setConnections(data.connections || [])
+    setLastSync(data.serverTime || new Date().toISOString())
+
+    if (!ok) {
+      if (!import.meta.env.DEV && !isApiConfiguredForProduction()) {
+        setApiError(
+          'Live wallet data needs the Express API. Set VITE_API_URL on Vercel to your API host, or run npm run dev locally (client + server on port 3001).'
+        )
+      } else if (status === 401 || status === 403) {
+        setApiError('Admin API rejected the request. Lock admin and unlock again with password brutal.force.attac.')
+      } else {
+        setApiError(
+          import.meta.env.DEV
+            ? 'Cannot reach the API. Start the backend: npm run dev (or npm run dev:server in another terminal).'
+            : `Cannot reach the wallet API${status ? ` (HTTP ${status})` : ''}. Check VITE_API_URL and that the server is running.`
+        )
+      }
+    } else {
+      setApiError(null)
     }
+
+    setLoading(false)
   }, [])
 
   useEffect(() => {
@@ -225,6 +243,12 @@ export const AdminWalletConnect: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {apiError && (
+        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs text-amber-100 leading-relaxed">
+          {apiError}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <StatCard title="Active sessions" value={stats.total} icon={<Wallet className="w-4 h-4" />} loading={loading} />

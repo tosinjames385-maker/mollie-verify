@@ -1,6 +1,7 @@
 import { demoSubmissions } from '../data/demoSubmissions'
 import { demoUsers } from '../data/demoUsers'
 import { getAdminPasswordHeader } from './adminGate'
+import { resolveApiUrl } from './apiBase'
 
 export const DEMO_ADMIN_USERS = demoUsers.slice(0, 10).map((u, i) => ({
   id: u.id,
@@ -84,19 +85,33 @@ export const DEMO_ADMIN_SUBMISSIONS = demoSubmissions.map((s) => ({
   notes: null as string | null,
 }))
 
-export async function adminFetchJson<T>(url: string, fallback: T): Promise<T> {
+export type AdminFetchResult<T> = {
+  data: T
+  ok: boolean
+  status?: number
+}
+
+export async function adminFetchJsonResult<T>(url: string, fallback: T): Promise<AdminFetchResult<T>> {
   try {
-    const res = await fetch(url, {
+    const res = await fetch(resolveApiUrl(url), {
       credentials: 'include',
       headers: {
+        Accept: 'application/json',
         ...getAdminPasswordHeader(),
       },
     })
-    if (res.ok) return (await res.json()) as T
+    if (res.ok) {
+      return { data: (await res.json()) as T, ok: true, status: res.status }
+    }
+    return { data: fallback, ok: false, status: res.status }
   } catch {
-    // demo fallback
+    return { data: fallback, ok: false }
   }
-  return fallback
+}
+
+export async function adminFetchJson<T>(url: string, fallback: T): Promise<T> {
+  const { data } = await adminFetchJsonResult(url, fallback)
+  return data
 }
 
 export function paginate<T>(items: T[], page: number, limit: number, search: string, matcher: (item: T, q: string) => boolean) {
