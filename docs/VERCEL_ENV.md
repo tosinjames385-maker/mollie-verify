@@ -20,10 +20,13 @@ Copy values from [`.env.example`](../.env.example). Do **not** paste `YOUR_PROJE
 
 In **Supabase → Authentication → URL configuration** add:
 
-- Site URL: `https://www.verifiedup.ag`
-- Redirect URLs: `https://www.verifiedup.ag/**` and `https://www.verifiedup.ag/auth/x/callback`
+- Site URL: `https://www.verifiedjup.ag`
+- Redirect URLs:
+  - `https://www.verifiedjup.ag/**`
+  - `https://www.verifiedjup.ag/auth/x/callback`
+  - `https://verifiedjup.ag/**`
 
-Enable the **Twitter / X** provider in Supabase Auth.
+Enable the **X** provider (not the older **Twitter** provider) in Supabase Auth.
 
 ## Admin wallet monitor
 

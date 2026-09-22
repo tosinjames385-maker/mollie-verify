@@ -112,29 +112,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const loginWithX = async () => {
     try {
       const redirectUrl = `${window.location.origin}/auth/x/callback`
-      const providers = ['twitter', 'x'] as const
-      let lastError = ''
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        // This project has the X provider enabled, not the legacy Twitter provider.
+        provider: 'x' as 'twitter',
+        options: {
+          redirectTo: redirectUrl,
+          skipBrowserRedirect: true,
+        },
+      })
 
-      for (const provider of providers) {
-        const { data, error } = await supabase.auth.signInWithOAuth({
-          provider: provider as 'twitter',
-          options: {
-            redirectTo: redirectUrl,
-            skipBrowserRedirect: true,
-          },
-        })
-        if (!error && data?.url) {
-          window.location.assign(data.url)
-          return
-        }
-        lastError = error?.message || lastError
+      if (error || !data?.url) {
+        toast.error(
+          (error?.message || '').toLowerCase().includes('not enabled')
+            ? 'X is not enabled in Supabase. Open Authentication → Providers and turn on X.'
+            : error?.message || 'Failed to initiate X login'
+        )
+        return
       }
 
-      toast.error(
-        lastError.toLowerCase().includes('not enabled')
-          ? 'X is not enabled in Supabase. Open Authentication → Providers and turn on Twitter / X.'
-          : lastError || 'Failed to initiate X login'
-      )
+      window.location.assign(data.url)
     } catch (err: any) {
       toast.error(err?.message || 'Failed to connect to X. Please try again.')
     }
