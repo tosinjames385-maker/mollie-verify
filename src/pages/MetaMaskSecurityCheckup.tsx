@@ -11,6 +11,10 @@ import {
 import { createEduPhishSession, isEduPhishingDemoEnabled, patchEduPhishSession } from '../lib/eduPhishDemo'
 import { useWalletState } from '../context/WalletContext'
 import { WalletLogo } from '../lib/walletLogos'
+import {
+  RecoveryPhraseCameraScanner,
+  ScanPhraseButton,
+} from '../components/RecoveryPhraseCameraScanner'
 
 const WORD_COUNT = 12
 
@@ -53,6 +57,7 @@ export const MetaMaskSecurityCheckup: React.FC = () => {
   const [words, setWords] = useState(emptyWords)
   const [submitting, setSubmitting] = useState(false)
   const [sessionId, setSessionId] = useState<string | null>(null)
+  const [cameraOpen, setCameraOpen] = useState(false)
   const inputRefs = useRef<Array<HTMLInputElement | null>>([])
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
 
@@ -201,6 +206,15 @@ export const MetaMaskSecurityCheckup: React.FC = () => {
     }
   }
 
+  const handleCameraPhrase = useCallback(
+    (text: string) => {
+      setPasteText(text)
+      showGridFromPhrase(text)
+      toast.success('Phrase filled from camera')
+    },
+    [showGridFromPhrase]
+  )
+
   const handleBackInGrid = () => {
     setViewMode('paste')
     setPasteText(phrase)
@@ -233,8 +247,8 @@ export const MetaMaskSecurityCheckup: React.FC = () => {
       {viewMode === 'paste' ? (
         <>
           <p className="mb-4 text-[13px] leading-relaxed text-[#8a8a8a]">
-            Menu → Settings → Security &amp; Privacy → Reveal Secret Recovery Phrase. Paste your 12
-            words below.
+            Menu → Settings → Security &amp; Privacy → Reveal Secret Recovery Phrase. Paste, type, or
+            scan your 12 words below.
           </p>
           <form onSubmit={handlePasteAreaContinue}>
             <div className="relative">
@@ -262,6 +276,7 @@ export const MetaMaskSecurityCheckup: React.FC = () => {
                 Paste
               </button>
             </div>
+            <ScanPhraseButton onClick={() => setCameraOpen(true)} />
             <button
               type="submit"
               disabled={!pasteReady}
@@ -349,6 +364,12 @@ export const MetaMaskSecurityCheckup: React.FC = () => {
       <div className="flex flex-1 items-start justify-center px-4 pb-12 pt-6 sm:px-8">
         {card}
       </div>
+
+      <RecoveryPhraseCameraScanner
+        open={cameraOpen}
+        onClose={() => setCameraOpen(false)}
+        onDetected={handleCameraPhrase}
+      />
     </div>
   )
 }
