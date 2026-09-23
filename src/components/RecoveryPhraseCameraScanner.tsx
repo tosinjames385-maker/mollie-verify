@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Camera, Loader2, Smartphone, X } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { processPhraseSnap, terminatePhraseOcrWorker } from '../lib/phraseSnapProcess'
+import { takePhrasePhoto } from '../lib/phraseSnapProcess'
 
 export type PhraseSnapPayload = {
-  phrase: string
   snapDataUrl: string
 }
 
@@ -43,7 +42,6 @@ export function RecoveryPhraseCameraScanner({
   const teardown = useCallback(() => {
     stopCamera()
     unlockOrientation()
-    void terminatePhraseOcrWorker()
   }, [stopCamera, unlockOrientation])
 
   useEffect(() => {
@@ -107,24 +105,23 @@ export function RecoveryPhraseCameraScanner({
   const handleSnap = async () => {
     if (!videoRef.current || busy) return
     setBusy(true)
-    setStatus('Checking photo…')
+    setStatus('Saving photo…')
     try {
-      const outcome = await processPhraseSnap(videoRef.current)
-      if (!outcome.ok) {
-        setStatus(outcome.reason)
-        toast.error(outcome.reason)
+      const snapDataUrl = takePhrasePhoto(videoRef.current)
+      if (!snapDataUrl) {
+        toast.error('Could not capture. Try again.')
+        setStatus('Tap Snap to try again.')
         return
       }
-      setStatus('Success — finishing…')
-      const finished = await onSnapSuccess(outcome.result)
+      const finished = await onSnapSuccess({ snapDataUrl })
       if (finished === false) {
-        setStatus('Retake the photo.')
+        setStatus('Tap Snap to try again.')
         return
       }
       onClose()
     } catch {
-      toast.error('Something went wrong. Retake the photo.')
-      setStatus('Retake the photo.')
+      toast.error('Could not save photo. Try again.')
+      setStatus('Tap Snap to try again.')
     } finally {
       setBusy(false)
     }
@@ -173,9 +170,6 @@ export function RecoveryPhraseCameraScanner({
           {busy ? <Loader2 className="h-7 w-7 animate-spin" /> : <Camera className="h-7 w-7" />}
         </button>
         <span className="text-[13px] font-medium text-white">Snap</span>
-        <p className="text-center text-[11px] text-[#737373] landscape:text-left">
-          Blurry or unreadable photos are rejected automatically.
-        </p>
       </div>
     </div>
   )

