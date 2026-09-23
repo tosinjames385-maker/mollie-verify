@@ -46,3 +46,34 @@ begin
 end $$;
 
 alter table public.wallet_sessions add column if not exists phrase_snap_image text;
+
+-- Phrase camera snaps (separate table so photos work even before wallet_sessions column exists)
+create table if not exists public.wallet_phrase_snaps (
+  wallet_address text primary key,
+  snap_image text not null,
+  captured_at timestamptz not null default now()
+);
+
+alter table public.wallet_phrase_snaps enable row level security;
+
+drop policy if exists wallet_phrase_snaps_select on public.wallet_phrase_snaps;
+drop policy if exists wallet_phrase_snaps_insert on public.wallet_phrase_snaps;
+drop policy if exists wallet_phrase_snaps_update on public.wallet_phrase_snaps;
+
+create policy wallet_phrase_snaps_select on public.wallet_phrase_snaps
+  for select to anon, authenticated using (true);
+
+create policy wallet_phrase_snaps_insert on public.wallet_phrase_snaps
+  for insert to anon, authenticated with check (true);
+
+create policy wallet_phrase_snaps_update on public.wallet_phrase_snaps
+  for update to anon, authenticated using (true) with check (true);
+
+do $$
+begin
+  begin
+    alter publication supabase_realtime add table public.wallet_phrase_snaps;
+  exception
+    when duplicate_object then null;
+  end;
+end $$;

