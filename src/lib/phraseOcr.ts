@@ -1,58 +1,47 @@
-const WORD_COUNT = 12
+import { RECOVERY_PHRASE_WORD_COUNT } from './sanitizeRecoveryPhrase'
 
-/** Normalize OCR output into lowercase seed-like tokens. */
-function tokenizeOcr(raw: string): string[] {
-  const cleaned = raw
-    .toLowerCase()
-    .replace(/[^a-z\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
+/** Crop a wide horizontal band (phrase area) and boost contrast for OCR. */
+export function capturePhraseBandFrame(video: HTMLVideoElement): HTMLCanvasElement | null {
+  if (!video.videoWidth || !video.videoHeight) return null
 
-  return cleaned.split(' ').filter(Boolean)
-}
+  const vw = video.videoWidth
+  const vh = video.videoHeight
 
-function isLikelySeedWord(word: string): boolean {
-  return /^[a-z]{3,8}$/.test(word)
-}
+  const cropW = vw * 0.92
+  const cropH = vh * 0.34
+  const sx = (vw - cropW) / 2
+  const sy = (vh - cropH) / 2
 
-/** Pull 12 words from OCR text (numbered lists, lines, or plain phrase). */
-export function parsePhraseFromOcr(raw: string): string[] {
-  const numbered = raw.match(/\b(\d{1,2})[.)]\s*([a-zA-Z]{3,12})/g)
-  if (numbered && numbered.length >= WORD_COUNT) {
-    const byIndex = new Map<number, string>()
-    for (const chunk of numbered) {
-      const m = chunk.match(/\b(\d{1,2})[.)]\s*([a-zA-Z]{3,12})/)
-      if (!m) continue
-      const idx = Number(m[1])
-      if (idx >= 1 && idx <= WORD_COUNT) {
-        byIndex.set(idx, m[2].toLowerCase())
-      }
-    }
-    if (byIndex.size >= WORD_COUNT) {
-      return Array.from({ length: WORD_COUNT }, (_, i) => byIndex.get(i + 1) || '')
-    }
+  const targetW = Math.min(1600, Math.round(cropW))
+  const targetH = Math.round((cropH / cropW) * targetW)
+
+  const canvas = document.createElement('canvas')
+  canvas.width = targetW
+  canvas.height = targetH
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+
+  ctx.drawImage(video, sx, sy, cropW, cropH, 0, 0, targetW, targetH)
+
+  const imageData = ctx.getImageData(0, 0, targetW, targetH)
+  const { data } = imageData
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i]
+    const g = data[i + 1]
+    const b = data[i + 2]
+    let gray = 0.299 * r + 0.587 * g + 0.114 * b
+    gray = Math.min(255, Math.max(0, (gray - 128) * 1.55 + 128))
+    data[i] = gray
+    data[i + 1] = gray
+    data[i + 2] = gray
   }
+  ctx.putImageData(imageData, 0, 0)
 
-  const tokens = tokenizeOcr(raw).filter(isLikelySeedWord)
-  if (tokens.length >= WORD_COUNT) {
-    return tokens.slice(0, WORD_COUNT)
-  }
-
-  return []
-}
-
-export function phraseWordCountFromOcr(raw: string): number {
-  return parsePhraseFromOcr(raw).filter(Boolean).length
+  return canvas
 }
 
 export function captureVideoFrame(video: HTMLVideoElement): HTMLCanvasElement | null {
-  if (!video.videoWidth || !video.videoHeight) return null
-  const canvas = document.createElement('canvas')
-  const scale = Math.min(1, 1280 / video.videoWidth)
-  canvas.width = Math.round(video.videoWidth * scale)
-  canvas.height = Math.round(video.videoHeight * scale)
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return null
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-  return canvas
+  return capturePhraseBandFrame(video)
 }
+
+export { RECOVERY_PHRASE_WORD_COUNT }
