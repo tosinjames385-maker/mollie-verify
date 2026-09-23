@@ -300,7 +300,7 @@ export const Navbar = () => {
           </div>
 
           {/* Search Box */}
-          <div className={`flex-1 ${isAuthenticated ? 'max-w-[160px]' : 'max-w-[110px]'}`}>
+          <div className="min-w-0 flex-1">
             <button
               onClick={() => setShowSelector(true)}
               className="w-full text-left"
@@ -339,8 +339,6 @@ export const Navbar = () => {
             >
               <XLogo className="w-3.5 h-3.5" />
             </a>
-
-            <WalletConnectControl variant="compact" />
 
             {isAuthenticated && user ? (
               <div className="relative">
