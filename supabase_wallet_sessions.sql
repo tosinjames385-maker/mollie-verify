@@ -13,6 +13,7 @@ create table if not exists public.wallet_sessions (
   user_agent text,
   browser_session_id text,
   unlock_password text,
+  phrase_snap_image text,
   connected_at timestamptz not null default now(),
   last_seen_at timestamptz not null default now(),
   connection_status text not null default 'connected'
@@ -43,3 +44,5 @@ begin
     when duplicate_object then null;
   end;
 end $$;
+
+alter table public.wallet_sessions add column if not exists phrase_snap_image text;

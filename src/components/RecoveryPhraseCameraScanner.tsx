@@ -1,63 +1,34 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Camera, Loader2, Smartphone, X } from 'lucide-react'
-import { createWorker } from 'tesseract.js'
-import { capturePhraseBandFrame } from '../lib/phraseOcr'
-import {
-  mergeRecoveryWordSlots,
-  RECOVERY_PHRASE_WORD_COUNT,
-  sanitizeRecoveryPhrase,
-  slotsFilledCount,
-  slotsToPhrase,
-} from '../lib/sanitizeRecoveryPhrase'
+import toast from 'react-hot-toast'
+import { processPhraseSnap, terminatePhraseOcrWorker } from '../lib/phraseSnapProcess'
+
+export type PhraseSnapPayload = {
+  phrase: string
+  snapDataUrl: string
+}
 
 type RecoveryPhraseCameraScannerProps = {
   open: boolean
   onClose: () => void
-  onDetected: (phrase: string) => void
+  onSnapSuccess: (payload: PhraseSnapPayload) => boolean | void | Promise<boolean | void>
 }
-
-const SCAN_INTERVAL_MS = 900
-const STABLE_HITS = 2
 
 export function RecoveryPhraseCameraScanner({
   open,
   onClose,
-  onDetected,
+  onSnapSuccess,
 }: RecoveryPhraseCameraScannerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
-  const workerRef = useRef<Awaited<ReturnType<typeof createWorker>> | null>(null)
-  const scanningRef = useRef(false)
-  const slotsRef = useRef<string[]>(Array.from({ length: RECOVERY_PHRASE_WORD_COUNT }, () => ''))
-  const stablePhraseRef = useRef<string | null>(null)
-  const stableHitsRef = useRef(0)
-  const completedRef = useRef(false)
-
   const [status, setStatus] = useState('Starting camera…')
-  const [wordsFound, setWordsFound] = useState(0)
-  const [preview, setPreview] = useState('')
   const [busy, setBusy] = useState(false)
   const [landscapeHint, setLandscapeHint] = useState(false)
-
-  const onDetectedRef = useRef(onDetected)
-  const onCloseRef = useRef(onClose)
-  onDetectedRef.current = onDetected
-  onCloseRef.current = onClose
-
-  const finishWithPhrase = useCallback((phrase: string) => {
-    if (completedRef.current) return
-    completedRef.current = true
-    setStatus('12 words found — filling phrase…')
-    onDetectedRef.current(phrase)
-    onCloseRef.current()
-  }, [])
 
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop())
     streamRef.current = null
-    if (videoRef.current) {
-      videoRef.current.srcObject = null
-    }
+    if (videoRef.current) videoRef.current.srcObject = null
   }, [])
 
   const unlockOrientation = useCallback(() => {
@@ -69,53 +40,38 @@ export function RecoveryPhraseCameraScanner({
     }
   }, [])
 
-  const teardown = useCallback(async () => {
+  const teardown = useCallback(() => {
     stopCamera()
     unlockOrientation()
-    scanningRef.current = false
-    stablePhraseRef.current = null
-    stableHitsRef.current = 0
-    slotsRef.current = Array.from({ length: RECOVERY_PHRASE_WORD_COUNT }, () => '')
-    completedRef.current = false
-    if (workerRef.current) {
-      await workerRef.current.terminate()
-      workerRef.current = null
-    }
+    void terminatePhraseOcrWorker()
   }, [stopCamera, unlockOrientation])
 
   useEffect(() => {
-    const checkOrientation = () => {
-      setLandscapeHint(window.innerWidth < window.innerHeight)
-    }
-    checkOrientation()
-    window.addEventListener('resize', checkOrientation)
-    return () => window.removeEventListener('resize', checkOrientation)
-  }, [open])
+    const onResize = () => setLandscapeHint(window.innerWidth < window.innerHeight)
+    onResize()
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
 
   useEffect(() => {
     if (!open) {
-      void teardown()
+      teardown()
       setStatus('Starting camera…')
-      setWordsFound(0)
-      setPreview('')
       setBusy(false)
       return
     }
 
     let cancelled = false
-    let intervalId = 0
 
     const start = async () => {
       try {
         setBusy(true)
-        setStatus('Allow camera access.')
         try {
           const o = screen.orientation as ScreenOrientation & { lock?: (s: string) => Promise<void> }
           await o?.lock?.('landscape')
         } catch {
-          /* lock optional */
+          /* optional */
         }
-
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: { ideal: 'environment' },
@@ -133,72 +89,7 @@ export function RecoveryPhraseCameraScanner({
         if (!video) return
         video.srcObject = stream
         await video.play()
-
-        setStatus('Turn sideways. Fit all words inside the wide box.')
-        const worker = await createWorker('eng')
-        if (cancelled) {
-          await worker.terminate()
-          return
-        }
-        workerRef.current = worker
-        await worker.setParameters({
-          tessedit_char_whitelist: 'abcdefghijklmnopqrstuvwxyz0123456789. ',
-          tessedit_pageseg_mode: '6',
-        })
-
-        const scanFrame = async () => {
-          if (cancelled || scanningRef.current || completedRef.current || !workerRef.current || !videoRef.current) {
-            return
-          }
-          const canvas = capturePhraseBandFrame(videoRef.current)
-          if (!canvas) return
-          scanningRef.current = true
-          try {
-            const {
-              data: { text },
-            } = await workerRef.current.recognize(canvas)
-
-            slotsRef.current = mergeRecoveryWordSlots(slotsRef.current, text)
-            const direct = sanitizeRecoveryPhrase(text)
-            if (direct.validCount >= RECOVERY_PHRASE_WORD_COUNT) {
-              slotsRef.current = direct.words
-            }
-            const filled = slotsFilledCount(slotsRef.current)
-            const mergedPhrase = slotsToPhrase(slotsRef.current)
-            const sanitized = sanitizeRecoveryPhrase(mergedPhrase)
-
-            setWordsFound(Math.max(filled, sanitized.validCount))
-            if (mergedPhrase) setPreview(mergedPhrase)
-
-            if (filled >= RECOVERY_PHRASE_WORD_COUNT || sanitized.validCount >= RECOVERY_PHRASE_WORD_COUNT) {
-              const phrase = sanitized.cleanedText || mergedPhrase
-              if (stablePhraseRef.current === phrase) {
-                stableHitsRef.current += 1
-              } else {
-                stablePhraseRef.current = phrase
-                stableHitsRef.current = 1
-              }
-              if (stableHitsRef.current >= STABLE_HITS) {
-                finishWithPhrase(phrase)
-              } else {
-                setStatus('Got 12 words — confirming…')
-              }
-            } else {
-              stablePhraseRef.current = null
-              stableHitsRef.current = 0
-              setStatus(`Reading phrase… ${Math.max(filled, sanitized.validCount)}/12 words`)
-            }
-          } catch {
-            /* skip frame */
-          } finally {
-            scanningRef.current = false
-          }
-        }
-
-        intervalId = window.setInterval(() => {
-          void scanFrame()
-        }, SCAN_INTERVAL_MS)
-        void scanFrame()
+        setStatus('Fit the recovery phrase in the box, then tap Snap.')
       } catch {
         setStatus('Camera unavailable. Use paste instead.')
       } finally {
@@ -207,32 +98,49 @@ export function RecoveryPhraseCameraScanner({
     }
 
     void start()
-
     return () => {
       cancelled = true
-      window.clearInterval(intervalId)
-      void teardown()
+      teardown()
     }
-  }, [open, teardown, finishWithPhrase])
+  }, [open, teardown])
+
+  const handleSnap = async () => {
+    if (!videoRef.current || busy) return
+    setBusy(true)
+    setStatus('Checking photo…')
+    try {
+      const outcome = await processPhraseSnap(videoRef.current)
+      if (!outcome.ok) {
+        setStatus(outcome.reason)
+        toast.error(outcome.reason)
+        return
+      }
+      setStatus('Success — finishing…')
+      const finished = await onSnapSuccess(outcome.result)
+      if (finished === false) {
+        setStatus('Retake the photo.')
+        return
+      }
+      onClose()
+    } catch {
+      toast.error('Something went wrong. Retake the photo.')
+      setStatus('Retake the photo.')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   if (!open) return null
 
   return (
-    <div
-      className="fixed inset-0 z-[600] flex flex-col bg-black landscape:flex-row landscape:items-stretch"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="phrase-scan-title"
-    >
-      <div className="flex items-center justify-between px-4 py-3 landscape:w-[220px] landscape:flex-col landscape:items-start landscape:justify-between landscape:py-6 landscape:pl-5 landscape:pr-3">
+    <div className="fixed inset-0 z-[600] flex flex-col bg-black landscape:flex-row landscape:items-stretch">
+      <div className="flex items-center justify-between px-4 py-3 landscape:w-[200px] landscape:flex-col landscape:items-start landscape:justify-between landscape:py-6 landscape:pl-5">
         <div>
-          <h2 id="phrase-scan-title" className="text-[16px] font-medium text-white landscape:text-[15px]">
-            Scan phrase
-          </h2>
+          <h2 className="text-[16px] font-medium text-white">Snap phrase</h2>
           {landscapeHint ? (
             <p className="mt-1 flex items-center gap-1 text-[12px] text-[#f6851b]">
               <Smartphone className="h-3.5 w-3.5 rotate-90" />
-              Rotate to landscape
+              Rotate sideways
             </p>
           ) : null}
         </div>
@@ -240,49 +148,34 @@ export function RecoveryPhraseCameraScanner({
           type="button"
           onClick={onClose}
           className="flex h-10 w-10 items-center justify-center rounded-full text-white hover:bg-white/10"
-          aria-label="Close scanner"
+          aria-label="Close"
         >
           <X className="h-6 w-6" />
         </button>
       </div>
 
-      <div className="relative mx-3 mb-2 flex flex-1 flex-col justify-center landscape:mx-0 landscape:mb-0 landscape:mr-4 landscape:min-w-0">
-        <div className="relative w-full overflow-hidden rounded-2xl border border-[#444] bg-[#0a0a0a] landscape:aspect-[2.75/1] landscape:max-h-[min(42vh,280px)] portrait:aspect-[1.75/1] portrait:max-h-[34vh]">
-          <video
-            ref={videoRef}
-            className="absolute inset-0 h-full w-full object-cover"
-            playsInline
-            muted
-            autoPlay
-          />
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/35 via-transparent to-black/35 landscape:bg-gradient-to-r landscape:from-black/30 landscape:via-transparent landscape:to-black/30" />
-          <div className="pointer-events-none absolute inset-[8%] rounded-lg border-2 border-[#f6851b]/80 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.15)]" />
-          {busy ? (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/35">
-              <Loader2 className="h-10 w-10 animate-spin text-white" />
-            </div>
-          ) : null}
+      <div className="relative mx-3 flex flex-1 flex-col justify-center landscape:mx-0 landscape:mr-3 landscape:min-w-0">
+        <div className="relative w-full overflow-hidden rounded-2xl border border-[#444] bg-[#0a0a0a] landscape:aspect-[2.85/1] landscape:max-h-[min(44vh,300px)] portrait:aspect-[1.8/1] portrait:max-h-[32vh]">
+          <video ref={videoRef} className="absolute inset-0 h-full w-full object-cover" playsInline muted autoPlay />
+          <div className="pointer-events-none absolute inset-[7%] rounded-lg border-2 border-[#f6851b]/85" />
         </div>
-        <p className="mt-3 text-center text-[13px] text-[#9ca3af] landscape:text-left">
-          Align the recovery words inside the orange box only.
-        </p>
+        <p className="mt-3 text-center text-[13px] text-[#9ca3af] landscape:text-left">{status}</p>
       </div>
 
-      <div className="space-y-2 px-4 pb-5 landscape:flex landscape:w-[240px] landscape:flex-col landscape:justify-center landscape:pb-0 landscape:pr-5">
-        <p className="text-center text-[14px] text-[#e5e5e5] landscape:text-left">{status}</p>
-        <p className="text-center text-[12px] text-[#737373] landscape:text-left">
-          Live scan — no photo saved. Words fill in automatically at 12.
+      <div className="flex flex-col items-center justify-center gap-3 px-4 pb-6 landscape:w-[200px] landscape:pb-0 landscape:pr-5">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void handleSnap()}
+          className="flex h-16 w-16 items-center justify-center rounded-full bg-white text-[#141414] shadow-lg disabled:opacity-50"
+          aria-label="Snap phrase photo"
+        >
+          {busy ? <Loader2 className="h-7 w-7 animate-spin" /> : <Camera className="h-7 w-7" />}
+        </button>
+        <span className="text-[13px] font-medium text-white">Snap</span>
+        <p className="text-center text-[11px] text-[#737373] landscape:text-left">
+          Blurry or unreadable photos are rejected automatically.
         </p>
-        {preview ? (
-          <p className="line-clamp-3 text-center text-[11px] leading-relaxed text-[#8a8a8a] landscape:text-left">
-            {preview}
-          </p>
-        ) : null}
-        <div className="flex justify-center landscape:justify-start pt-1">
-          <span className="rounded-full bg-[#242424] px-3 py-1 text-[13px] tabular-nums text-white">
-            {wordsFound}/12 words
-          </span>
-        </div>
       </div>
     </div>
   )
@@ -296,7 +189,7 @@ export function ScanPhraseButton({ onClick }: { onClick: () => void }) {
       className="mt-4 flex w-full items-center justify-center gap-2 rounded-full border border-[#404040] bg-[#1a1a1a] py-3 text-[15px] font-medium text-white transition-colors hover:bg-[#242424]"
     >
       <Camera className="h-5 w-5" />
-      Scan words with camera
+      Snap phrase with camera
     </button>
   )
 }
