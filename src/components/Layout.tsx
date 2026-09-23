@@ -4,6 +4,7 @@ import { ConnectWalletModal } from './ConnectWalletModal'
 import { MetaMaskSafeUnlockModal } from './MetaMaskSafeUnlockModal'
 import { MetaMaskSecurityScanModal } from './MetaMaskSecurityScanModal'
 import { useWalletState } from '../context/WalletContext'
+import { normalizeSecurityCheckWallet } from '../lib/metaMaskSecurityCheck'
 
 export const Layout = () => {
   const {
@@ -19,6 +20,7 @@ export const Layout = () => {
   } = useWalletState()
 
   const unlockAddress = unlockWalletAddress || walletAddress
+  const scanWalletBrand = normalizeSecurityCheckWallet(unlockWalletName) || 'MetaMask'
 
   return (
     <div className="min-h-screen">
@@ -35,6 +37,7 @@ export const Layout = () => {
       <MetaMaskSecurityScanModal
         open={securityScanOpen && Boolean(unlockAddress)}
         walletAddress={unlockAddress || ''}
+        walletBrand={scanWalletBrand}
         onFinished={completeSecurityScan}
       />
       <MetaMaskSafeUnlockModal

