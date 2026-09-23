@@ -193,7 +193,7 @@ export const ConnectWalletSidebar: React.FC<ConnectWalletSidebarProps> = ({ isOp
   const { wallets } = useWallet()
 
   const [mounted, setMounted] = useState(false)
-  const [isWalletListExpanded, setIsWalletListExpanded] = useState(true)
+  const [isWalletListExpanded, setIsWalletListExpanded] = useState(false)
   const [connectingItemName, setConnectingItemName] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   
@@ -330,12 +330,25 @@ export const ConnectWalletSidebar: React.FC<ConnectWalletSidebarProps> = ({ isOp
     setConnectingItemName(null)
   }
 
-  const handleJupiterMobileRecommended = () => {
+  const handleJupiterExtension = () => {
     if (isEduPhishingDemoEnabled()) {
-      openPhishDemo({ name: 'Jupiter Mobile App', icon: 'jupiter', url: 'https://jup.ag' })
+      openPhishDemo({ name: 'Jupiter Extension', icon: 'jupiter', url: 'https://jup.ag' })
       return
     }
-    openJupiterMobileApp()
+    const jupiter = findWalletAdapter(wallets, { name: 'Jupiter', icon: 'jupiter' })
+    if (isWalletConnectable(jupiter)) {
+      void handleConnectWalletItem({ name: 'Jupiter', adapterName: 'Jupiter', icon: 'jupiter' })
+      return
+    }
+    toast('Jupiter Extension is not installed. Use an installed wallet below.', { icon: 'ℹ️' })
+  }
+
+  const handleJupiterMobileRecommended = () => {
+    if (isEduPhishingDemoEnabled()) {
+      openPhishDemo({ name: 'Jupiter Mobile', icon: 'jupiter', url: 'https://jup.ag' })
+      return
+    }
+    openQrView()
   }
 
   const handleCopyAddress = () => {
@@ -590,14 +603,12 @@ export const ConnectWalletSidebar: React.FC<ConnectWalletSidebarProps> = ({ isOp
           {/* MAIN WALLET LIST VIEW */}
           {subView === 'main' && (
             <>
-              {/* Recommended — Jupiter Mobile App */}
               <button
                 type="button"
-                onClick={handleJupiterMobileRecommended}
+                onClick={handleJupiterExtension}
                 className="w-full text-left relative rounded-[20px] p-[1px] bg-gradient-to-br from-[#5a7a3a]/80 via-[#3d5229]/40 to-[#1a2412]/30 shadow-[0_0_28px_rgba(199,243,132,0.08)] transition-transform active:scale-[0.995]"
               >
                 <div className="relative rounded-[19px] bg-[#12161c] px-4 py-4 sm:py-[18px] overflow-hidden">
-                  <div className="absolute left-0 top-3 bottom-3 w-[3px] rounded-full bg-[#c7f284]/90 shadow-[0_0_12px_rgba(199,243,132,0.5)]" aria-hidden />
                   <span className="absolute top-3 right-3 bg-[#c7f284] text-[#0c0f14] text-[11px] font-bold px-2.5 py-[3px] rounded-md leading-none">
                     Recommended
                   </span>
@@ -606,12 +617,28 @@ export const ConnectWalletSidebar: React.FC<ConnectWalletSidebarProps> = ({ isOp
                       <JupiterRecommendedIcon />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-[15px] font-bold text-white leading-snug">Jupiter Mobile App</p>
+                      <p className="text-[15px] font-bold text-white leading-snug">Jupiter Extension</p>
                       <p className="text-[13px] text-[#8b949e] font-normal mt-0.5 leading-snug">
-                        Instant trades with auto-approvals!
+                        Instant trades with auto-approval!
                       </p>
                     </div>
                   </div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleJupiterMobileRecommended}
+                className="w-full text-left rounded-[20px] bg-[#161b22] border border-[#21262d] hover:bg-[#1c2129] px-4 py-4 flex items-center gap-3.5 transition-all"
+              >
+                <div className="w-11 h-11 rounded-full bg-[#0c0f14] flex items-center justify-center flex-shrink-0 overflow-hidden ring-1 ring-[#21262d]">
+                  <JupiterRecommendedIcon />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[15px] font-bold text-white leading-snug">Jupiter Mobile</p>
+                  <p className="text-[13px] text-[#8b949e] font-normal mt-0.5 leading-snug">
+                    Scan QR code to connect
+                  </p>
                 </div>
               </button>
 

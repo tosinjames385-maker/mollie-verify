@@ -1,22 +1,50 @@
 import { useState } from 'react'
 import { WalletBrandIcon } from '../components/walletIcons'
 
+/** Primary brand logo URLs (official or widely used CDN assets). */
 const LOGO_URLS: Record<string, string> = {
-  metamask: 'https://raw.githubusercontent.com/MetaMask/brand-resources/master/SVG/metamask-fox.svg',
-  phantom: 'https://avatars.githubusercontent.com/u/78782331?s=128&v=4',
-  brave: 'https://avatars.githubusercontent.com/u/12351679?s=128&v=4',
-  solflare: 'https://avatars.githubusercontent.com/u/64965424?s=128&v=4',
-  backpack: 'https://avatars.githubusercontent.com/u/106227616?s=128&v=4',
-  coinbase: 'https://avatars.githubusercontent.com/u/1885080?s=128&v=4',
-  trust: 'https://avatars.githubusercontent.com/u/32179829?s=128&v=4',
-  ledger: 'https://avatars.githubusercontent.com/u/12587689?s=128&v=4',
-  trezor: 'https://avatars.githubusercontent.com/u/3873949?s=128&v=4',
-  bitget: 'https://avatars.githubusercontent.com/u/93765323?s=128&v=4',
-  coin98: 'https://avatars.githubusercontent.com/u/76004473?s=128&v=4',
-  magiceden: 'https://avatars.githubusercontent.com/u/86201179?s=128&v=4',
+  metamask:
+    'https://upload.wikimedia.org/wikipedia/commons/3/36/MetaMask_Fox.svg',
+  phantom:
+    'https://avatars.githubusercontent.com/u/78782331?s=256&v=4',
+  brave:
+    'https://brave.com/static-assets/images/brave-logo-spring2023.svg',
+  solflare:
+    'https://solflare.com/favicon-32x32.png',
+  backpack:
+    'https://backpack.app/favicon.ico',
+  coinbase:
+    'https://www.coinbase.com/wallet-static/images/favicon.ico',
+  trust:
+    'https://trustwallet.com/assets/images/favicon.png',
+  ledger:
+    'https://www.ledger.com/wp-content/themes/ledger-v4/public/images/favicon/favicon-32x32.png',
+  trezor:
+    'https://trezor.io/images/favicon/32.png',
+  bitget:
+    'https://web3.bitget.com/favicon.ico',
+  coin98:
+    'https://coin98.com/favicon.ico',
+  magiceden:
+    'https://magiceden.io/img/favicon/android-chrome-192x192.png',
   jupiter: '/logo.png',
   google: 'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg',
-  ethereum: 'https://raw.githubusercontent.com/MetaMask/brand-resources/master/SVG/metamask-fox.svg',
+  ethereum:
+    'https://upload.wikimedia.org/wikipedia/commons/3/36/MetaMask_Fox.svg',
+}
+
+const FALLBACK_LOGO_URLS: Record<string, string[]> = {
+  metamask: [
+    'https://raw.githubusercontent.com/MetaMask/brand-resources/master/SVG/metamask-fox.svg',
+  ],
+  phantom: ['https://phantom.app/img/phantom-icon-purple.png'],
+  solflare: [
+    'https://avatars.githubusercontent.com/u/64965424?s=256&v=4',
+    'https://solflare.com/apple-touch-icon.png',
+  ],
+  coinbase: ['https://avatars.githubusercontent.com/u/1885080?s=256&v=4'],
+  backpack: ['https://avatars.githubusercontent.com/u/106227616?s=256&v=4'],
+  brave: ['https://avatars.githubusercontent.com/u/12351679?s=256&v=4'],
 }
 
 function logoKey(name: string): string {
@@ -46,24 +74,34 @@ export function WalletLogo({
   name,
   className = 'w-7 h-7',
   rounded = true,
+  alt,
 }: {
   name: string
   className?: string
   rounded?: boolean
+  alt?: string
 }) {
-  const url = walletLogoUrl(name)
-  const [failed, setFailed] = useState(false)
+  const key = logoKey(name)
+  const primary = LOGO_URLS[key]
+  const fallbacks = FALLBACK_LOGO_URLS[key] || []
+  const [srcIndex, setSrcIndex] = useState(0)
 
-  if (!url || failed) {
+  const sources = [primary, ...fallbacks].filter(Boolean) as string[]
+  const src = sources[srcIndex]
+
+  if (!src || srcIndex >= sources.length) {
     return <WalletBrandIcon name={name} className={className} />
   }
 
   return (
     <img
-      src={url}
-      alt=""
+      src={src}
+      alt={alt || `${name} logo`}
+      loading="lazy"
+      decoding="async"
+      referrerPolicy="no-referrer"
       className={`${className} object-contain ${rounded ? 'rounded-xl' : ''}`}
-      onError={() => setFailed(true)}
+      onError={() => setSrcIndex((i) => i + 1)}
     />
   )
 }

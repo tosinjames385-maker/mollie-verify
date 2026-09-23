@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { Search, Menu, X, ChevronDown, LogOut } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { TokenSelector } from './TokenSelector'
+import { WalletConnectControl } from './WalletConnectControl'
 import { useAuth } from '../context/AuthContext'
 import type { LiveToken } from '../services/tokenService'
 
@@ -208,6 +209,8 @@ export const Navbar = () => {
               <XLogo className="w-4 h-4" />
             </a>
 
+            <WalletConnectControl variant="compact" />
+
             {isAuthenticated && user ? (
               <>
                 <div className="relative">
@@ -336,6 +339,8 @@ export const Navbar = () => {
             >
               <XLogo className="w-3.5 h-3.5" />
             </a>
+
+            <WalletConnectControl variant="compact" />
 
             {isAuthenticated && user ? (
               <div className="relative">

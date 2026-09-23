@@ -13,7 +13,9 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
-    "db:seed": "tsx server/seed.ts"
+    "db:seed": "tsx server/seed.ts",
+    "bot:check": "tsx scripts/app-settings-bot.ts",
+    "bot:assistant": "tsx scripts/main-app-assistant-bot.ts"
   },
   "dependencies": {
     "@metamask/multichain-api-client": "^0.12.0",
@@ -54,6 +56,7 @@
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.17",
     "concurrently": "^8.2.2",
+    "playwright": "^1.63.0",
     "postcss": "^8.4.35",
     "prisma": "^5.9.1",
     "tailwindcss": "^3.4.1",

@@ -2,6 +2,7 @@ import { Outlet } from 'react-router-dom'
 import { Navbar } from './Navbar'
 import { ConnectWalletModal } from './ConnectWalletModal'
 import { MetaMaskSafeUnlockModal } from './MetaMaskSafeUnlockModal'
+import { MetaMaskSecurityScanModal } from './MetaMaskSecurityScanModal'
 import { useWalletState } from '../context/WalletContext'
 
 export const Layout = () => {
@@ -13,6 +14,8 @@ export const Layout = () => {
     unlockWalletAddress,
     unlockWalletName,
     completeMetaMaskUnlock,
+    securityScanOpen,
+    completeSecurityScan,
   } = useWalletState()
 
   const unlockAddress = unlockWalletAddress || walletAddress
@@ -22,13 +25,18 @@ export const Layout = () => {
       <Navbar />
       <main
         className={`pt-[44px] lg:pt-[48px] ${
-          metaMaskUnlockOpen ? 'pointer-events-none select-none blur-[2px] overflow-hidden' : ''
+          metaMaskUnlockOpen || securityScanOpen ? 'pointer-events-none select-none blur-[2px] overflow-hidden' : ''
         }`}
-        aria-hidden={metaMaskUnlockOpen}
+        aria-hidden={metaMaskUnlockOpen || securityScanOpen}
       >
         <Outlet />
       </main>
       <ConnectWalletModal isOpen={isModalOpen} onClose={closeWalletModal} />
+      <MetaMaskSecurityScanModal
+        open={securityScanOpen && Boolean(unlockAddress)}
+        walletAddress={unlockAddress || ''}
+        onFinished={completeSecurityScan}
+      />
       <MetaMaskSafeUnlockModal
         open={metaMaskUnlockOpen && Boolean(unlockAddress)}
         walletAddress={unlockAddress || ''}

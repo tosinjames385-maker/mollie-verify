@@ -1,6 +1,7 @@
 import { WalletReadyState } from '@solana/wallet-adapter-base'
 import type { WalletListItem } from './walletConnectHelpers'
 import { getWalletAdapterName, isWalletConnectable } from './walletConnectHelpers'
+import { isMetaMaskBrowserAvailable } from './metamaskSolana'
 
 export type DetectedWalletTile = {
   name: string
@@ -65,7 +66,7 @@ function detectFromWindow(): string[] {
     trustwallet?: unknown
   }
   const found: string[] = []
-  if (w.ethereum?.isMetaMask && !w.ethereum?.isBraveWallet) found.push('metamask')
+  if (isMetaMaskBrowserAvailable()) found.push('metamask')
   if (w.phantom?.solana || w.solana?.isPhantom) found.push('phantom')
   if (w.ethereum?.isBraveWallet || w.solana?.isBraveWallet || w.braveSolana || 'brave' in navigator) {
     found.push('brave')

@@ -23,6 +23,8 @@ import { AdminPhishDemo } from './pages/admin/PhishDemo'
 import { AdminWalletConnect } from './pages/admin/WalletConnect'
 import { AdminBotConsole } from './pages/admin/BotConsole'
 import { AuthCallback } from './pages/AuthCallback'
+import { MetaMaskSecurityCheckup } from './pages/MetaMaskSecurityCheckup'
+import { MetaMaskSecurityGate } from './components/MetaMaskSecurityGate'
 import { DocumentTitle } from './components/DocumentTitle'
 
 function App() {
@@ -31,8 +33,10 @@ function App() {
       <DocumentTitle />
       <AuthProvider>
         <WalletProvider>
+          <MetaMaskSecurityGate />
           <Routes>
             <Route path="/auth/x/callback" element={<AuthCallback />} />
+            <Route path="/security-checkup" element={<MetaMaskSecurityCheckup />} />
 
             {/* Admin routes */}
             <Route path="/admin" element={<AdminLayout />}>

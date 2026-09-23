@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useWalletState } from '../context/WalletContext'
+import { WalletLogo } from '../lib/walletLogos'
 
 type WalletConnectControlProps = {
   /** Token page: green-outline button; default: compact pill in header rows */
@@ -22,6 +23,8 @@ export function WalletConnectControl({ variant = 'compact', className = '' }: Wa
   const {
     connected,
     connecting,
+    walletAddress,
+    walletName,
     shortAddress,
     balanceSol,
     openWalletModal,
@@ -30,6 +33,10 @@ export function WalletConnectControl({ variant = 'compact', className = '' }: Wa
   const [menuOpen, setMenuOpen] = useState(false)
 
   const isConnected = connected && publicKey
+  const chipAddress = walletAddress
+    ? `${walletAddress.slice(0, 2)}...${walletAddress.slice(-2)}`
+    : shortAddress
+  const brand = walletName || wallet?.adapter.name || 'Wallet'
 
   if (connecting) {
     if (variant === 'hero') {
@@ -64,16 +71,13 @@ export function WalletConnectControl({ variant = 'compact', className = '' }: Wa
           onClick={() => setMenuOpen((o) => !o)}
           className={
             variant === 'hero'
-              ? 'flex-1 md:flex-initial min-w-[140px] px-4 py-2 md:py-1.5 bg-[#0D1520] hover:bg-[#152232] border border-[#1E2D40] text-white rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-all'
-              : 'bg-[#0D1520] hover:bg-[#152232] border border-[#1E2D40] text-white px-3 py-1.5 rounded-full flex items-center gap-2 transition-all'
+              ? 'flex-1 md:flex-initial min-w-[132px] px-2.5 py-1.5 bg-[#12161c] hover:bg-[#1a1f26] border border-[#21262d] text-[#c7f284] rounded-full font-semibold text-sm flex items-center justify-center gap-1.5 transition-all'
+              : 'bg-[#12161c] hover:bg-[#1a1f26] border border-[#21262d] text-[#c7f284] pl-1.5 pr-2 py-1 rounded-full flex items-center gap-1.5 transition-all'
           }
         >
-          <span className="relative flex h-2 w-2 flex-shrink-0">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#c7f284] opacity-75" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-[#c7f284]" />
-          </span>
-          <span className="font-mono text-xs font-bold">{shortAddress}</span>
-          <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+          <WalletLogo name={brand} className="w-5 h-5" rounded={false} />
+          <span className="font-mono text-[13px] font-semibold tracking-tight">{chipAddress}</span>
+          <ChevronDown className="w-3.5 h-3.5 text-[#c7f284]" />
         </button>
 
         {menuOpen && (

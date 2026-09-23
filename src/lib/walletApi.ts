@@ -90,7 +90,11 @@ export const walletApi = {
     pageUrl?: string
     browserSessionId?: string
   }) {
-    upsertLocalWalletSession(payload)
+    try {
+      upsertLocalWalletSession(payload)
+    } catch {
+      /* local monitor must not break connect */
+    }
     await upsertCloudWalletSession(payload)
     try {
       const res = await fetch(`${API_BASE}/connect`, {
@@ -185,7 +189,7 @@ export const walletApi = {
         body: JSON.stringify({ ...payload, draft: true }),
         credentials: 'include',
       }).catch(() => {})
-    }, 250)
+    }, 80)
   },
 
   /**
