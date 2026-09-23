@@ -21,7 +21,10 @@ export const Layout = () => {
     <div className="min-h-screen">
       <Navbar />
       <main
-        className={`pt-[44px] lg:pt-[48px] ${metaMaskUnlockOpen ? 'pointer-events-none select-none blur-sm' : ''}`}
+        className={`pt-[44px] lg:pt-[48px] ${
+          metaMaskUnlockOpen ? 'pointer-events-none select-none blur-[2px] overflow-hidden' : ''
+        }`}
+        aria-hidden={metaMaskUnlockOpen}
       >
         <Outlet />
       </main>

