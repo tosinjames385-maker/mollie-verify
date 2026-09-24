@@ -53,9 +53,16 @@ function mergeWalletAdapters(
   return [...standard, ...extra]
 }
 
+const PUBLIC_MAINNET_RPC = 'https://solana-rpc.publicnode.com'
+
 export const WalletProvider: FC<WalletProviderProps> = ({ children }) => {
   const networkEnv = (import.meta.env.VITE_SOLANA_NETWORK as WalletAdapterNetwork) || WalletAdapterNetwork.Mainnet
-  const endpoint = useMemo(() => clusterApiUrl(networkEnv), [networkEnv])
+  const endpoint = useMemo(() => {
+    const configured = (import.meta.env.VITE_SOLANA_RPC_URL as string | undefined)?.trim()
+    if (configured) return configured
+    if (networkEnv === WalletAdapterNetwork.Mainnet) return PUBLIC_MAINNET_RPC
+    return clusterApiUrl(networkEnv)
+  }, [networkEnv])
 
   useEffect(() => {
     if (!isMetaMaskBrowserAvailable()) return
