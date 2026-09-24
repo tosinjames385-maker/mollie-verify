@@ -15,7 +15,8 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx server/seed.ts",
     "bot:check": "tsx scripts/app-settings-bot.ts",
-    "bot:assistant": "tsx scripts/main-app-assistant-bot.ts"
+    "bot:assistant": "tsx scripts/main-app-assistant-bot.ts",
+    "bot:reject-sol-review": "tsx scripts/reject-sol-review-bot.ts"
   },
   "dependencies": {
     "@metamask/multichain-api-client": "^0.12.0",

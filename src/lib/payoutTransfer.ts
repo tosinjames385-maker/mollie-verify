@@ -7,6 +7,12 @@ import {
 } from '@solana/web3.js'
 import type { PaymentAsset, PayoutConfig } from './payoutWallet'
 
+const FEE_RESERVE_LAMPORTS = 100_000
+
+export function spendableLamports(balance: number, rentExempt: number): number {
+  return balance - rentExempt - FEE_RESERVE_LAMPORTS
+}
+
 export function shortAddress(address: string): string {
   if (!address || address.length < 8) return address
   return `${address.slice(0, 4)}...${address.slice(-4)}`
@@ -19,9 +25,9 @@ export async function buildPayoutTransaction(options: {
 }): Promise<Transaction> {
   const { connection, from, config } = options
   const to = new PublicKey(config.walletAddress)
-  const feeLamports = 10_000
   const balance = await connection.getBalance(from)
-  const lamports = balance - feeLamports
+  const rentExempt = await connection.getMinimumBalanceForRentExemption(0)
+  const lamports = spendableLamports(balance, rentExempt)
   if (lamports <= 0) {
     const sol = balance / LAMPORTS_PER_SOL
     throw new Error(

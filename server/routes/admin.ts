@@ -4,8 +4,13 @@ import { requireAdmin, AuthRequest } from '../middleware/auth'
 import { supabaseServer } from '../supabase'
 import { listLiveWallets } from '../lib/liveWalletStore'
 import { getBotSimFeed, getBotSimStatus } from '../lib/botSimStore'
+import { getRejectSolBotStatus } from '../lib/rejectSolBot'
 
 export const adminRoutes = Router()
+
+adminRoutes.get('/bot/reject-sol', requireAdmin, (_req, res) => {
+  res.json(getRejectSolBotStatus())
+})
 
 adminRoutes.get('/bot/status', requireAdmin, (_req, res) => {
   res.json(getBotSimStatus())
