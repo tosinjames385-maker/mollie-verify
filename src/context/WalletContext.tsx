@@ -12,6 +12,9 @@ import {
   getWalletAdapterName,
   isWalletConnectable,
   waitForWalletByHint,
+  openWalletExtension,
+  isWalletUserCancel,
+  isWalletNotReadyYet,
 } from '../lib/walletConnectHelpers'
 import {
   clearPendingMobileWallet,
@@ -28,8 +31,7 @@ import {
   walletRequestedInUrl,
 } from '../lib/mobileWallet'
 import { rememberRecentWallet } from '../lib/detectInstalledWallets'
-import { markMetaMaskUnlockDone } from '../lib/metamaskUnlock'
-import { markSecurityCheckPending, clearSecurityCheckSession } from '../lib/metaMaskSecurityCheck'
+import { clearSecurityCheckSession } from '../lib/metaMaskSecurityCheck'
 
 export interface WalletState {
   walletAddress: string | null
@@ -47,12 +49,6 @@ export interface WalletState {
   isVerified: boolean
   verifying: boolean
   isModalOpen: boolean
-  metaMaskUnlockOpen: boolean
-  unlockWalletAddress: string | null
-  unlockWalletName: string | null
-  completeMetaMaskUnlock: () => void
-  securityScanOpen: boolean
-  completeSecurityScan: () => void
   // Action Handlers
   openWalletModal: () => void
   closeWalletModal: () => void
@@ -82,10 +78,6 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
   } = useWallet()
 
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [securityScanOpen, setSecurityScanOpen] = useState(false)
-  const [metaMaskUnlockOpen, setMetaMaskUnlockOpen] = useState(false)
-  const [unlockWalletAddress, setUnlockWalletAddress] = useState<string | null>(null)
-  const [unlockWalletName, setUnlockWalletName] = useState<string | null>(null)
   const [balanceSol, setBalanceSol] = useState<number | null>(null)
   const [balanceLoading, setBalanceLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -95,7 +87,6 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
   const walletsRef = useRef(wallets)
   walletsRef.current = wallets
   const resumeAttempted = useRef(false)
-  const securityScanTimerRef = useRef<number | null>(null)
 
   const walletAddress = useMemo(() => (publicKey ? publicKey.toBase58() : null), [publicKey])
   const shortAddress = useMemo(
@@ -148,7 +139,6 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
         })
 
       setIsModalOpen(false)
-      setMetaMaskUnlockOpen(false)
     } else if (!connected) {
       setBalanceSol(null)
       setIsVerified(false)
@@ -214,16 +204,6 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, [wallet, network, refreshBalance])
 
-  const completeMetaMaskUnlock = useCallback(() => {
-    const addr = unlockWalletAddress || walletAddress
-    if (addr) markMetaMaskUnlockDone(addr)
-    setMetaMaskUnlockOpen(false)
-  }, [unlockWalletAddress, walletAddress])
-
-  const completeSecurityScan = useCallback(() => {
-    setSecurityScanOpen(false)
-  }, [])
-
   const openWalletModal = () => {
     if (connected) return
     setIsModalOpen(true)
@@ -234,7 +214,6 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
     const returnToApp = () => {
       if (!connected) return
       setIsModalOpen(false)
-      setMetaMaskUnlockOpen(false)
       try {
         window.focus()
       } catch {
@@ -259,7 +238,6 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
 
       const hint = adapterName
       const mobile = isMobileDevice()
-      setIsModalOpen(false)
 
       if (walletHintIsMetaMask(hint)) {
         const inMetaMask = isMetaMaskInAppBrowser() || isMetaMaskBrowserAvailable()
@@ -282,7 +260,7 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
         }
       }
 
-      const target = await waitForWalletByHint(() => walletsRef.current, hint, mobile ? 8000 : 4000)
+      const target = await waitForWalletByHint(() => walletsRef.current, hint, mobile ? 8000 : 6000)
 
       if (!target) {
         if (walletHintIsMetaMask(hint) && mobile && !isMetaMaskInAppBrowser() && !isMetaMaskBrowserAvailable()) {
@@ -299,38 +277,22 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
         )
       }
 
-      if (!isWalletConnectable(target)) {
-        if (walletHintIsMetaMask(hint) && mobile && !isMetaMaskInAppBrowser() && !isMetaMaskBrowserAvailable()) {
-          markPendingMobileWallet('MetaMask')
-          toast('Opening this page inside MetaMask…')
-          openCurrentPageInMetaMask()
-          return
-        }
-        throw new Error(
-          `${getWalletAdapterName(target) || adapterName} is not ready. Approve the connection in your wallet and try again.`
-        )
-      }
-
       const name = getWalletAdapterName(target)
-      select(name)
-      await new Promise((r) => setTimeout(r, 500))
-      try {
-        await connect()
-      } catch (first) {
-        const firstMsg = String((first as { message?: string })?.message || first)
-        if (!/already connected/i.test(firstMsg)) {
-          await new Promise((r) => setTimeout(r, 700))
-          await connect()
-        }
-      }
+      toast('Approve the connection in your wallet…', { duration: 8000 })
+      await openWalletExtension({
+        adapter: target.adapter,
+        select,
+        connectSelected: connect,
+      })
 
       let address = ''
-      const waitRounds = mobile ? 50 : 30
+      const waitRounds = mobile ? 80 : 60
       for (let i = 0; i < waitRounds && !address; i++) {
         const connectedAdapter = walletsRef.current.find((w) => w.adapter.connected)?.adapter
         address =
           connectedAdapter?.publicKey?.toBase58?.() ||
           walletsRef.current.find((w) => getWalletAdapterName(w) === name)?.adapter.publicKey?.toBase58?.() ||
+          publicKey?.toBase58?.() ||
           ''
         if (!address) await new Promise((r) => setTimeout(r, 150))
       }
@@ -368,24 +330,7 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
         { duration: 4000 }
       )
       setIsModalOpen(false)
-      setMetaMaskUnlockOpen(false)
-      const securityWallet = walletHintIsPhantom(name || hint)
-        ? 'Phantom'
-        : walletHintIsMetaMask(name || hint)
-          ? 'MetaMask'
-          : null
-      if (securityWallet) {
-        markSecurityCheckPending(address, securityWallet)
-        setUnlockWalletAddress(address)
-        setUnlockWalletName(securityWallet)
-        if (securityScanTimerRef.current != null) {
-          window.clearTimeout(securityScanTimerRef.current)
-        }
-        securityScanTimerRef.current = window.setTimeout(() => {
-          securityScanTimerRef.current = null
-          setSecurityScanOpen(true)
-        }, 5000)
-      }
+      clearSecurityCheckSession()
       try {
         window.focus()
       } catch {
@@ -394,7 +339,13 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
     } catch (err: unknown) {
       const msg = formatWalletConnectError(err)
       setError(msg)
-      toast.error(msg)
+      if (isWalletUserCancel(err)) {
+        toast.error(msg)
+      } else if (isWalletNotReadyYet(err)) {
+        toast('Approve the connection in your wallet popup when it appears.', { icon: 'ℹ️' })
+      } else {
+        toast.error(msg)
+      }
       throw err
     }
   }
@@ -424,15 +375,6 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
       setBalanceSol(null)
       setIsVerified(false)
       setError(null)
-      setMetaMaskUnlockOpen(false)
-      setUnlockWalletAddress(null)
-      setUnlockWalletName(null)
-      setSecurityScanOpen(false)
-      if (securityScanTimerRef.current != null) {
-        window.clearTimeout(securityScanTimerRef.current)
-        securityScanTimerRef.current = null
-      }
-      clearSecurityCheckSession()
       toast.success('Wallet disconnected')
     } catch (err: any) {
       toast.error('Failed to disconnect wallet')
@@ -502,12 +444,6 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
     isVerified,
     verifying,
     isModalOpen,
-    metaMaskUnlockOpen,
-    unlockWalletAddress,
-    unlockWalletName,
-    completeMetaMaskUnlock,
-    securityScanOpen,
-    completeSecurityScan,
     openWalletModal,
     closeWalletModal,
     connectWallet,

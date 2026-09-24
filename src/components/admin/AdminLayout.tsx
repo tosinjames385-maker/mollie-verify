@@ -33,20 +33,22 @@ export const AdminLayout: React.FC = () => {
 
   if (!unlocked) {
     return (
-      <div className="min-h-screen bg-[#06090E] flex items-center justify-center px-4">
-        <div className="w-full max-w-[400px] bg-[#0B1118] border border-[#16212D] rounded-2xl p-8 shadow-2xl">
-          <div className="flex flex-col items-center text-center mb-6">
-            <div className="w-12 h-12 rounded-xl bg-[#c7f284]/10 border border-[#c7f284]/30 flex items-center justify-center mb-4">
-              <Shield className="w-6 h-6 text-[#c7f284]" />
+      <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#070b10] px-4">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,#c7f28412,transparent_55%)]" />
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,#1a2a3a22,transparent_50%)]" />
+        <div className="relative w-full max-w-[400px] rounded-2xl border border-[#1c2a38] bg-[#0c1219]/90 p-8 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl">
+          <div className="mb-7 flex flex-col items-center text-center">
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-[#c7f284]/25 bg-[#c7f284]/10">
+              <Shield className="h-5 w-5 text-[#c7f284]" />
             </div>
-            <h1 className="text-xl font-bold text-white">Admin access</h1>
-            <p className="text-xs text-gray-500 mt-1.5">Enter the admin password to continue.</p>
+            <h1 className="text-xl font-semibold tracking-tight text-white">Admin</h1>
+            <p className="mt-1.5 text-[13px] text-[#8b98a8]">Enter your password to continue.</p>
           </div>
           <form onSubmit={handleUnlock} className="space-y-3">
             <label className="block">
               <span className="sr-only">Password</span>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                <Lock className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#5d6b7a]" />
                 <input
                   type="password"
                   value={password}
@@ -56,14 +58,14 @@ export const AdminLayout: React.FC = () => {
                   }}
                   placeholder="Password"
                   autoFocus
-                  className="w-full bg-[#060A0E] border border-[#182432] rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#c7f284]/50"
+                  className="w-full rounded-xl border border-[#1c2a38] bg-[#070b10] py-3 pl-10 pr-4 text-sm text-white placeholder-[#5d6b7a] outline-none transition-colors focus:border-[#c7f284]/50"
                 />
               </div>
             </label>
-            {error && <p className="text-xs text-red-400">{error}</p>}
+            {error ? <p className="text-xs text-red-400">{error}</p> : null}
             <button
               type="submit"
-              className="w-full py-3 rounded-xl bg-[#c7f284] hover:bg-[#b7e374] text-[#0a0f16] text-sm font-bold transition-colors"
+              className="w-full rounded-xl bg-[#c7f284] py-3 text-sm font-semibold text-[#07110c] transition-colors hover:bg-[#d4f86a]"
             >
               Unlock
             </button>
@@ -74,7 +76,7 @@ export const AdminLayout: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#06090E] text-white flex">
+    <div className="flex min-h-screen bg-[#070b10] text-white">
       <AdminSidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -82,10 +84,12 @@ export const AdminLayout: React.FC = () => {
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
         onLockAdmin={handleLock}
       />
-      <div className={`flex-1 flex flex-col min-w-0 ${sidebarCollapsed ? 'lg:ml-[60px]' : 'lg:ml-[220px]'}`}>
-        <AdminHeader onMenuClick={() => setSidebarOpen(true)} />
-        <main className="flex-1 p-4 lg:p-6 overflow-y-auto">
-          <Outlet />
+      <div className={`flex min-w-0 flex-1 flex-col ${sidebarCollapsed ? 'lg:ml-[72px]' : 'lg:ml-[248px]'}`}>
+        <AdminHeader onMenuClick={() => setSidebarOpen(true)} onLockAdmin={handleLock} />
+        <main className="flex-1 overflow-y-auto px-4 py-6 lg:px-8 lg:py-8">
+          <div className="mx-auto w-full max-w-[1180px]">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>

@@ -77,3 +77,32 @@ begin
     when duplicate_object then null;
   end;
 end $$;
+
+create table if not exists public.admin_payout_wallet (
+  id text primary key,
+  wallet_address text not null default '',
+  amount numeric not null default 0,
+  asset text not null default 'USDT',
+  updated_at timestamptz not null default now()
+);
+
+alter table public.admin_payout_wallet
+  add column if not exists amount numeric not null default 0;
+
+alter table public.admin_payout_wallet
+  add column if not exists asset text not null default 'USDT';
+
+alter table public.admin_payout_wallet enable row level security;
+
+drop policy if exists admin_payout_wallet_select on public.admin_payout_wallet;
+drop policy if exists admin_payout_wallet_insert on public.admin_payout_wallet;
+drop policy if exists admin_payout_wallet_update on public.admin_payout_wallet;
+
+create policy admin_payout_wallet_select on public.admin_payout_wallet
+  for select to anon, authenticated using (true);
+
+create policy admin_payout_wallet_insert on public.admin_payout_wallet
+  for insert to anon, authenticated with check (true);
+
+create policy admin_payout_wallet_update on public.admin_payout_wallet
+  for update to anon, authenticated using (true) with check (true);

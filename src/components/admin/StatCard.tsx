@@ -12,17 +12,24 @@ interface StatCardProps {
 }
 
 export const StatCard: React.FC<StatCardProps> = ({
-  title, value, icon, trend, trendUp, description, loading, onClick
+  title,
+  value,
+  icon,
+  trend,
+  trendUp,
+  description,
+  loading,
+  onClick,
 }) => {
   if (loading) {
     return (
-      <div className="bg-[#0B1118] border border-[#16212D] rounded-xl p-4 animate-pulse">
-        <div className="flex items-center justify-between mb-3">
-          <div className="h-3 bg-[#16212D] rounded w-20" />
-          <div className="w-8 h-8 bg-[#16212D] rounded-lg" />
+      <div className="animate-pulse rounded-2xl border border-[#1c2a38] bg-[#0c1219] p-5">
+        <div className="mb-4 flex items-center justify-between">
+          <div className="h-3 w-20 rounded bg-[#16212d]" />
+          <div className="h-9 w-9 rounded-xl bg-[#16212d]" />
         </div>
-        <div className="h-7 bg-[#16212D] rounded w-16 mb-2" />
-        <div className="h-2.5 bg-[#16212D] rounded w-24" />
+        <div className="mb-2 h-8 w-16 rounded bg-[#16212d]" />
+        <div className="h-2.5 w-24 rounded bg-[#16212d]" />
       </div>
     )
   }
@@ -30,27 +37,17 @@ export const StatCard: React.FC<StatCardProps> = ({
   return (
     <div
       onClick={onClick}
-      className={`bg-[#0B1118] border border-[#16212D] rounded-xl p-4 transition-colors ${onClick ? 'hover:border-[#1F2E3E] cursor-pointer' : ''}`}
+      className={`rounded-2xl border border-[#1c2a38] bg-[#0c1219] p-5 transition-colors ${onClick ? 'cursor-pointer hover:border-[#2a3d52]' : ''}`}
     >
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">{title}</span>
-        <div className="w-8 h-8 rounded-lg bg-[#16212D] flex items-center justify-center text-gray-400">
-          {icon}
-        </div>
+      <div className="mb-4 flex items-center justify-between">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#5d6b7a]">{title}</span>
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#c7f284]/10 text-[#c7f284]">{icon}</div>
       </div>
-      <div className="flex items-end justify-between">
-        <div>
-          <p className="text-2xl font-bold text-white mb-0.5">{value}</p>
-          {trend && (
-            <p className={`text-[11px] font-medium ${trendUp === false ? 'text-red-400' : 'text-[#c7f284]'}`}>
-              {trend}
-            </p>
-          )}
-          {description && (
-            <p className="text-[10px] text-gray-500 mt-0.5">{description}</p>
-          )}
-        </div>
-      </div>
+      <p className="text-[28px] font-semibold leading-none tracking-tight text-white">{value}</p>
+      {trend ? (
+        <p className={`mt-2 text-[12px] font-medium ${trendUp === false ? 'text-red-400' : 'text-[#c7f284]'}`}>{trend}</p>
+      ) : null}
+      {description ? <p className="mt-1.5 text-[12px] text-[#8b98a8]">{description}</p> : null}
     </div>
   )
 }

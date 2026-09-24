@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { DataTable, Column } from '../../components/admin/DataTable'
 import { StatusBadge } from '../../components/admin/StatusBadge'
+import { AdminPageHeader } from '../../components/admin/AdminPageHeader'
 import { DEMO_ADMIN_X_ACCOUNTS, adminFetchJson, paginate } from '../../lib/adminDemo'
 
 interface XAccount {
@@ -96,11 +97,8 @@ export const AdminXAccounts: React.FC = () => {
   ]
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-bold text-white">X Accounts</h1>
-        <p className="text-xs text-gray-500 mt-0.5">Connected X (Twitter) accounts on your platform.</p>
-      </div>
+    <div className="space-y-6">
+      <AdminPageHeader title="X Accounts" description="Connected X (Twitter) accounts on your platform." />
       <DataTable
         columns={columns}
         data={accounts as any}

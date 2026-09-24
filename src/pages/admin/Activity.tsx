@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Users, ArrowUpDown, Heart, Newspaper } from 'lucide-react'
 import { EmptyState } from '../../components/admin/EmptyState'
+import { AdminPageHeader } from '../../components/admin/AdminPageHeader'
 import { DEMO_ADMIN_ACTIVITY, adminFetchJson } from '../../lib/adminDemo'
 
 interface ActivityEvent {
@@ -43,40 +44,37 @@ export const AdminActivity: React.FC = () => {
   useEffect(() => { load() }, [load])
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-bold text-white">Activity</h1>
-        <p className="text-xs text-gray-500 mt-0.5">Recent events across your platform.</p>
-      </div>
+    <div className="space-y-6">
+      <AdminPageHeader title="Activity" description="Recent events across your platform." />
 
-      <div className="bg-[#0B1118] border border-[#16212D] rounded-xl overflow-hidden">
+      <div className="overflow-hidden rounded-2xl border border-[#1c2a38] bg-[#0c1219]">
         {loading ? (
-          <div className="p-4 space-y-2">
+          <div className="space-y-2 p-4">
             {Array.from({ length: 10 }).map((_, i) => (
-              <div key={i} className="flex items-center gap-3 p-3 animate-pulse">
-                <div className="w-9 h-9 bg-[#16212D] rounded-lg" />
+              <div key={i} className="flex animate-pulse items-center gap-3 p-3">
+                <div className="h-9 w-9 rounded-lg bg-[#16212d]" />
                 <div className="flex-1">
-                  <div className="h-3 bg-[#16212D] rounded w-2/3 mb-1.5" />
-                  <div className="h-2.5 bg-[#16212D] rounded w-1/4" />
+                  <div className="mb-1.5 h-3 w-2/3 rounded bg-[#16212d]" />
+                  <div className="h-2.5 w-1/4 rounded bg-[#16212d]" />
                 </div>
-                <div className="h-2.5 bg-[#16212D] rounded w-12" />
+                <div className="h-2.5 w-12 rounded bg-[#16212d]" />
               </div>
             ))}
           </div>
         ) : events.length === 0 ? (
           <EmptyState title="No activity yet" description="Events will appear here as users interact with your platform." />
         ) : (
-          <div className="divide-y divide-[#16212D]/50">
+          <div className="divide-y divide-[#1c2a38]/70">
             {events.map((e) => (
-              <div key={e.id} className="flex items-center gap-3 px-4 py-3 hover:bg-[#0D151F] transition-colors">
-                <div className="w-9 h-9 rounded-lg bg-[#16212D] flex items-center justify-center flex-shrink-0">
-                  {typeIcons[e.type] || <Users className="w-4 h-4 text-gray-500" />}
+              <div key={e.id} className="flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-[#0f1720]">
+                <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-[#16212d]">
+                  {typeIcons[e.type] || <Users className="h-4 w-4 text-[#5d6b7a]" />}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-gray-300 truncate">{e.description}</p>
-                  <p className="text-[10px] text-gray-500 mt-0.5">by {e.user}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] text-[#d5dde6]">{e.description}</p>
+                  <p className="mt-0.5 text-[11px] text-[#5d6b7a]">by {e.user}</p>
                 </div>
-                <span className="text-[10px] text-gray-500 flex-shrink-0">{timeAgo(e.timestamp)}</span>
+                <span className="flex-shrink-0 text-[11px] text-[#5d6b7a]">{timeAgo(e.timestamp)}</span>
               </div>
             ))}
           </div>

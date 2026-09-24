@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { DataTable, Column } from '../../components/admin/DataTable'
 import { StatusBadge } from '../../components/admin/StatusBadge'
+import { AdminPageHeader } from '../../components/admin/AdminPageHeader'
 import { DEMO_ADMIN_SUBMISSIONS, adminFetchJson, paginate } from '../../lib/adminDemo'
 
 interface AdminSubmission {
@@ -145,18 +146,20 @@ export const AdminSubmissions: React.FC = () => {
   ]
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-bold text-white">Submissions</h1>
-        <p className="text-xs text-gray-500 mt-0.5">Review token verification requests and update their status.</p>
-      </div>
-      <div className="flex gap-2 flex-wrap">
-        {['', 'pending', 'approved', 'rejected'].map(s => (
+    <div className="space-y-6">
+      <AdminPageHeader title="Submissions" description="Review token verification requests and update their status." />
+      <div className="flex flex-wrap gap-2">
+        {['', 'pending', 'approved', 'rejected'].map((s) => (
           <button
             key={s}
-            onClick={() => { setStatusFilter(s); setPage(1) }}
-            className={`px-3 py-1.5 rounded-lg text-[11px] font-medium transition-colors ${
-              statusFilter === s ? 'bg-[#c7f284]/15 text-[#c7f284]' : 'text-gray-500 hover:text-gray-300 bg-[#0B1118] border border-[#16212D]'
+            onClick={() => {
+              setStatusFilter(s)
+              setPage(1)
+            }}
+            className={`rounded-xl px-3 py-1.5 text-[12px] font-medium transition-colors ${
+              statusFilter === s
+                ? 'bg-[#c7f284]/15 text-[#c7f284]'
+                : 'border border-[#1c2a38] bg-[#0c1219] text-[#8b98a8] hover:text-[#d5dde6]'
             }`}
           >
             {s || 'All Status'}

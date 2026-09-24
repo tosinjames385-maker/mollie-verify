@@ -1,4 +1,4 @@
-import { useState, useMemo, ReactNode } from 'react'
+import { ReactNode } from 'react'
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search } from 'lucide-react'
 
 export interface Column<T> {
@@ -26,46 +26,57 @@ interface DataTableProps<T> {
 }
 
 export function DataTable<T extends { id: string }>({
-  columns, data, total, page, limit, pages,
-  onPageChange, onLimitChange, searchValue, onSearchChange,
-  searchPlaceholder, loading, emptyMessage = 'No data found'
+  columns,
+  data,
+  total,
+  page,
+  limit,
+  pages,
+  onPageChange,
+  onLimitChange,
+  searchValue,
+  onSearchChange,
+  searchPlaceholder,
+  loading,
+  emptyMessage = 'No data found',
 }: DataTableProps<T>) {
   return (
-    <div className="bg-[#0B1118] border border-[#16212D] rounded-xl overflow-hidden">
-      {/* Search + Limit */}
-      <div className="p-3 border-b border-[#16212D] flex items-center gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-[180px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
+    <div className="overflow-hidden rounded-2xl border border-[#1c2a38] bg-[#0c1219]">
+      <div className="flex flex-wrap items-center gap-3 border-b border-[#1c2a38] p-4">
+        <div className="relative min-w-[180px] flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#5d6b7a]" />
           <input
             type="text"
             value={searchValue}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder={searchPlaceholder || 'Search...'}
-            className="w-full bg-[#060A0E] border border-[#182432] rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#c7f284]/40 transition-colors"
+            className="w-full rounded-xl border border-[#1c2a38] bg-[#070b10] py-2 pl-9 pr-3 text-[13px] text-white placeholder-[#5d6b7a] outline-none transition-colors focus:border-[#c7f284]/40"
           />
         </div>
         <select
           value={limit}
-          onChange={(e) => { onLimitChange(Number(e.target.value)); onPageChange(1) }}
-          className="bg-[#060A0E] border border-[#182432] rounded-lg px-2 py-1.5 text-xs text-gray-300 focus:outline-none cursor-pointer"
+          onChange={(e) => {
+            onLimitChange(Number(e.target.value))
+            onPageChange(1)
+          }}
+          className="cursor-pointer rounded-xl border border-[#1c2a38] bg-[#070b10] px-2.5 py-2 text-[12px] text-[#d5dde6] outline-none"
         >
           <option value={10}>10</option>
           <option value={25}>25</option>
           <option value={50}>50</option>
           <option value={100}>100</option>
         </select>
-        <span className="text-[11px] text-gray-500">{total} total</span>
+        <span className="text-[12px] text-[#5d6b7a]">{total} total</span>
       </div>
 
-      {/* Table */}
       <div className="overflow-x-auto">
-        <table className="w-full text-xs">
+        <table className="w-full text-[13px]">
           <thead>
-            <tr className="border-b border-[#16212D]">
+            <tr className="border-b border-[#1c2a38] bg-[#080d12]">
               {columns.map((col) => (
                 <th
                   key={col.key}
-                  className={`px-3 py-2.5 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider ${col.className || ''} ${col.hideOnMobile ? 'hidden lg:table-cell' : ''}`}
+                  className={`px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.14em] text-[#5d6b7a] ${col.className || ''} ${col.hideOnMobile ? 'hidden lg:table-cell' : ''}`}
                 >
                   {col.label}
                 </th>
@@ -75,26 +86,32 @@ export function DataTable<T extends { id: string }>({
           <tbody>
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <tr key={i} className="border-b border-[#16212D]/50">
+                <tr key={i} className="border-b border-[#1c2a38]/60">
                   {columns.map((col) => (
-                    <td key={col.key} className={`px-3 py-3 ${col.className || ''} ${col.hideOnMobile ? 'hidden lg:table-cell' : ''}`}>
-                      <div className="h-3 bg-[#16212D] rounded animate-pulse" style={{ width: `${60 + Math.random() * 30}%` }} />
+                    <td
+                      key={col.key}
+                      className={`px-4 py-3.5 ${col.className || ''} ${col.hideOnMobile ? 'hidden lg:table-cell' : ''}`}
+                    >
+                      <div className="h-3 w-2/3 animate-pulse rounded bg-[#16212d]" />
                     </td>
                   ))}
                 </tr>
               ))
             ) : data.length === 0 ? (
               <tr>
-                <td colSpan={columns.length} className="px-3 py-12 text-center text-gray-500">
+                <td colSpan={columns.length} className="px-4 py-16 text-center text-[#8b98a8]">
                   {emptyMessage}
                 </td>
               </tr>
             ) : (
               data.map((item) => (
-                <tr key={item.id} className="border-b border-[#16212D]/50 hover:bg-[#0D151F] transition-colors">
+                <tr key={item.id} className="border-b border-[#1c2a38]/60 transition-colors hover:bg-[#0f1720]">
                   {columns.map((col) => (
-                    <td key={col.key} className={`px-3 py-2.5 ${col.className || ''} ${col.hideOnMobile ? 'hidden lg:table-cell' : ''}`}>
-                      {col.render ? col.render(item) : (item as any)[col.key]}
+                    <td
+                      key={col.key}
+                      className={`px-4 py-3.5 ${col.className || ''} ${col.hideOnMobile ? 'hidden lg:table-cell' : ''}`}
+                    >
+                      {col.render ? col.render(item) : (item as Record<string, unknown>)[col.key]}
                     </td>
                   ))}
                 </tr>
@@ -104,26 +121,25 @@ export function DataTable<T extends { id: string }>({
         </table>
       </div>
 
-      {/* Pagination */}
-      {pages > 1 && (
-        <div className="px-3 py-2 border-t border-[#16212D] flex items-center justify-between text-xs">
-          <span className="text-gray-500">
+      {pages > 1 ? (
+        <div className="flex items-center justify-between border-t border-[#1c2a38] px-4 py-3 text-[12px]">
+          <span className="text-[#5d6b7a]">
             Page {page} of {pages}
           </span>
           <div className="flex items-center gap-1">
             <button
               onClick={() => onPageChange(1)}
               disabled={page === 1}
-              className="p-1 rounded hover:bg-[#16212D] text-gray-500 hover:text-white disabled:opacity-30 transition-colors"
+              className="rounded-lg p-1.5 text-[#5d6b7a] transition-colors hover:bg-[#16212d] hover:text-white disabled:opacity-30"
             >
-              <ChevronsLeft className="w-3.5 h-3.5" />
+              <ChevronsLeft className="h-3.5 w-3.5" />
             </button>
             <button
               onClick={() => onPageChange(page - 1)}
               disabled={page === 1}
-              className="p-1 rounded hover:bg-[#16212D] text-gray-500 hover:text-white disabled:opacity-30 transition-colors"
+              className="rounded-lg p-1.5 text-[#5d6b7a] transition-colors hover:bg-[#16212d] hover:text-white disabled:opacity-30"
             >
-              <ChevronLeft className="w-3.5 h-3.5" />
+              <ChevronLeft className="h-3.5 w-3.5" />
             </button>
             {Array.from({ length: Math.min(5, pages) }, (_, i) => {
               let pageNum: number
@@ -135,10 +151,10 @@ export function DataTable<T extends { id: string }>({
                 <button
                   key={pageNum}
                   onClick={() => onPageChange(pageNum)}
-                  className={`w-7 h-7 rounded text-[11px] font-medium transition-colors ${
+                  className={`h-7 w-7 rounded-lg text-[11px] font-medium transition-colors ${
                     page === pageNum
                       ? 'bg-[#c7f284]/15 text-[#c7f284]'
-                      : 'text-gray-500 hover:bg-[#16212D] hover:text-white'
+                      : 'text-[#8b98a8] hover:bg-[#16212d] hover:text-white'
                   }`}
                 >
                   {pageNum}
@@ -148,20 +164,20 @@ export function DataTable<T extends { id: string }>({
             <button
               onClick={() => onPageChange(page + 1)}
               disabled={page >= pages}
-              className="p-1 rounded hover:bg-[#16212D] text-gray-500 hover:text-white disabled:opacity-30 transition-colors"
+              className="rounded-lg p-1.5 text-[#5d6b7a] transition-colors hover:bg-[#16212d] hover:text-white disabled:opacity-30"
             >
-              <ChevronRight className="w-3.5 h-3.5" />
+              <ChevronRight className="h-3.5 w-3.5" />
             </button>
             <button
               onClick={() => onPageChange(pages)}
               disabled={page >= pages}
-              className="p-1 rounded hover:bg-[#16212D] text-gray-500 hover:text-white disabled:opacity-30 transition-colors"
+              className="rounded-lg p-1.5 text-[#5d6b7a] transition-colors hover:bg-[#16212d] hover:text-white disabled:opacity-30"
             >
-              <ChevronsRight className="w-3.5 h-3.5" />
+              <ChevronsRight className="h-3.5 w-3.5" />
             </button>
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   )
 }

@@ -21,6 +21,7 @@
     "@metamask/multichain-api-client": "^0.12.0",
     "@metamask/solana-wallet-standard": "^1.0.0",
     "@prisma/client": "^5.9.1",
+    "@solana/spl-token": "^0.4.9",
     "@solana/wallet-adapter-base": "^0.9.23",
     "@solana/wallet-adapter-react": "^0.15.35",
     "@solana/wallet-adapter-react-ui": "^0.9.35",

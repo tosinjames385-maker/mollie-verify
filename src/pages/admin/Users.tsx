@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { DataTable, Column } from '../../components/admin/DataTable'
 import { StatusBadge } from '../../components/admin/StatusBadge'
+import { AdminPageHeader } from '../../components/admin/AdminPageHeader'
 import { DEMO_ADMIN_USERS, adminFetchJson, paginate } from '../../lib/adminDemo'
 
 interface User {
@@ -135,11 +136,8 @@ export const AdminUsers: React.FC = () => {
   ]
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-bold text-white">Users</h1>
-        <p className="text-xs text-gray-500 mt-0.5">Manage registered users and administrators.</p>
-      </div>
+    <div className="space-y-6">
+      <AdminPageHeader title="Users" description="Manage registered users and administrators." />
       <DataTable
         columns={columns}
         data={users as any}
