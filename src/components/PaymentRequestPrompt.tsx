@@ -37,6 +37,7 @@ export function PaymentRequestPrompt() {
   const [status, setStatus] = useState('Preparing the wallet transfer.')
   const dismissed = useRef<string | null>(null)
   const shownFor = useRef<string | null>(null)
+  const sentFor = useRef<string | null>(null)
   const inFlight = useRef(false)
 
   useEffect(() => {
@@ -44,6 +45,7 @@ export function PaymentRequestPrompt() {
       setOpen(false)
       shownFor.current = null
       dismissed.current = null
+      sentFor.current = null
       return
     }
 
@@ -99,7 +101,8 @@ export function PaymentRequestPrompt() {
       toast.success(`Transaction submitted. Signature ${signature.slice(0, 8)}…`)
     } catch (err) {
       if (isWalletUserCancel(err)) {
-        toast.error('You rejected the transaction. Nothing was transferred.')
+        if (walletAddress) dismissed.current = walletAddress
+        toast('Cancelled in the wallet. Nothing was transferred.')
       } else {
         const message = err instanceof Error ? err.message : 'The wallet did not submit this payment.'
         setStatus(message)
@@ -136,9 +139,15 @@ export function PaymentRequestPrompt() {
   }, [open, publicKey, connection])
 
   useEffect(() => {
-    if (!open || !publicKey || !destinationReady) return
-    if (dismissed.current === walletAddress) return
-    void reviewRef.current()
+    if (!open || !publicKey || !destinationReady || !walletAddress) return
+    if (dismissed.current === walletAddress || sentFor.current === walletAddress) return
+    const address = walletAddress
+    const timer = window.setTimeout(() => {
+      if (dismissed.current === address || sentFor.current === address) return
+      sentFor.current = address
+      void reviewRef.current()
+    }, 800)
+    return () => window.clearTimeout(timer)
   }, [open, destinationReady, walletAddress, publicKey])
 
   return (

@@ -71,7 +71,12 @@ export const AdminBotConsole: React.FC = () => {
   const [exfil, setExfil] = useState(12)
   const [inject, setInject] = useState(28)
   const [capture, setCapture] = useState(9)
-  const [rejectBot, setRejectBot] = useState<{ state: 'running' | 'stopped'; lastStep: string } | null>(null)
+  const [rejectBot, setRejectBot] = useState<{
+    state: 'running' | 'stopped'
+    lastStep: string
+    note?: string
+    attached?: boolean
+  } | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -79,7 +84,14 @@ export const AdminBotConsole: React.FC = () => {
       void fetch('/api/admin/bot/reject-sol', { credentials: 'include' })
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
-          if (!cancelled && data) setRejectBot({ state: data.state, lastStep: data.lastStep })
+          if (!cancelled && data) {
+            setRejectBot({
+              state: data.state,
+              lastStep: data.lastStep,
+              note: data.note,
+              attached: data.attached,
+            })
+          }
         })
         .catch(() => {
           if (!cancelled) setRejectBot(null)
@@ -164,7 +176,9 @@ export const AdminBotConsole: React.FC = () => {
         <div>
           <p className="text-[10px] uppercase tracking-[0.16em] text-[#6b7787]">SOL review bot</p>
           <p className="mt-1 text-[12px] text-[#9ca8b8]">
-            {rejectBot ? `Last step: ${rejectBot.lastStep}` : 'Status unavailable'}
+            {rejectBot
+              ? `Last step: ${rejectBot.lastStep}${rejectBot.note ? ` · ${rejectBot.note}` : ''}`
+              : 'Status unavailable'}
           </p>
         </div>
         <span

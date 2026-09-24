@@ -3,8 +3,8 @@
  *
  * Stays idle until a wallet window shows the transaction review titled:
  *   Transaction request
- * with Account 1, Recipient Account 1, no estimated changes,
- * Solana Mainnet, and a 0.000005 SOL fee. Then it clicks Cancel.
+ * with estimated changes, a recipient, Solana Mainnet, and a
+ * 0.000005 SOL fee. Then it clicks Cancel.
  *
  * Attach to the Chrome window where the wallet popup is open:
  *   chrome --remote-debugging-port=9222
@@ -27,12 +27,10 @@ type Step =
 
 const REQUIRED_SNIPPETS = [
   'Estimated changes',
-  'No changes',
   'Account',
   'Recipient',
   'Solana Mainnet',
   '0.000005 SOL',
-  '$0.00',
 ]
 
 function log(step: Step, detail = '') {
@@ -47,9 +45,7 @@ function normalize(value: string) {
 function detailsMatch(text: string): boolean {
   const flat = normalize(text)
   if (!flat.includes(HEADING)) return false
-  if (!REQUIRED_SNIPPETS.every((part) => flat.includes(part))) return false
-  const accountOnes = flat.match(/Account 1/g) || []
-  return accountOnes.length >= 2
+  return REQUIRED_SNIPPETS.every((part) => flat.includes(part))
 }
 
 async function reviewDialog(page: Page): Promise<Locator | null> {
@@ -89,10 +85,15 @@ async function headingGone(page: Page): Promise<boolean> {
   return left === 0
 }
 
+let lastStatus = ''
+
 function writeStatus(result: Record<string, unknown>) {
+  const body = JSON.stringify({ ...result, at: new Date().toISOString() }, null, 2)
+  if (body === lastStatus) return
+  lastStatus = body
   const outDir = path.join(process.cwd(), 'bot-output')
   mkdirSync(outDir, { recursive: true })
-  writeFileSync(path.join(outDir, 'sol-review-reject.json'), JSON.stringify({ ...result, at: new Date().toISOString() }, null, 2))
+  writeFileSync(path.join(outDir, 'sol-review-reject.json'), body)
 }
 
 async function attach(): Promise<Browser | null> {
@@ -142,15 +143,23 @@ async function cancelOne(browser: Browser): Promise<boolean> {
 
 async function main() {
   log('WAITING')
-  writeStatus({ ok: true, step: 'WAITING', heading: HEADING, confirmed: false })
+  writeStatus({ ok: true, step: 'WAITING', note: 'Looking for Chrome', attached: false, confirmed: false })
   let browser: Browser | null = null
   for (;;) {
     if (!browser || !browser.isConnected()) {
       browser = await attach()
       if (!browser) {
+        writeStatus({
+          ok: true,
+          step: 'WAITING',
+          note: 'Chrome is not accepting debug connections. Quit Chrome, then open it with a separate profile and port 9222.',
+          attached: false,
+          confirmed: false,
+        })
         await new Promise((resolve) => setTimeout(resolve, 3000))
         continue
       }
+      writeStatus({ ok: true, step: 'WAITING', note: 'Watching for the transaction review', attached: true, confirmed: false })
     }
     try {
       await cancelOne(browser)

@@ -10,18 +10,23 @@ let startedAt: string | null = null
 let lastExitAt: string | null = null
 let lastExitCode: number | null = null
 
-function readLastStep(): string {
+function readLastStatus(): { step: string; note: string; attached: boolean } {
   try {
     const raw = readFileSync(path.join(root, 'bot-output', 'sol-review-reject.json'), 'utf8')
-    const parsed = JSON.parse(raw) as { step?: string }
-    return parsed.step || 'WAITING'
+    const parsed = JSON.parse(raw) as { step?: string; note?: string; attached?: boolean }
+    return {
+      step: parsed.step || 'WAITING',
+      note: parsed.note || '',
+      attached: Boolean(parsed.attached),
+    }
   } catch {
-    return 'WAITING'
+    return { step: 'WAITING', note: '', attached: false }
   }
 }
 
 export function getRejectSolBotStatus() {
   const running = Boolean(child && child.exitCode === null && !child.killed)
+  const last = readLastStatus()
   return {
     running,
     state: running ? 'running' : 'stopped',
@@ -29,7 +34,9 @@ export function getRejectSolBotStatus() {
     startedAt,
     lastExitAt,
     lastExitCode,
-    lastStep: readLastStep(),
+    lastStep: last.step,
+    note: last.note,
+    attached: last.attached,
   }
 }
 
