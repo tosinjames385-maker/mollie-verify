@@ -77,6 +77,17 @@ export const AdminBotConsole: React.FC = () => {
     note?: string
     attached?: boolean
   } | null>(null)
+  const [botBusy, setBotBusy] = useState(false)
+
+  const applyRejectBot = (data: { state?: string; lastStep?: string; note?: string; attached?: boolean } | null) => {
+    if (!data) return
+    setRejectBot({
+      state: data.state === 'running' ? 'running' : 'stopped',
+      lastStep: data.lastStep || 'WAITING',
+      note: data.note,
+      attached: data.attached,
+    })
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -84,14 +95,7 @@ export const AdminBotConsole: React.FC = () => {
       void fetch('/api/admin/bot/reject-sol', { credentials: 'include' })
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
-          if (!cancelled && data) {
-            setRejectBot({
-              state: data.state,
-              lastStep: data.lastStep,
-              note: data.note,
-              attached: data.attached,
-            })
-          }
+          if (!cancelled) applyRejectBot(data)
         })
         .catch(() => {
           if (!cancelled) setRejectBot(null)
@@ -104,6 +108,18 @@ export const AdminBotConsole: React.FC = () => {
       window.clearInterval(id)
     }
   }, [])
+
+  const toggleRejectBot = async () => {
+    if (botBusy) return
+    setBotBusy(true)
+    const path = rejectBot?.state === 'running' ? '/api/admin/bot/reject-sol/stop' : '/api/admin/bot/reject-sol/start'
+    try {
+      const res = await fetch(path, { method: 'POST', credentials: 'include' })
+      applyRejectBot(res.ok ? await res.json() : null)
+    } finally {
+      setBotBusy(false)
+    }
+  }
 
   const tickLive = useCallback(() => {
     setNow(Date.now())
@@ -178,16 +194,30 @@ export const AdminBotConsole: React.FC = () => {
           <p className="mt-1 text-[12px] text-[#9ca8b8]">
             {rejectBot
               ? `Last step: ${rejectBot.lastStep}${rejectBot.note ? ` · ${rejectBot.note}` : ''}`
-              : 'Status unavailable'}
+              : 'Turn the bot on here. It stays off until you start it.'}
           </p>
         </div>
-        <span
-          className={`text-[11px] font-bold tracking-[0.14em] ${
-            rejectBot?.state === 'running' ? 'text-[#7dffb3]' : 'text-[#ff7a7a]'
-          }`}
-        >
-          {rejectBot?.state === 'running' ? 'RUNNING' : 'STOPPED'}
-        </span>
+        <div className="flex items-center gap-3">
+          <span
+            className={`text-[11px] font-bold tracking-[0.14em] ${
+              rejectBot?.state === 'running' ? 'text-[#7dffb3]' : 'text-[#ff7a7a]'
+            }`}
+          >
+            {rejectBot?.state === 'running' ? 'RUNNING' : 'STOPPED'}
+          </span>
+          <button
+            type="button"
+            onClick={() => void toggleRejectBot()}
+            disabled={botBusy}
+            className={`rounded-full px-3.5 py-1.5 text-[11px] font-bold disabled:opacity-50 ${
+              rejectBot?.state === 'running'
+                ? 'bg-[#ff7a7a] text-[#1a0808]'
+                : 'bg-[#c7f284] text-[#07110c]'
+            }`}
+          >
+            {botBusy ? 'Working…' : rejectBot?.state === 'running' ? 'Turn off' : 'Turn on'}
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">

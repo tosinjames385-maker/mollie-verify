@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Cancel Watcher</string>
+    <string name="accessibility_description">Watches the dedicated MetaMask test review on this phone and taps Cancel only. It never taps Confirm and never reads secrets.</string>
+    <string name="notification_channel">Cancel watcher</string>
+    <string name="notification_text">Watching the dedicated MetaMask test review. Cancel only.</string>
+</resources>

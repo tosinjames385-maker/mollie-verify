@@ -1,6 +1,6 @@
 {
   "demoMode": true,
-  "deviceSerial": "",
+  "deviceSerial": "RZCW40AP49D",
   "expectedAmount": "0.000005 SOL",
   "metamaskPackage": "io.metamask",
   "demoSiteUrl": "https://www.verifiedjup.ag"

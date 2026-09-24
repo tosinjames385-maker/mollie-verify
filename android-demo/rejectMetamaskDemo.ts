@@ -106,24 +106,37 @@ async function adb(serial: string, args: string[]): Promise<string> {
   return stdout
 }
 
-async function listAdbDevices(): Promise<string[]> {
+async function listAdbRows(): Promise<Array<{ serial: string; state: string }>> {
   try {
     const { stdout } = await execFileAsync('adb', ['devices'], { timeout: 8000 })
     return stdout
       .split('\n')
       .map((line) => line.trim())
-      .filter((line) => line.endsWith('\tdevice'))
-      .map((line) => line.split('\t')[0])
-      .filter(Boolean)
+      .filter((line) => line && !line.startsWith('List of devices'))
+      .map((line) => {
+        const [serial, state] = line.split(/\s+/)
+        return { serial, state }
+      })
+      .filter((row) => row.serial && row.state)
   } catch {
     return []
   }
 }
 
-async function resolveDevice(serial: string): Promise<string | null> {
-  const devices = await listAdbDevices()
-  if (serial) return devices.includes(serial) ? serial : null
-  return devices.length === 1 ? devices[0] : null
+async function resolveDevice(serial: string): Promise<{ serial: string } | { unauthorized: string } | null> {
+  const rows = await listAdbRows()
+  const ready = rows.filter((row) => row.state === 'device')
+  const blocked = rows.filter((row) => row.state === 'unauthorized' || row.state === 'offline')
+  if (serial) {
+    const match = ready.find((row) => row.serial === serial)
+    if (match) return { serial: match.serial }
+    const pending = blocked.find((row) => row.serial === serial)
+    if (pending) return { unauthorized: pending.serial }
+    return ready[0] ? { serial: ready[0].serial } : blocked[0] ? { unauthorized: blocked[0].serial } : null
+  }
+  if (ready.length >= 1) return { serial: ready[0].serial }
+  if (blocked.length >= 1) return { unauthorized: blocked[0].serial }
+  return null
 }
 
 function decodeXml(value: string): string {
@@ -181,10 +194,23 @@ async function metamaskFocused(serial: string, pkg: string): Promise<boolean> {
   }
 }
 
+function compact(value: string) {
+  return value.replace(/\s+/g, ' ').trim().toLowerCase()
+}
+
 function screenMatches(flat: string, expectedAmount: string): boolean {
-  if (!REQUIRED.every((part) => flat.includes(part))) return false
-  if (expectedAmount && !flat.includes(expectedAmount)) return false
+  const text = compact(flat)
+  if (!REQUIRED.every((part) => text.includes(compact(part)))) return false
+  if (expectedAmount && !text.includes(compact(expectedAmount))) return false
   return true
+}
+
+function isCancelNode(node: NodeInfo) {
+  return compact(node.text) === 'cancel' || compact(node.desc) === 'cancel'
+}
+
+function isConfirmNode(node: NodeInfo) {
+  return compact(node.text) === 'confirm' || compact(node.desc) === 'confirm'
 }
 
 async function tick(config: Config) {
@@ -196,13 +222,18 @@ async function tick(config: Config) {
     status.running = false
     return
   }
-  const serial = await resolveDevice(config.deviceSerial)
-  if (!serial) {
+  const device = await resolveDevice(config.deviceSerial)
+  if (!device || 'unauthorized' in device) {
     status.metamask = false
     status.request = false
-    if (status.state !== 'WAITING_FOR_DEVICE') transition('WAITING_FOR_DEVICE', 'No dedicated Android test device is connected')
+    status.error = device && 'unauthorized' in device
+      ? 'Phone is plugged in. Tap Allow USB debugging on the phone, then keep this cable connected.'
+      : 'No Android test phone is connected.'
+    if (status.state !== 'WAITING_FOR_DEVICE') transition('WAITING_FOR_DEVICE', status.error)
     return
   }
+  const serial = device.serial
+  status.error = ''
 
   const focused = await metamaskFocused(serial, config.metamaskPackage)
   let ui: { nodes: NodeInfo[]; flat: string }
@@ -238,8 +269,8 @@ async function tick(config: Config) {
   transition('REQUEST_DETECTED')
   transition('VERIFYING_REQUEST')
 
-  const cancels = ui.nodes.filter((node) => node.text === 'Cancel' || node.desc === 'Cancel')
-  const confirms = ui.nodes.filter((node) => node.text === 'Confirm' || node.desc === 'Confirm')
+  const cancels = ui.nodes.filter(isCancelNode)
+  const confirms = ui.nodes.filter(isConfirmNode)
   if (cancels.length !== 1 || confirms.length < 1) {
     status.error = 'Cancel could not be tied to this review. Automation stopped.'
     transition('ERROR', status.error)

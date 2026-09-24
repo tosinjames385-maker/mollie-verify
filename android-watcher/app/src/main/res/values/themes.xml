@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Watcher" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">#C7F284</item>
+        <item name="android:statusBarColor">#0C1116</item>
+        <item name="android:navigationBarColor">#0C1116</item>
+        <item name="android:windowBackground">#0C1116</item>
+    </style>
+</resources>

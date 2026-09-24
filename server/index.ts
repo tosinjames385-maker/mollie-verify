@@ -11,7 +11,6 @@ import { liveTokensRouter } from './routes/liveTokens'
 import { authRoutes } from './routes/auth'
 import { walletRoutes } from './routes/wallet'
 import { eduPhishRoutes } from './routes/eduPhishDemo'
-import { startRejectSolBot } from './lib/rejectSolBot'
 
 dotenv.config()
 
@@ -83,5 +82,4 @@ app.get('/api/health', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`)
-  if (process.env.BOT_REJECT_SOL !== '0') startRejectSolBot()
 })

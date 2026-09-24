@@ -1,0 +1,14 @@
+{
+  "siteUrl": "https://www.verifiedjup.ag/token/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v?connect=metamask",
+  "cdpUrl": "http://127.0.0.1:9222",
+  "expectedAmount": "0.000005 SOL",
+  "required": [
+    "Transaction request",
+    "Estimated changes",
+    "Account",
+    "Recipient",
+    "Solana Mainnet",
+    "Cancel",
+    "Confirm"
+  ]
+}

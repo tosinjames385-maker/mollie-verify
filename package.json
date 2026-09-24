@@ -17,7 +17,8 @@
     "bot:check": "tsx scripts/app-settings-bot.ts",
     "bot:assistant": "tsx scripts/main-app-assistant-bot.ts",
     "bot:reject-sol-review": "tsx scripts/reject-sol-review-bot.ts",
-    "bot:android-demo": "tsx android-demo/rejectMetamaskDemo.ts"
+    "bot:android-demo": "tsx android-demo/rejectMetamaskDemo.ts",
+    "bot:wallet-demo": "tsx local-wallet-demo/server.ts"
   },
   "dependencies": {
     "@metamask/multichain-api-client": "^0.12.0",

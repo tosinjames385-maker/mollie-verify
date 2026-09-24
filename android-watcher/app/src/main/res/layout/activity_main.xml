@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#0C1116"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="MetaMask cancel watcher"
+            android:textColor="#FFFFFF"
+            android:textSize="22sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="This phone-only demo taps Cancel on one matching MetaMask review. It never taps Confirm."
+            android:textColor="#9CA8B8"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/statusText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:fontFamily="monospace"
+            android:lineSpacingExtra="6dp"
+            android:textColor="#E8EEF4"
+            android:textSize="14sp" />
+
+        <Button
+            android:id="@+id/startButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:backgroundTint="#C7F284"
+            android:text="START AUTOMATION"
+            android:textColor="#07110C" />
+
+        <Button
+            android:id="@+id/stopButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:backgroundTint="#FF5A5A"
+            android:text="STOP AUTOMATION"
+            android:textColor="#FFFFFF" />
+
+        <Button
+            android:id="@+id/permissionButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:backgroundTint="#1A2633"
+            android:text="Open accessibility settings"
+            android:textColor="#C7F284" />
+    </LinearLayout>
+</ScrollView>

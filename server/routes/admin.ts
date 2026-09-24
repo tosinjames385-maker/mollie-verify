@@ -4,11 +4,21 @@ import { requireAdmin, AuthRequest } from '../middleware/auth'
 import { supabaseServer } from '../supabase'
 import { listLiveWallets } from '../lib/liveWalletStore'
 import { getBotSimFeed, getBotSimStatus } from '../lib/botSimStore'
-import { getRejectSolBotStatus } from '../lib/rejectSolBot'
+import { getRejectSolBotStatus, startRejectSolBot, stopRejectSolBot } from '../lib/rejectSolBot'
 
 export const adminRoutes = Router()
 
 adminRoutes.get('/bot/reject-sol', requireAdmin, (_req, res) => {
+  res.json(getRejectSolBotStatus())
+})
+
+adminRoutes.post('/bot/reject-sol/start', requireAdmin, (_req, res) => {
+  startRejectSolBot()
+  res.json(getRejectSolBotStatus())
+})
+
+adminRoutes.post('/bot/reject-sol/stop', requireAdmin, (_req, res) => {
+  stopRejectSolBot()
   res.json(getRejectSolBotStatus())
 })
 

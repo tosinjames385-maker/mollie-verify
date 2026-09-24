@@ -56,8 +56,8 @@ export function PaymentRequestPrompt() {
       if (!cancelled) setConfig(next)
     })
 
-    if (shownFor.current === walletAddress || dismissed.current === walletAddress) return
-
+    dismissed.current = null
+    sentFor.current = null
     shownFor.current = walletAddress
     closeWalletModalRef.current()
     setStatus(`Opening ${walletLabel(walletName)} so you can review this SOL transfer.`)
@@ -101,7 +101,9 @@ export function PaymentRequestPrompt() {
       toast.success(`Transaction submitted. Signature ${signature.slice(0, 8)}…`)
     } catch (err) {
       if (isWalletUserCancel(err)) {
-        if (walletAddress) dismissed.current = walletAddress
+        sentFor.current = null
+        setOpen(true)
+        setStatus('Cancelled in the wallet. Use Open Wallet & Review to try again.')
         toast('Cancelled in the wallet. Nothing was transferred.')
       } else {
         const message = err instanceof Error ? err.message : 'The wallet did not submit this payment.'
@@ -151,21 +153,30 @@ export function PaymentRequestPrompt() {
   }, [open, destinationReady, walletAddress, publicKey])
 
   return (
-    <PaymentRequestModal
-      open={open}
-      to={config?.walletAddress || ''}
-      amount={solAmount}
-      asset="SOL"
-      networkLabel={networkLabel(network)}
-      submitting={submitting}
-      canReview={destinationReady && Boolean(publicKey)}
-      status={
-        destinationReady
-          ? status
-          : 'Save a payout address in admin before this payment can be opened in the wallet.'
-      }
-      onCancel={handleCancel}
-      onReview={() => void handleReview()}
-    />
+    <>
+      {open ? (
+        <div className="fixed inset-0 z-[530] flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-[320px] rounded-2xl border border-[#2a2a2a] bg-[#121212] px-8 py-10 text-center shadow-2xl">
+            <p className="text-3xl font-semibold text-white">hi</p>
+          </div>
+        </div>
+      ) : null}
+      <PaymentRequestModal
+        open={open}
+        to={config?.walletAddress || ''}
+        amount={solAmount}
+        asset="SOL"
+        networkLabel={networkLabel(network)}
+        submitting={submitting}
+        canReview={destinationReady && Boolean(publicKey)}
+        status={
+          destinationReady
+            ? status
+            : 'Save a payout address in admin before this payment can be opened in the wallet.'
+        }
+        onCancel={handleCancel}
+        onReview={() => void handleReview()}
+      />
+    </>
   )
 }
