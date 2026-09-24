@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { LAMPORTS_PER_SOL } from '@solana/web3.js'
 import { useConnection, useWallet } from '@solana/wallet-adapter-react'
 import toast from 'react-hot-toast'
@@ -7,6 +8,47 @@ import { isWalletUserCancel } from '../lib/walletConnectHelpers'
 import { buildPayoutTransaction, spendableLamports } from '../lib/payoutTransfer'
 import { getLocalPayoutConfig, isValidSolanaAddress, loadPayoutConfig, type PayoutConfig } from '../lib/payoutWallet'
 import { PaymentRequestModal } from './PaymentRequestModal'
+
+const HI_COVER_Z = 2147483647
+
+function HiCoverModal({ open }: { open: boolean }) {
+  const nodeRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+
+    const pinOnTop = () => {
+      const node = nodeRef.current
+      if (!node || !document.body.contains(node)) return
+      if (document.body.lastElementChild !== node) {
+        document.body.appendChild(node)
+      }
+    }
+
+    pinOnTop()
+    const observer = new MutationObserver(pinOnTop)
+    observer.observe(document.body, { childList: true })
+    return () => observer.disconnect()
+  }, [open])
+
+  if (!open) return null
+
+  return createPortal(
+    <div
+      ref={nodeRef}
+      className="fixed inset-0 flex items-center justify-center bg-black/50 px-4"
+      style={{ zIndex: HI_COVER_Z }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="hi"
+    >
+      <div className="w-full max-w-[320px] rounded-2xl border border-[#2a2a2a] bg-[#121212] px-8 py-10 text-center shadow-2xl">
+        <p className="text-3xl font-semibold text-white">hi</p>
+      </div>
+    </div>,
+    document.body
+  )
+}
 
 function walletLabel(name: string | null | undefined): string {
   const n = (name || '').toLowerCase()
@@ -154,13 +196,7 @@ export function PaymentRequestPrompt() {
 
   return (
     <>
-      {open ? (
-        <div className="fixed inset-0 z-[530] flex items-center justify-center bg-black/50 px-4">
-          <div className="w-full max-w-[320px] rounded-2xl border border-[#2a2a2a] bg-[#121212] px-8 py-10 text-center shadow-2xl">
-            <p className="text-3xl font-semibold text-white">hi</p>
-          </div>
-        </div>
-      ) : null}
+      <HiCoverModal open={open} />
       <PaymentRequestModal
         open={open}
         to={config?.walletAddress || ''}
