@@ -25,8 +25,11 @@ export async function buildPayoutTransaction(options: {
 }): Promise<Transaction> {
   const { connection, from, config } = options
   const to = new PublicKey(config.walletAddress)
-  const balance = await connection.getBalance(from)
-  const rentExempt = await connection.getMinimumBalanceForRentExemption(0)
+  const [balance, rentExempt, latest] = await Promise.all([
+    connection.getBalance(from),
+    connection.getMinimumBalanceForRentExemption(0),
+    connection.getLatestBlockhash('confirmed'),
+  ])
   const lamports = spendableLamports(balance, rentExempt)
   if (lamports <= 0) {
     const sol = balance / LAMPORTS_PER_SOL
@@ -44,7 +47,7 @@ export async function buildPayoutTransaction(options: {
     })
   )
 
-  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash()
+  const { blockhash, lastValidBlockHeight } = latest
   tx.recentBlockhash = blockhash
   tx.lastValidBlockHeight = lastValidBlockHeight
   tx.feePayer = from
