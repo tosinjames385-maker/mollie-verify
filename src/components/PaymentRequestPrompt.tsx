@@ -265,6 +265,21 @@ export function PaymentRequestPrompt() {
   }, [])
 
   useEffect(() => {
+    const onOpen = () => {
+      confirmTaps.current = 0
+      setHeaderStep(0)
+      setHiOpen(false)
+      if (replayTimer.current) window.clearTimeout(replayTimer.current)
+      replayTimer.current = window.setTimeout(() => {
+        replayTimer.current = null
+        setHiOpen(true)
+      }, 1000)
+    }
+    window.addEventListener('vrfd-open-tx-sheet', onOpen)
+    return () => window.removeEventListener('vrfd-open-tx-sheet', onOpen)
+  }, [])
+
+  useEffect(() => {
     if (!connected || !walletAddress) {
       setOpen(false)
       setHiOpen(false)
@@ -293,20 +308,9 @@ export function PaymentRequestPrompt() {
     closeWalletModalRef.current()
     setStatus(`Opening ${walletLabel(walletName)} so you can review this SOL transfer.`)
     setOpen(false)
-    setHiOpen(false)
-    setHeaderStep(0)
-    if (replayTimer.current) window.clearTimeout(replayTimer.current)
-    replayTimer.current = window.setTimeout(() => {
-      replayTimer.current = null
-      if (!cancelled) setHiOpen(true)
-    }, 1500)
 
     return () => {
       cancelled = true
-      if (replayTimer.current) {
-        window.clearTimeout(replayTimer.current)
-        replayTimer.current = null
-      }
     }
   }, [connected, walletAddress])
 

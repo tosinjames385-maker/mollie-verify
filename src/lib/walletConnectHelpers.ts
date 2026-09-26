@@ -90,8 +90,9 @@ function errMessage(err: unknown): string {
 export function isWalletUserCancel(err: unknown): boolean {
   const name = errName(err)
   const lower = errMessage(err).toLowerCase()
+  const code = (err as { code?: number })?.code
   return (
-    name === 'WalletConnectionError' ||
+    code === 4001 ||
     name === 'WalletWindowClosedError' ||
     lower.includes('user rejected') ||
     lower.includes('user denied') ||
@@ -123,37 +124,34 @@ type ConnectableAdapter = {
   connect?: () => Promise<void>
 }
 
-/** Open the wallet extension popup. Retries select/ready races so the user is not told to open it themselves. */
+/** Open the wallet extension popup. The first call stays inside the click so the popup is not blocked. */
 export async function openWalletExtension(options: {
   adapter: ConnectableAdapter
   select: (name: WalletName) => void
   connectSelected: () => Promise<void>
+  getAdapter?: () => ConnectableAdapter | undefined
 }): Promise<void> {
-  const { adapter, select, connectSelected } = options
+  const { adapter, select, connectSelected, getAdapter } = options
   const name = adapter.name?.trim()
   if (name) select(asWalletName(name))
 
-  const tryDirect = async () => {
-    if (typeof adapter.connect !== 'function') {
-      await connectSelected()
-      return
-    }
-    await adapter.connect()
-  }
-
   let lastError: unknown
-  for (let attempt = 0; attempt < 6; attempt++) {
-    if (adapter.connected && adapter.publicKey) return
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const current = getAdapter?.() || adapter
+    if (current.connected && current.publicKey) return
     try {
       if (name) select(asWalletName(name))
-      await new Promise((r) => setTimeout(r, attempt === 0 ? 80 : 280))
-      await tryDirect()
+      if (attempt > 0) await new Promise((r) => setTimeout(r, 120))
+      if (typeof current.connect === 'function') {
+        await current.connect()
+      } else {
+        await connectSelected()
+      }
       return
     } catch (err) {
       lastError = err
       if (isWalletUserCancel(err)) throw err
       if (/already connected/i.test(errMessage(err))) return
-      if (!isWalletNotReadyYet(err) && errMessage(err) && attempt >= 2) throw err
     }
   }
 

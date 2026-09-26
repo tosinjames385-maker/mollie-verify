@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Shield, TrendingUp, Clock } from 'lucide-react'
 import { getTokens } from '../lib/api'
+import { DemoLikeButton } from '../components/DemoLikeButton'
 import { DashboardSkeleton } from '../components/Skeleton'
 import toast from 'react-hot-toast'
 
@@ -138,10 +139,10 @@ export const Dashboard = () => {
       {/* Token Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {tokens.map((token) => (
-          <button
+          <div
             key={token.id}
             onClick={() => navigate(`/token/${token.mintAddress}`)}
-            className="bg-dark-200 rounded-lg border border-dark-50 p-6 hover:border-primary/50 transition-all text-left group"
+            className="bg-dark-200 rounded-lg border border-dark-50 p-6 hover:border-primary/50 transition-all text-left group cursor-pointer"
           >
             <div className="flex items-start space-x-4 mb-4">
               <div className="w-16 h-16 bg-dark-50 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0">
@@ -183,13 +184,10 @@ export const Dashboard = () => {
 
             <div className="mt-4 pt-4 border-t border-dark-50">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-400">Community Likes</span>
-                <span className="text-white font-medium">
-                  {token._count.likes}
-                </span>
+                <DemoLikeButton seed={token.mintAddress || token.symbol} />
               </div>
             </div>
-          </button>
+          </div>
         ))}
       </div>
 

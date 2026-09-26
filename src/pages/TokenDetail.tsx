@@ -19,6 +19,7 @@ import { AddMetadataModal } from '../components/AddMetadataModal'
 import { VerifyTokenModal } from '../components/VerifyTokenModal'
 import { AddNewsModal } from '../components/AddNewsModal'
 import { WalletConnectControl } from '../components/WalletConnectControl'
+import { DemoLikeButton } from '../components/DemoLikeButton'
 import { TokenDetailSkeleton } from '../components/Skeleton'
 import { getTokenByMint, LiveToken } from '../services/tokenService'
 
@@ -123,15 +124,6 @@ export const TokenDetail = () => {
     }
   }, [mintAddress, location.state])
 
-  const handleLike = () => {
-    setToken((prev) => ({
-      ...prev,
-      userLiked: !prev.userLiked,
-      likes: prev.userLiked ? prev.likes - 1 : prev.likes + 1,
-    }))
-    toast.success(token.userLiked ? 'Removed like' : 'Liked token!')
-  }
-
   const copyMintAddress = () => {
     navigator.clipboard.writeText(token.fullMintAddress)
     toast.success('Mint address copied!')
@@ -192,17 +184,7 @@ export const TokenDetail = () => {
                 <Search className="w-3 h-3" />
               </button>
 
-              <button
-                onClick={handleLike}
-                className={`flex items-center gap-1 px-2 py-0.5 rounded-full border text-[11px] font-semibold transition-all ${
-                  token.userLiked
-                    ? 'bg-[#B7F34A]/20 border-[#B7F34A]/50 text-[#B7F34A]'
-                    : 'bg-[#101926] border-[#1C2838]/50 text-[#B7F34A] hover:border-[#B7F34A]/40'
-                }`}
-              >
-                <span className="text-[10px]">💚</span>
-                <span>{token.likes} like</span>
-              </button>
+              <DemoLikeButton seed={token.fullMintAddress || token.symbol} />
             </div>
           </div>
         </div>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { takeAuthReturn } from '../lib/authRedirect'
 import { supabase } from '../lib/supabase'
 import toast from 'react-hot-toast'
 
@@ -29,7 +30,6 @@ export const AuthCallback: React.FC = () => {
         } else {
           toast.error(errorDescParam || 'Authentication failed. Please try again.')
         }
-        navigate('/submissions', { replace: true })
         return
       }
 
@@ -64,8 +64,9 @@ export const AuthCallback: React.FC = () => {
         if (!cancelled) toast.error(err?.message || 'Authentication callback error')
       } finally {
         if (!cancelled) {
-          window.history.replaceState({}, '', '/submissions')
-          navigate('/submissions', { replace: true })
+          const back = takeAuthReturn()
+          window.history.replaceState({}, '', back)
+          navigate(back, { replace: true })
         }
       }
     }

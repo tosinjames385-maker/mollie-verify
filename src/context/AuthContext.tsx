@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
-import { getAuthCallbackUrl, withForcedOAuthRedirect } from '../lib/authRedirect'
+import { getAuthCallbackUrl, peekAuthReturn, withForcedOAuthRedirect } from '../lib/authRedirect'
 
 export interface UserProfile {
   id: string
@@ -100,7 +100,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (session?.user) {
         setUser(mapSupabaseUserToProfile(session.user))
         if (typeof window !== 'undefined' && window.location.hash.includes('access_token')) {
-          window.history.replaceState({}, '', '/submissions')
+          window.history.replaceState({}, '', peekAuthReturn())
         }
       } else if (event === 'SIGNED_OUT') {
         setUser(null)

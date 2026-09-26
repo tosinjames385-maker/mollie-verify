@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Shield, TrendingUp, Clock, ChevronRight } from 'lucide-react'
 import { getTokens } from '../lib/api'
+import { DemoLikeButton } from '../components/DemoLikeButton'
 import toast from 'react-hot-toast'
 
 interface Token {
@@ -127,10 +128,10 @@ export const Home = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {tokens.map((token) => (
-              <button
+              <div
                 key={token.id}
                 onClick={() => navigate(`/token/${token.mintAddress}`)}
-                className="bg-[#0A1017] border border-[#1C2838] rounded-xl p-5 hover:border-[#B7F34A]/30 transition-all text-left group"
+                className="bg-[#0A1017] border border-[#1C2838] rounded-xl p-5 hover:border-[#B7F34A]/30 transition-all text-left group cursor-pointer"
               >
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-12 h-12 bg-[#1C2838] rounded-full flex items-center justify-center overflow-hidden flex-shrink-0">
@@ -158,16 +159,14 @@ export const Home = () => {
                 </div>
 
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-500">
-                    {token._count.likes} likes
-                  </span>
+                  <DemoLikeButton seed={token.mintAddress || token.symbol} />
                   {token.riskWarnings.length > 0 && (
                     <span className="text-yellow-400 text-xs">
                       {token.riskWarnings.length} warnings
                     </span>
                   )}
                 </div>
-              </button>
+              </div>
             ))}
           </div>
         )}

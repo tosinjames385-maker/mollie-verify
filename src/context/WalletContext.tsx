@@ -86,6 +86,8 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const walletsRef = useRef(wallets)
   walletsRef.current = wallets
+  const connectRef = useRef(connect)
+  connectRef.current = connect
   const resumeAttempted = useRef(false)
 
   const walletAddress = useMemo(() => (publicKey ? publicKey.toBase58() : null), [publicKey])
@@ -282,7 +284,8 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
       await openWalletExtension({
         adapter: target.adapter,
         select,
-        connectSelected: connect,
+        connectSelected: () => connectRef.current(),
+        getAdapter: () => findWalletByHint(walletsRef.current, hint)?.adapter,
       })
 
       let address = ''
