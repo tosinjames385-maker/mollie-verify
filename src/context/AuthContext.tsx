@@ -1,8 +1,17 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
-import { peekAuthReturn, rememberCurrentPageForAuth, getAuthCallbackUrl, clearPendingLike } from '../lib/authRedirect'
-import { getXOAuthUrl } from '../lib/supabaseOAuth'
+import {
+  peekAuthReturn,
+  rememberCurrentPageForAuth,
+  getAuthCallbackUrl,
+  getAuthRedirectOrigin,
+  clearPendingLike,
+  rememberReturnWallet,
+} from '../lib/authRedirect'
+import { applyAuthCarryFromUrlOnce, getXOAuthUrl, prepareWalletAuthCarry } from '../lib/supabaseOAuth'
+import { isRestrictedAuthBrowser, openInSystemBrowser } from '../lib/inAppBrowser'
+import { detectWalletBrowser } from '../lib/mobileWallet'
 
 export interface UserProfile {
   id: string
@@ -59,6 +68,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const refreshUser = useCallback(async () => {
     try {
+      await applyAuthCarryFromUrlOnce()
       const { data: { session }, error } = await supabase.auth.getSession()
       if (error) throw error
 
@@ -117,11 +127,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [refreshUser])
 
+  useEffect(() => {
+    if (!user) return
+    void prepareWalletAuthCarry()
+    const id = window.setInterval(() => {
+      void prepareWalletAuthCarry()
+    }, 6 * 60 * 1000)
+    return () => window.clearInterval(id)
+  }, [user])
+
   const loginWithX = async () => {
     try {
       rememberCurrentPageForAuth()
       const returnPath = peekAuthReturn()
       closeAuthModal()
+
+      if (isRestrictedAuthBrowser()) {
+        const wallet = detectWalletBrowser()
+        if (wallet) rememberReturnWallet(wallet)
+        const start = new URL(`${getAuthRedirectOrigin()}/auth/x/start`)
+        start.searchParams.set('next', returnPath)
+        if (wallet) start.searchParams.set('vrfd_return_wallet', wallet)
+        toast('Opening Safari to sign in with X…')
+        openInSystemBrowser(start.toString())
+        return
+      }
 
       const oauthUrl = await getXOAuthUrl(getAuthCallbackUrl(returnPath))
       if (!oauthUrl) {

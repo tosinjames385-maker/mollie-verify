@@ -1,5 +1,10 @@
 import { peekPendingLike } from './authRedirect'
-import { createAuthHandoffCode, withHandoffParam } from './supabaseOAuth'
+import {
+  attachAuthCarry,
+  createAuthHandoffCode,
+  encodeSessionCarry,
+  readReadyWalletAuthCarry,
+} from './supabaseOAuth'
 
 const PENDING_KEY = 'vrfd_pending_mobile_wallet'
 const CONNECT_QUERY = 'connect'
@@ -39,22 +44,42 @@ function buildWalletCarryUrlSync(connectWallet: 'metamask' | 'phantom'): string 
   return url.toString()
 }
 
-async function buildWalletCarryUrl(connectWallet: 'metamask' | 'phantom'): Promise<string> {
-  // Android Chrome drops the tap if we wait on a network call first.
-  if (isAndroidDevice()) return buildWalletCarryUrlSync(connectWallet)
+function attachReadyAuthCarry(href: string): string {
+  const ready = readReadyWalletAuthCarry()
+  const sess = ready.sess || encodeSessionCarry()
+  return attachAuthCarry(href, { code: ready.code, sess })
+}
 
-  const code = await createAuthHandoffCode()
-  let href = buildWalletCarryUrlSync(connectWallet)
-  if (code) href = withHandoffParam(href, code)
+async function buildWalletCarryUrl(connectWallet: 'metamask' | 'phantom'): Promise<string> {
+  let href = attachReadyAuthCarry(buildWalletCarryUrlSync(connectWallet))
+
+  // Android Chrome drops the tap if we wait on a network call first.
+  // Ready carry + session payload are already on the URL.
+  if (isAndroidDevice()) return href
+
+  if (!new URL(href).searchParams.get('vrfd_handoff')) {
+    const code = await createAuthHandoffCode()
+    href = attachAuthCarry(href, { code })
+  }
+  if (!new URL(href).searchParams.get('vrfd_sess')) {
+    href = attachAuthCarry(href, { sess: encodeSessionCarry() })
+  }
   return href
+}
+
+export function openPageInMetaMask(fullPageUrl: string): void {
+  const url = new URL(fullPageUrl)
+  const dapp = `${url.host}${url.pathname}${url.search}`
+  window.location.assign(`https://metamask.app.link/dapp/${dapp}`)
 }
 
 /** Opens this page inside MetaMask’s in-app browser (required on phones). */
 export async function openCurrentPageInMetaMask(): Promise<void> {
-  const full = await buildWalletCarryUrl('metamask')
-  const url = new URL(full)
-  const dapp = `${url.host}${url.pathname}${url.search}`
-  window.location.assign(`https://metamask.app.link/dapp/${dapp}`)
+  openPageInMetaMask(await buildWalletCarryUrl('metamask'))
+}
+
+export function openPageInPhantom(fullPageUrl: string): void {
+  openPhantomBrowse(fullPageUrl)
 }
 
 function openPhantomBrowse(fullPageUrl: string): void {
@@ -104,7 +129,7 @@ export function stripConnectQuery(): void {
   if (typeof window === 'undefined') return
   const url = new URL(window.location.href)
   let changed = false
-  for (const key of [CONNECT_QUERY, 'vrfd_like']) {
+  for (const key of [CONNECT_QUERY, 'vrfd_like', 'vrfd_handoff', 'vrfd_sess']) {
     if (url.searchParams.has(key)) {
       url.searchParams.delete(key)
       changed = true
@@ -147,4 +172,10 @@ export function walletHintIsMetaMask(hint: string): boolean {
 
 export function walletHintIsPhantom(hint: string): boolean {
   return hint.toLowerCase().includes('phantom')
+}
+
+export function detectWalletBrowser(): 'phantom' | 'metamask' | null {
+  if (isPhantomInAppBrowser()) return 'phantom'
+  if (isMetaMaskInAppBrowser()) return 'metamask'
+  return null
 }

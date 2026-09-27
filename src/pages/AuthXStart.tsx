@@ -1,7 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { getAuthCallbackUrl, peekAuthReturn, rememberAuthReturn } from '../lib/authRedirect'
+import { getAuthCallbackUrl, peekAuthReturn, rememberAuthReturn, rememberReturnWallet } from '../lib/authRedirect'
 import { getXOAuthUrl } from '../lib/supabaseOAuth'
+
+function withReturnWallet(callbackUrl: string, wallet: string | null): string {
+  if (!wallet) return callbackUrl
+  try {
+    const parsed = new URL(callbackUrl)
+    parsed.searchParams.set('vrfd_return_wallet', wallet)
+    return parsed.toString()
+  } catch {
+    const join = callbackUrl.includes('?') ? '&' : '?'
+    return `${callbackUrl}${join}vrfd_return_wallet=${encodeURIComponent(wallet)}`
+  }
+}
 
 /** Silent hop to X authorize — same path as verified.jup.ag. */
 export function AuthXStart() {
@@ -15,16 +27,19 @@ export function AuthXStart() {
     return peekAuthReturn()
   }, [searchParams])
 
+  const returnWallet = searchParams.get('vrfd_return_wallet')
+
   useEffect(() => {
     rememberAuthReturn(nextPath)
-  }, [nextPath])
+    if (returnWallet) rememberReturnWallet(returnWallet)
+  }, [nextPath, returnWallet])
 
   useEffect(() => {
     if (started.current) return
     started.current = true
 
     void (async () => {
-      const url = await getXOAuthUrl(getAuthCallbackUrl(nextPath))
+      const url = await getXOAuthUrl(withReturnWallet(getAuthCallbackUrl(nextPath), returnWallet))
       if (!url) {
         setError('Could not start X sign-in. Please try again.')
         started.current = false
@@ -32,7 +47,7 @@ export function AuthXStart() {
       }
       window.location.assign(url)
     })()
-  }, [nextPath])
+  }, [nextPath, returnWallet])
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#0A1017] px-4">

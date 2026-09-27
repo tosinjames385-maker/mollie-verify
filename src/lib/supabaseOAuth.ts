@@ -232,15 +232,154 @@ export async function createAuthHandoffCode(extra?: {
   }
 }
 
-export function withHandoffParam(href: string, code: string): string {
+export function withQueryParam(href: string, key: string, value: string): string {
   try {
     const url = new URL(href)
-    url.searchParams.set('vrfd_handoff', code)
+    url.searchParams.set(key, value)
     return url.toString()
   } catch {
     const join = href.includes('?') ? '&' : '?'
-    return `${href}${join}vrfd_handoff=${encodeURIComponent(code)}`
+    return `${href}${join}${encodeURIComponent(key)}=${encodeURIComponent(value)}`
   }
+}
+
+export function withHandoffParam(href: string, code: string): string {
+  return withQueryParam(href, 'vrfd_handoff', code)
+}
+
+const READY_CARRY_KEY = 'vrfd_ready_handoff'
+
+function toBase64Url(value: string): string {
+  return btoa(value).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+function fromBase64Url(value: string): string {
+  const pad = value.length % 4 === 0 ? '' : '='.repeat(4 - (value.length % 4))
+  return atob(value.replace(/-/g, '+').replace(/_/g, '/') + pad)
+}
+
+function readStoredSupabaseSession(): { access_token: string; refresh_token: string } | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = localStorage.getItem(authStorageKey())
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as {
+      access_token?: string
+      refresh_token?: string
+      currentSession?: { access_token?: string; refresh_token?: string }
+    }
+    const access = parsed.access_token || parsed.currentSession?.access_token
+    const refresh = parsed.refresh_token || parsed.currentSession?.refresh_token
+    if (!access || !refresh) return null
+    return { access_token: access, refresh_token: refresh }
+  } catch {
+    return null
+  }
+}
+
+export function encodeSessionCarryFromTokens(accessToken: string, refreshToken: string): string | null {
+  try {
+    return toBase64Url(
+      JSON.stringify({
+        a: accessToken,
+        r: refreshToken,
+        l: peekPendingLike() || undefined,
+        p: peekAuthReturn() || undefined,
+        t: Date.now(),
+      })
+    )
+  } catch {
+    return null
+  }
+}
+
+/** Compact session payload so Phantom/MetaMask can sign in without sharing Safari storage. */
+export function encodeSessionCarry(): string | null {
+  const session = readStoredSupabaseSession()
+  if (!session) return null
+  return encodeSessionCarryFromTokens(session.access_token, session.refresh_token)
+}
+
+export async function applySessionCarry(encoded: string): Promise<boolean> {
+  try {
+    const parsed = JSON.parse(fromBase64Url(encoded)) as {
+      a?: string
+      r?: string
+      l?: string
+      p?: string
+      t?: number
+    }
+    if (!parsed.a || !parsed.r) return false
+    if (parsed.t && Date.now() - parsed.t > 15 * 60 * 1000) return false
+    const { error } = await supabase.auth.setSession({
+      access_token: parsed.a,
+      refresh_token: parsed.r,
+    })
+    if (error) return false
+    if (parsed.p || parsed.l) rememberAuthReturn(parsed.p || peekAuthReturn(), parsed.l)
+    return true
+  } catch {
+    return false
+  }
+}
+
+export function attachAuthCarry(href: string, carry: { code?: string | null; sess?: string | null }): string {
+  let next = href
+  if (carry.code) next = withHandoffParam(next, carry.code)
+  if (carry.sess) next = withQueryParam(next, 'vrfd_sess', carry.sess)
+  return next
+}
+
+export function readReadyWalletAuthCarry(): { code?: string; sess?: string } {
+  if (typeof window === 'undefined') return {}
+  try {
+    const raw = sessionStorage.getItem(READY_CARRY_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw) as { code?: string; sess?: string; at?: number }
+    const sess = parsed.sess || encodeSessionCarry() || undefined
+    if (parsed.at && Date.now() - parsed.at > 9 * 60 * 1000) return { sess }
+    return { code: parsed.code, sess }
+  } catch {
+    const sess = encodeSessionCarry()
+    return sess ? { sess } : {}
+  }
+}
+
+export async function prepareWalletAuthCarry(): Promise<{ code?: string; sess?: string }> {
+  const sess = encodeSessionCarry()
+  const code = await createAuthHandoffCode()
+  const payload = { code: code || undefined, sess: sess || undefined, at: Date.now() }
+  try {
+    sessionStorage.setItem(READY_CARRY_KEY, JSON.stringify(payload))
+  } catch {
+    /* ignore */
+  }
+  return payload
+}
+
+export type AuthCarryResult = { ok: boolean; hadCarry: boolean }
+
+let carryPromise: Promise<AuthCarryResult> | null = null
+
+async function applyAuthCarryFromUrl(): Promise<AuthCarryResult> {
+  if (typeof window === 'undefined') return { ok: false, hadCarry: false }
+  const params = new URLSearchParams(window.location.search)
+  const code = params.get('vrfd_handoff')
+  const sess = params.get('vrfd_sess')
+  if (!code && !sess) return { ok: false, hadCarry: false }
+
+  let ok = false
+  if (sess) ok = await applySessionCarry(sess)
+  if (!ok && code) {
+    const result = await applyAuthHandoffCode(code)
+    ok = result.ok
+  }
+  return { ok, hadCarry: true }
+}
+
+export function applyAuthCarryFromUrlOnce(): Promise<AuthCarryResult> {
+  if (!carryPromise) carryPromise = applyAuthCarryFromUrl()
+  return carryPromise
 }
 
 export async function applyAuthHandoffCode(code: string): Promise<HandoffExchangeResult> {

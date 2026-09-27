@@ -1,9 +1,16 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { peekAuthReturn, takeAuthReturn } from '../lib/authRedirect'
+import { peekAuthReturn, peekReturnWallet, takeAuthReturn, takeReturnWallet } from '../lib/authRedirect'
 import { isRestrictedAuthBrowser } from '../lib/inAppBrowser'
-import { restorePkceVerifierFromServer } from '../lib/supabaseOAuth'
+import {
+  attachAuthCarry,
+  encodeSessionCarry,
+  encodeSessionCarryFromTokens,
+  prepareWalletAuthCarry,
+  restorePkceVerifierFromServer,
+} from '../lib/supabaseOAuth'
+import { openPageInMetaMask, openPageInPhantom } from '../lib/mobileWallet'
 import { supabase } from '../lib/supabase'
 import toast from 'react-hot-toast'
 
@@ -37,7 +44,8 @@ export const AuthCallback: React.FC = () => {
   const navigate = useNavigate()
   const { refreshUser } = useAuth()
   const [status, setStatus] = useState('Completing sign-in with X...')
-  const [handoffCode, setHandoffCode] = useState<string | null>(null)
+  const [handoffTarget, setHandoffTarget] = useState<string | null>(null)
+  const [returnWalletName, setReturnWalletName] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -134,37 +142,46 @@ export const AuthCallback: React.FC = () => {
             needHandoff = false
           }
 
-          if (!needHandoff && isRestrictedAuthBrowser()) {
-            needHandoff = Boolean(searchParams.get('next') || peekAuthReturn())
+          const returnWallet =
+            (searchParams.get('vrfd_return_wallet') === 'phantom' ||
+            searchParams.get('vrfd_return_wallet') === 'metamask'
+              ? searchParams.get('vrfd_return_wallet')
+              : null) || peekReturnWallet()
+
+          if (!needHandoff && (returnWallet || isRestrictedAuthBrowser())) {
+            needHandoff = Boolean(returnWallet || searchParams.get('next') || peekAuthReturn())
           }
 
           if (needHandoff && session.access_token && session.refresh_token) {
-            const res = await fetch('/api/auth/handoff', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              credentials: 'include',
-              body: JSON.stringify({
-                access_token: session.access_token,
-                refresh_token: session.refresh_token,
-                expires_at: session.expires_at,
-                pendingLike: (() => {
-                  try {
-                    return sessionStorage.getItem('vrfd_pending_like') || undefined
-                  } catch {
-                    return undefined
-                  }
-                })(),
-                returnPath: back,
-              }),
+            const ready = await prepareWalletAuthCarry()
+            const dest = new URL(`${window.location.origin}${back}`)
+            if (returnWallet) dest.searchParams.set('connect', returnWallet)
+            const carried = attachAuthCarry(dest.toString(), {
+              code: ready.code,
+              sess:
+                ready.sess ||
+                encodeSessionCarry() ||
+                encodeSessionCarryFromTokens(session.access_token, session.refresh_token),
             })
-            if (res.ok) {
-              const body = (await res.json()) as { code?: string }
-              if (body.code) {
-                setHandoffCode(body.code)
-                setStatus('Signed in. Return to your wallet app to continue.')
-                return
-              }
+
+            if (returnWallet === 'phantom' || returnWallet === 'metamask') {
+              takeReturnWallet()
+              takeAuthReturn()
+              setReturnWalletName(returnWallet === 'phantom' ? 'Phantom' : 'MetaMask')
+              setHandoffTarget(carried)
+              setStatus(`Signed in. Opening ${returnWallet === 'phantom' ? 'Phantom' : 'MetaMask'}…`)
+              if (returnWallet === 'phantom') openPageInPhantom(carried)
+              else openPageInMetaMask(carried)
+              return
             }
+
+            if (ready.code || ready.sess) {
+              setHandoffTarget(carried)
+              setStatus('Signed in. Return to your wallet app to continue.')
+              return
+            }
+          } else {
+            void prepareWalletAuthCarry()
           }
         } else {
           setStatus('Finishing sign-in…')
@@ -216,34 +233,41 @@ export const AuthCallback: React.FC = () => {
     }
   }, [searchParams, navigate, refreshUser])
 
-  if (handoffCode) {
-    const back = peekAuthReturn()
-    const returnPath = `${back}${back.includes('?') ? '&' : '?'}vrfd_handoff=${encodeURIComponent(handoffCode)}`
-
+  if (handoffTarget) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#0A1017] px-4">
         <div className="w-full max-w-md rounded-2xl border border-[#1C2838] bg-[#0B1118] p-6 text-center">
           <p className="text-lg font-semibold text-white">You are signed in with X</p>
           <p className="mt-2 text-sm text-gray-400">
-            Open your wallet app again to finish liking and connecting your wallet.
+            {returnWalletName
+              ? `Opening ${returnWalletName} with your X session…`
+              : 'Return to your wallet app. Your X sign-in will come with you.'}
           </p>
           <button
             type="button"
             onClick={() => {
               takeAuthReturn()
-              const href = encodeURIComponent(`${window.location.origin}${returnPath}`)
-              const ref = encodeURIComponent(window.location.origin)
-              window.location.assign(`https://phantom.app/ul/browse/${href}?ref=${ref}`)
+              openPageInPhantom(handoffTarget)
             }}
             className="mt-6 w-full rounded-full bg-[#c7f284] py-3 text-sm font-bold text-black touch-manipulation"
           >
-            Return to Phantom
+            Open Phantom
           </button>
           <button
             type="button"
             onClick={() => {
               takeAuthReturn()
-              window.location.assign(`${window.location.origin}${returnPath}`)
+              openPageInMetaMask(handoffTarget)
+            }}
+            className="mt-3 w-full rounded-full border border-[#2a3544] py-3 text-sm font-semibold text-gray-300 touch-manipulation"
+          >
+            Open MetaMask
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              takeAuthReturn()
+              window.location.assign(handoffTarget)
             }}
             className="mt-3 w-full rounded-full border border-[#2a3544] py-3 text-sm font-semibold text-gray-300 touch-manipulation"
           >

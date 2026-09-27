@@ -34,6 +34,28 @@ export function withForcedOAuthRedirect(oauthUrl: string, redirectTo: string): s
 
 const AUTH_RETURN_KEY = 'vrfd_auth_return'
 const PENDING_LIKE_KEY = 'vrfd_pending_like'
+const RETURN_WALLET_KEY = 'vrfd_return_wallet'
+
+export type ReturnWallet = 'phantom' | 'metamask'
+
+export function rememberReturnWallet(wallet: string) {
+  if (typeof window === 'undefined') return
+  if (wallet === 'phantom' || wallet === 'metamask') {
+    sessionStorage.setItem(RETURN_WALLET_KEY, wallet)
+  }
+}
+
+export function peekReturnWallet(): ReturnWallet | null {
+  if (typeof window === 'undefined') return null
+  const value = sessionStorage.getItem(RETURN_WALLET_KEY)
+  return value === 'phantom' || value === 'metamask' ? value : null
+}
+
+export function takeReturnWallet(): ReturnWallet | null {
+  const wallet = peekReturnWallet()
+  if (typeof window !== 'undefined') sessionStorage.removeItem(RETURN_WALLET_KEY)
+  return wallet
+}
 
 function safeReturnPath(path: string | null): string {
   if (path && path.startsWith('/') && !path.startsWith('//') && !path.startsWith('/auth/')) return path

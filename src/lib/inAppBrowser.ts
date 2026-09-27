@@ -6,11 +6,18 @@ export function isGenericEmbeddedBrowser(): boolean {
   return /WebView|wv\)|FBAN|FBAV|Instagram|Line\//i.test(ua)
 }
 
+export function isNamedWalletBrowser(): boolean {
+  if (typeof navigator === 'undefined') return false
+  const ua = navigator.userAgent || ''
+  return /Phantom|MetaMask|Trust|Solflare|CoinbaseWallet|Rainbow|Exodus|Backpack|OKX/i.test(ua)
+}
+
 /** Wallet or embedded in-app browsers where X login often breaks. */
 export function isRestrictedAuthBrowser(): boolean {
   return (
     isPhantomInAppBrowser() ||
     isMetaMaskInAppBrowser() ||
+    isNamedWalletBrowser() ||
     (isMobileDevice() && isGenericEmbeddedBrowser())
   )
 }
@@ -18,8 +25,52 @@ export function isRestrictedAuthBrowser(): boolean {
 /** Try to open a URL in the device browser (Safari / Chrome). */
 export function openInSystemBrowser(url: string): boolean {
   if (typeof window === 'undefined') return false
+
+  const ua = navigator.userAgent || ''
+  const isIOS = /iPhone|iPad|iPod/i.test(ua)
+  const isAndroid = /Android/i.test(ua)
+
+  let parsed: URL
   try {
-    const opened = window.open(url, '_blank', 'noopener,noreferrer')
+    parsed = new URL(url, window.location.origin)
+  } catch {
+    window.location.assign(url)
+    return true
+  }
+
+  const href = parsed.toString()
+
+  if (isIOS) {
+    // Wallet WebViews swallow x.com OAuth. Force Safari, then fall back.
+    window.location.assign(`x-safari-https://${parsed.host}${parsed.pathname}${parsed.search}${parsed.hash}`)
+    window.setTimeout(() => {
+      if (document.visibilityState !== 'visible') return
+      try {
+        const opened = window.open(href, '_blank', 'noopener,noreferrer')
+        if (opened) {
+          opened.opener = null
+          return
+        }
+      } catch {
+        /* ignore */
+      }
+      window.location.assign(href)
+    }, 350)
+    return true
+  }
+
+  if (isAndroid) {
+    window.location.assign(
+      `intent://${parsed.host}${parsed.pathname}${parsed.search}${parsed.hash}#Intent;scheme=https;action=android.intent.action.VIEW;end`
+    )
+    window.setTimeout(() => {
+      if (document.visibilityState === 'visible') window.location.assign(href)
+    }, 500)
+    return true
+  }
+
+  try {
+    const opened = window.open(href, '_blank', 'noopener,noreferrer')
     if (opened) {
       opened.opener = null
       return true
@@ -28,30 +79,6 @@ export function openInSystemBrowser(url: string): boolean {
     /* ignore */
   }
 
-  if (/Android/i.test(navigator.userAgent || '')) {
-    try {
-      const parsed = new URL(url)
-      window.location.assign(
-        `intent://${parsed.host}${parsed.pathname}${parsed.search}${parsed.hash}#Intent;scheme=https;action=android.intent.action.VIEW;end`
-      )
-      return true
-    } catch {
-      /* fall through */
-    }
-  }
-
-  try {
-    const link = document.createElement('a')
-    link.href = url
-    link.target = '_blank'
-    link.rel = 'noopener noreferrer'
-    link.style.display = 'none'
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    return true
-  } catch {
-    window.location.assign(url)
-    return true
-  }
+  window.location.assign(href)
+  return true
 }
