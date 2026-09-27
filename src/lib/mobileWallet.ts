@@ -9,6 +9,11 @@ export function isMobileDevice(): boolean {
   return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '')
 }
 
+export function isAndroidDevice(): boolean {
+  if (typeof navigator === 'undefined') return false
+  return /Android/i.test(navigator.userAgent || '')
+}
+
 export function isMetaMaskInAppBrowser(): boolean {
   if (typeof window === 'undefined') return false
   const ua = navigator.userAgent || ''
@@ -26,19 +31,22 @@ export function isPhantomInAppBrowser(): boolean {
   return Boolean(isMobileDevice() && injected)
 }
 
-async function buildWalletCarryUrl(connectWallet: 'metamask' | 'phantom'): Promise<string> {
-  const code = await createAuthHandoffCode()
-  let href = window.location.href
-  if (code) href = withHandoffParam(href, code)
-
-  const url = new URL(href)
+function buildWalletCarryUrlSync(connectWallet: 'metamask' | 'phantom'): string {
+  const url = new URL(window.location.href)
   url.searchParams.set(CONNECT_QUERY, connectWallet)
-
   const pending = peekPendingLike()
   if (pending) url.searchParams.set('vrfd_like', pending)
-
-  // Keep the current path so like flow resumes on the same token page.
   return url.toString()
+}
+
+async function buildWalletCarryUrl(connectWallet: 'metamask' | 'phantom'): Promise<string> {
+  // Android Chrome drops the tap if we wait on a network call first.
+  if (isAndroidDevice()) return buildWalletCarryUrlSync(connectWallet)
+
+  const code = await createAuthHandoffCode()
+  let href = buildWalletCarryUrlSync(connectWallet)
+  if (code) href = withHandoffParam(href, code)
+  return href
 }
 
 /** Opens this page inside MetaMask’s in-app browser (required on phones). */
@@ -49,13 +57,26 @@ export async function openCurrentPageInMetaMask(): Promise<void> {
   window.location.assign(`https://metamask.app.link/dapp/${dapp}`)
 }
 
-export async function openCurrentPageInPhantom(): Promise<void> {
-  const full = await buildWalletCarryUrl('phantom')
-  const href = encodeURIComponent(full)
-  const ref = encodeURIComponent(new URL(full).origin)
+function openPhantomBrowse(fullPageUrl: string): void {
+  const href = encodeURIComponent(fullPageUrl)
+  const ref = encodeURIComponent(new URL(fullPageUrl).origin)
   const universal = `https://phantom.app/ul/browse/${href}?ref=${ref}`
 
-  // iOS Safari often needs the custom scheme if the universal link stays in Chrome/Safari.
+  if (isAndroidDevice()) {
+    const fallback = encodeURIComponent(universal)
+    const intent = `intent://phantom.app/ul/browse/${href}?ref=${ref}#Intent;scheme=https;package=app.phantom;S.browser_fallback_url=${fallback};end`
+    window.location.assign(intent)
+    window.setTimeout(() => {
+      if (document.visibilityState === 'visible') {
+        window.location.assign(`phantom://browse/${href}?ref=${ref}`)
+      }
+    }, 500)
+    window.setTimeout(() => {
+      if (document.visibilityState === 'visible') window.location.assign(universal)
+    }, 1200)
+    return
+  }
+
   if (/iPhone|iPad|iPod/i.test(navigator.userAgent || '')) {
     window.location.assign(`phantom://browse/${href}?ref=${ref}`)
     window.setTimeout(() => {
@@ -65,6 +86,11 @@ export async function openCurrentPageInPhantom(): Promise<void> {
   }
 
   window.location.assign(universal)
+}
+
+export async function openCurrentPageInPhantom(): Promise<void> {
+  const full = await buildWalletCarryUrl('phantom')
+  openPhantomBrowse(full)
 }
 
 export function walletRequestedInUrl(): string | null {

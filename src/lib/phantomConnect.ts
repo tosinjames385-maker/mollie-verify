@@ -37,7 +37,7 @@ export async function waitForPhantomProvider(maxWaitMs = 8000): Promise<PhantomP
 
 /** Connect Phantom’s injected provider (in-app browser or extension). */
 export async function connectPhantomNative(): Promise<string> {
-  const provider = (await waitForPhantomProvider(2500)) || getPhantomProvider()
+  const provider = (await waitForPhantomProvider(6000)) || getPhantomProvider()
   if (!provider?.connect) {
     throw new Error('Phantom is not available in this browser yet. Open this page inside Phantom and try again.')
   }
