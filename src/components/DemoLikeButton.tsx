@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
+import { useMemo, useState, type MouseEvent } from 'react'
 import { Heart, Shield } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAuth } from '../context/AuthContext'
 import { useWalletState } from '../context/WalletContext'
-import { likeReturnPath, peekPendingLike, rememberAuthReturn, takePendingLike } from '../lib/authRedirect'
-import { openTransactionSheet } from '../lib/txSheet'
+import { likeReturnPath, rememberAuthReturn } from '../lib/authRedirect'
 
 const DEMO_NAMES = ['laurdotsol', 'hyngdev', 'molusol', 'VCAdam_eth', 'Salt420SOL']
 
@@ -22,34 +21,7 @@ export function DemoLikeButton({ seed }: { seed: string }) {
   const base = useMemo(() => demoStats(seed), [seed])
   const [liked, setLiked] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
-  const waitingForWallet = useRef(false)
-  const finished = useRef(false)
 
-  const finishLike = (fromResume = false) => {
-    if (finished.current) return
-    const pending = peekPendingLike()
-    if (fromResume) {
-      if (pending !== seed || !takePendingLike(seed)) return
-    } else if (pending === seed) {
-      takePendingLike(seed)
-    }
-    finished.current = true
-    setLiked(true)
-    setMenuOpen(true)
-    toast.success('Liked')
-    window.setTimeout(() => openTransactionSheet(), 1000)
-  }
-
-  useEffect(() => {
-    if (!isAuthenticated) return
-    if (peekPendingLike() === seed) waitingForWallet.current = true
-    if (!waitingForWallet.current || finished.current) return
-    if (!connected) {
-      openWalletModal()
-      return
-    }
-    finishLike(true)
-  }, [isAuthenticated, connected, seed])
   const likes = base.likes + (liked ? 1 : 0)
   const others = Math.max(likes - DEMO_NAMES.length, 0)
   const label =
@@ -64,13 +36,13 @@ export function DemoLikeButton({ seed }: { seed: string }) {
       return
     }
     if (!connected) {
-      rememberAuthReturn(likeReturnPath(seed), seed)
-      waitingForWallet.current = true
       openWalletModal()
       return
     }
     if (!liked) {
-      finishLike()
+      setLiked(true)
+      setMenuOpen(true)
+      toast.success('Liked')
       return
     }
     setMenuOpen((open) => !open)

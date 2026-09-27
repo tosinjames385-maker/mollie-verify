@@ -1,19 +1,10 @@
-import { useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
 import { Navbar } from './Navbar'
 import { ConnectWalletModal } from './ConnectWalletModal'
-import { useAuth } from '../context/AuthContext'
 import { useWalletState } from '../context/WalletContext'
-import { peekPendingLike } from '../lib/authRedirect'
 
 export const Layout = () => {
-  const { isAuthenticated } = useAuth()
-  const { isModalOpen, closeWalletModal, connected, openWalletModal } = useWalletState()
-
-  useEffect(() => {
-    if (!isAuthenticated || connected || !peekPendingLike()) return
-    openWalletModal()
-  }, [isAuthenticated, connected])
+  const { isModalOpen, closeWalletModal } = useWalletState()
 
   return (
     <div className="min-h-screen">

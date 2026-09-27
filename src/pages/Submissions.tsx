@@ -3,7 +3,6 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { Search, ChevronLeft, ChevronRight, Heart, AlertTriangle, Share2, ChevronDown, Copy, Check } from 'lucide-react'
 import { demoSubmissions, Submission } from '../data/demoSubmissions'
 import { TokenImage, ProfileImage } from '../components/TokenImage'
-import { DemoLikeButton } from '../components/DemoLikeButton'
 import { getCoinImage, getProfileImage, resolveProfileAvatarUrl } from '../lib/images'
 import { xProfileUrl } from '../lib/walletLinks'
 import { searchLiveTokens } from '../lib/tokenSearch'
@@ -495,7 +494,6 @@ export const Submissions = () => {
                               <div className="font-bold text-white text-xs truncate tracking-tight">
                                 {submission.token.symbol}
                               </div>
-                              <DemoLikeButton seed={submission.token.mintAddress || submission.token.symbol} />
                             </div>
                             
                             {/* Middle Line: Address & Time */}
@@ -622,9 +620,6 @@ export const Submissions = () => {
                       </div>
 
                       {/* Bottom Row: Name, Mint, Time */}
-                      <div className="mt-2">
-                        <DemoLikeButton seed={selectedSubmission.token.mintAddress || selectedSubmission.token.symbol} />
-                      </div>
                       <div className="flex items-center gap-1.5 text-xs text-gray-400 mt-2">
                         <span className="truncate max-w-[80px] sm:max-w-none">{selectedSubmission.token.name}</span>
                         <span className="text-gray-600">·</span>
