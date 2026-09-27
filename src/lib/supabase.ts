@@ -46,7 +46,9 @@ export const supabaseProjectRef = (() => {
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    detectSessionInUrl: true,
+    // AuthCallback restores PKCE then exchanges the code. Auto-detect races on iOS
+    // and causes "invalid flow state, no valid flow state found".
+    detectSessionInUrl: false,
     persistSession: true,
     autoRefreshToken: true,
     flowType: 'pkce',

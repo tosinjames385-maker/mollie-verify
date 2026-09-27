@@ -8,10 +8,28 @@ import { supabase } from '../lib/supabase'
 import toast from 'react-hot-toast'
 
 const HANDOFF_FLAG = 'vrfd_auth_handoff'
+const exchangedCodes = new Set<string>()
 
-function isPkceError(message: string): boolean {
+function isRecoverableAuthError(message: string): boolean {
   const m = message.toLowerCase()
-  return m.includes('pkce') || m.includes('code verifier')
+  return (
+    m.includes('pkce') ||
+    m.includes('code verifier') ||
+    m.includes('flow state') ||
+    m.includes('flow_state') ||
+    m.includes('invalid flow')
+  )
+}
+
+async function waitForSession(tries = 12): Promise<boolean> {
+  for (let i = 0; i < tries; i++) {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+    if (session?.user) return true
+    await new Promise((r) => setTimeout(r, 120))
+  }
+  return false
 }
 
 export const AuthCallback: React.FC = () => {
@@ -62,13 +80,30 @@ export const AuthCallback: React.FC = () => {
         const flowId = searchParams.get('sb_flow_id')
 
         if (code) {
-          await restorePkceVerifierFromServer(pkceId, flowId)
-          let { error } = await supabase.auth.exchangeCodeForSession(code)
-          if (error && isPkceError(error.message || '')) {
+          if (exchangedCodes.has(code)) {
+            const ready = await waitForSession()
+            if (!ready) throw new Error('Sign-in is still finishing. Please try again.')
+          } else {
+            exchangedCodes.add(code)
             await restorePkceVerifierFromServer(pkceId, flowId)
-            ;({ error } = await supabase.auth.exchangeCodeForSession(code))
+            let { error } = await supabase.auth.exchangeCodeForSession(code)
+
+            if (error && isRecoverableAuthError(error.message || '')) {
+              // Code may already be consumed, or PKCE needed another restore.
+              const alreadySignedIn = await waitForSession(6)
+              if (!alreadySignedIn) {
+                await restorePkceVerifierFromServer(pkceId, flowId)
+                ;({ error } = await supabase.auth.exchangeCodeForSession(code))
+              } else {
+                error = null
+              }
+            }
+
+            if (error) {
+              const alreadySignedIn = await waitForSession(4)
+              if (!alreadySignedIn) throw error
+            }
           }
-          if (error) throw error
         } else {
           await new Promise((r) => setTimeout(r, 350))
         }
@@ -100,7 +135,6 @@ export const AuthCallback: React.FC = () => {
             needHandoff = false
           }
 
-          // If callback landed in a wallet browser after Safari start, still hand off when flagged.
           if (!needHandoff && isRestrictedAuthBrowser()) {
             needHandoff = Boolean(searchParams.get('next') || peekAuthReturn())
           }
@@ -142,7 +176,14 @@ export const AuthCallback: React.FC = () => {
       } catch (err: any) {
         if (cancelled) return
         const message = err?.message || 'Authentication callback error'
-        if (isPkceError(message)) {
+        if (isRecoverableAuthError(message)) {
+          const alreadySignedIn = await waitForSession(4)
+          if (alreadySignedIn) {
+            await refreshUser()
+            if (!cancelled) finishWithoutHandoff()
+            return
+          }
+
           let alreadyRetried = false
           try {
             alreadyRetried = sessionStorage.getItem('vrfd_pkce_auto_retry') === '1'
