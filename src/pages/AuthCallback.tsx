@@ -38,7 +38,6 @@ export const AuthCallback: React.FC = () => {
   const { refreshUser } = useAuth()
   const [status, setStatus] = useState('Completing sign-in with X...')
   const [handoffCode, setHandoffCode] = useState<string | null>(null)
-  const [pkceFailed, setPkceFailed] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -198,13 +197,12 @@ export const AuthCallback: React.FC = () => {
               /* ignore */
             }
             setStatus('Restarting sign-in…')
-            const start = `/auth/x/start?next=${encodeURIComponent(back)}&safari=1&auto=1`
-            window.location.replace(start)
+            window.location.replace(`/auth/x/start?next=${encodeURIComponent(back)}`)
             return
           }
 
-          setPkceFailed(true)
-          setStatus('Almost there — one more tap.')
+          setStatus('Opening X…')
+          window.location.replace(`/auth/x/start?next=${encodeURIComponent(back)}`)
           return
         }
         toast.error(message)
@@ -217,37 +215,6 @@ export const AuthCallback: React.FC = () => {
       cancelled = true
     }
   }, [searchParams, navigate, refreshUser])
-
-  if (pkceFailed) {
-    const back = peekAuthReturn()
-    const start = `/auth/x/start?next=${encodeURIComponent(back)}&safari=1&auto=1`
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0A1017] px-4">
-        <div className="w-full max-w-md rounded-2xl border border-[#1C2838] bg-[#0B1118] p-6 text-center">
-          <p className="text-lg font-semibold text-white">One more step</p>
-          <p className="mt-2 text-sm text-gray-400 leading-relaxed">
-            Tap below to finish signing in with X. Stay in this browser until it completes.
-          </p>
-          <a
-            href={start}
-            className="mt-6 block w-full rounded-full bg-[#c7f284] py-3 text-sm font-bold text-black touch-manipulation"
-          >
-            Continue with X
-          </a>
-          <button
-            type="button"
-            onClick={() => {
-              takeAuthReturn()
-              navigate(back, { replace: true })
-            }}
-            className="mt-3 w-full rounded-full border border-[#2a3544] py-3 text-sm font-semibold text-gray-300 touch-manipulation"
-          >
-            Cancel
-          </button>
-        </div>
-      </div>
-    )
-  }
 
   if (handoffCode) {
     const back = peekAuthReturn()

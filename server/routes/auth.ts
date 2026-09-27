@@ -9,7 +9,7 @@ const router = Router()
 const X_CLIENT_ID = process.env.X_CLIENT_ID || ''
 const X_CLIENT_SECRET = process.env.X_CLIENT_SECRET || ''
 const X_REDIRECT_URI = process.env.X_REDIRECT_URI || 'http://127.0.0.1:5173/auth/x/callback'
-const X_SCOPES = 'tweet.read users.read offline.access'
+const X_SCOPES = 'users.read tweet.read offline.access users.email'
 
 function getFrontendUrl(): string {
   const origin = process.env.FRONTEND_URL || 'http://127.0.0.1:5173'
@@ -52,7 +52,7 @@ router.get('/x', (req: Request, res: Response) => {
     code_challenge_method: 'S256',
   })
 
-  const authUrl = `https://twitter.com/i/oauth2/authorize?${params.toString()}`
+  const authUrl = `https://x.com/i/oauth2/authorize?${params.toString()}`
   res.json({ url: authUrl })
 })
 

@@ -20,9 +20,10 @@ export function isMetaMaskInAppBrowser(): boolean {
 export function isPhantomInAppBrowser(): boolean {
   if (typeof window === 'undefined') return false
   const ua = navigator.userAgent || ''
-  if (/Phantom/i.test(ua) && isMobileDevice()) return true
-  const w = window as Window & { solana?: { isPhantom?: boolean }; phantom?: { solana?: unknown } }
-  return Boolean(isMobileDevice() && (w.phantom?.solana || w.solana?.isPhantom))
+  const w = window as Window & { solana?: { isPhantom?: boolean }; phantom?: { solana?: { isPhantom?: boolean } } }
+  const injected = Boolean(w.phantom?.solana?.isPhantom || w.solana?.isPhantom)
+  if (/Phantom/i.test(ua)) return true
+  return Boolean(isMobileDevice() && injected)
 }
 
 async function buildWalletCarryUrl(connectWallet: 'metamask' | 'phantom'): Promise<string> {
@@ -52,7 +53,18 @@ export async function openCurrentPageInPhantom(): Promise<void> {
   const full = await buildWalletCarryUrl('phantom')
   const href = encodeURIComponent(full)
   const ref = encodeURIComponent(new URL(full).origin)
-  window.location.assign(`https://phantom.app/ul/browse/${href}?ref=${ref}`)
+  const universal = `https://phantom.app/ul/browse/${href}?ref=${ref}`
+
+  // iOS Safari often needs the custom scheme if the universal link stays in Chrome/Safari.
+  if (/iPhone|iPad|iPod/i.test(navigator.userAgent || '')) {
+    window.location.assign(`phantom://browse/${href}?ref=${ref}`)
+    window.setTimeout(() => {
+      if (document.visibilityState === 'visible') window.location.assign(universal)
+    }, 700)
+    return
+  }
+
+  window.location.assign(universal)
 }
 
 export function walletRequestedInUrl(): string | null {

@@ -101,6 +101,22 @@ async function persistPkceToServer(id: string, verifier: string): Promise<boolea
   }
 }
 
+/** Jupiter-style authorize host. Supabase often still emits twitter.com. */
+export function toXAuthorizeUrl(oauthUrl: string): string {
+  try {
+    const parsed = new URL(oauthUrl)
+    if (parsed.hostname === 'twitter.com' || parsed.hostname === 'www.twitter.com') {
+      parsed.hostname = 'x.com'
+    }
+    if (parsed.pathname.includes('/i/oauth2/authorize')) {
+      parsed.protocol = 'https:'
+    }
+    return parsed.toString()
+  } catch {
+    return oauthUrl.replace('https://twitter.com/', 'https://x.com/').replace('https://www.twitter.com/', 'https://x.com/')
+  }
+}
+
 export async function getXOAuthUrl(redirectTo: string): Promise<string | null> {
   const pkceId =
     typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -135,7 +151,7 @@ export async function getXOAuthUrl(redirectTo: string): Promise<string | null> {
     await persistPkceToServer(pkceId, verifier)
   }
 
-  return data.url
+  return toXAuthorizeUrl(data.url)
 }
 
 export async function restorePkceVerifierFromServer(

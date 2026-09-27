@@ -2,7 +2,6 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 import { peekAuthReturn, rememberCurrentPageForAuth, getAuthCallbackUrl } from '../lib/authRedirect'
-import { isRestrictedAuthBrowser } from '../lib/inAppBrowser'
 import { getXOAuthUrl } from '../lib/supabaseOAuth'
 
 export interface UserProfile {
@@ -124,17 +123,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const returnPath = peekAuthReturn()
       closeAuthModal()
 
-      // Wallet in-app browsers still need the Safari handoff page.
-      if (isRestrictedAuthBrowser()) {
-        const params = new URLSearchParams({
-          next: returnPath,
-          fromWallet: '1',
-        })
-        window.location.assign(`/auth/x/start?${params.toString()}`)
-        return
-      }
-
-      // Go straight to X's authorize page (Authorize app).
       const oauthUrl = await getXOAuthUrl(getAuthCallbackUrl(returnPath))
       if (!oauthUrl) {
         toast.error('Failed to start X sign-in. Please try again.')

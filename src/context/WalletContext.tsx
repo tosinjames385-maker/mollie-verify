@@ -33,6 +33,7 @@ import {
 import { rememberRecentWallet } from '../lib/detectInstalledWallets'
 import { clearLastWalletAdapter, rememberLastWalletAdapter } from '../lib/walletPersistence'
 import { clearSecurityCheckSession } from '../lib/metaMaskSecurityCheck'
+import { connectPhantomNative, waitForPhantomProvider } from '../lib/phantomConnect'
 
 export interface WalletState {
   walletAddress: string | null
@@ -84,6 +85,7 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
   const [error, setError] = useState<string | null>(null)
   const [isVerified, setIsVerified] = useState(false)
   const [verifying, setVerifying] = useState(false)
+  const [nativeOverride, setNativeOverride] = useState<{ address: string; name: string } | null>(null)
 
   const walletsRef = useRef(wallets)
   walletsRef.current = wallets
@@ -91,7 +93,10 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
   connectRef.current = connect
   const resumeAttempted = useRef(false)
 
-  const walletAddress = useMemo(() => (publicKey ? publicKey.toBase58() : null), [publicKey])
+  const walletAddress = useMemo(
+    () => (publicKey ? publicKey.toBase58() : nativeOverride?.address || null),
+    [publicKey, nativeOverride]
+  )
   const shortAddress = useMemo(
     () => (walletAddress ? `${walletAddress.slice(0, 4)}...${walletAddress.slice(-4)}` : ''),
     [walletAddress]
@@ -101,13 +106,14 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Fetch real Solana RPC balance
   const refreshBalance = useCallback(async () => {
-    if (!publicKey || !connection) {
+    const key = publicKey || (walletAddress ? new PublicKey(walletAddress) : null)
+    if (!key || !connection) {
       setBalanceSol(null)
       return
     }
     try {
       setBalanceLoading(true)
-      const lamports = await connection.getBalance(publicKey, 'confirmed')
+      const lamports = await connection.getBalance(key, 'confirmed')
       setBalanceSol(lamports / LAMPORTS_PER_SOL)
     } catch (err: any) {
       console.warn('Solana RPC balance fetch error:', err)
@@ -115,7 +121,7 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
     } finally {
       setBalanceLoading(false)
     }
-  }, [publicKey, connection])
+  }, [publicKey, walletAddress, connection])
 
   // Sync connection state with local + server logging
   useEffect(() => {
@@ -142,7 +148,8 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
         })
 
       setIsModalOpen(false)
-    } else if (!connected) {
+      setNativeOverride(null)
+    } else if (!connected && !nativeOverride) {
       setBalanceSol(null)
       setIsVerified(false)
     }
@@ -253,19 +260,88 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
         await prepareMetaMaskSolana()
       }
 
-      if (walletHintIsPhantom(hint) && mobile && !isPhantomInAppBrowser()) {
-        const phantomReady = findWalletByHint(walletsRef.current, hint)
-        if (!phantomReady || !isWalletConnectable(phantomReady)) {
+      if (walletHintIsPhantom(hint)) {
+        // On phones, Phantom’s adapter looks “loadable” in Safari/Chrome even when
+        // the app is not injected. Always open Phantom’s browser there.
+        if (mobile && !isPhantomInAppBrowser()) {
           markPendingMobileWallet('Phantom')
-          toast('Opening this page inside Phantom…')
+          toast('Opening Phantom…')
           await openCurrentPageInPhantom()
           return
+        }
+
+        try {
+          const nativeAddress = await connectPhantomNative()
+          if (nativeAddress) {
+            const phantomAdapter = findWalletByHint(walletsRef.current, 'Phantom')
+            const adapterName = getWalletAdapterName(phantomAdapter) || 'Phantom'
+            if (adapterName) select(adapterName as never)
+            try {
+              await openWalletExtension({
+                adapter: phantomAdapter?.adapter || { name: 'Phantom', connect: async () => {} },
+                select,
+                connectSelected: () => connectRef.current(),
+                getAdapter: () => findWalletByHint(walletsRef.current, 'Phantom')?.adapter,
+              })
+            } catch {
+              /* native connect already approved — adapter sync is best-effort */
+            }
+
+            void walletApi
+              .recordConnect({
+                walletAddress: nativeAddress,
+                walletType: 'Phantom',
+                chain: 'solana',
+                network,
+                pageUrl: window.location.href,
+                browserSessionId: getBrowserSessionId(),
+              })
+              .catch(() => {})
+            rememberRecentWallet('Phantom')
+            rememberLastWalletAdapter('Phantom')
+            clearPendingMobileWallet()
+            stripConnectQuery()
+            setNativeOverride({ address: nativeAddress, name: 'Phantom' })
+
+            const label = `${nativeAddress.slice(0, 4)}...${nativeAddress.slice(-4)}`
+            toast.success(
+              () => (
+                <div className="text-sm">
+                  <p className="font-bold text-white">Wallet Connected</p>
+                  <p className="text-gray-300 text-xs mt-0.5">Connected to wallet {label}</p>
+                </div>
+              ),
+              { duration: 4000 }
+            )
+            setIsModalOpen(false)
+            clearSecurityCheckSession()
+            try {
+              window.focus()
+            } catch {
+              /* ignore */
+            }
+            return
+          }
+        } catch (err) {
+          if (isWalletUserCancel(err)) throw err
+          if (mobile && !isPhantomInAppBrowser()) {
+            markPendingMobileWallet('Phantom')
+            await openCurrentPageInPhantom()
+            return
+          }
+          // Fall through to wallet-adapter connect.
         }
       }
 
       const target = await waitForWalletByHint(() => walletsRef.current, hint, mobile ? 8000 : 6000)
 
-      if (!target) {
+        if (!target) {
+        if (walletHintIsPhantom(hint) && mobile && !isPhantomInAppBrowser()) {
+          markPendingMobileWallet('Phantom')
+          toast('Opening Phantom…')
+          await openCurrentPageInPhantom()
+          return
+        }
         if (walletHintIsMetaMask(hint) && mobile && !isMetaMaskInAppBrowser() && !isMetaMaskBrowserAvailable()) {
           markPendingMobileWallet('MetaMask')
           toast('Opening this page inside MetaMask…')
@@ -360,13 +436,22 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
     const pending = walletRequestedInUrl() || getPendingMobileWallet()
     if (!pending) return
     if (walletHintIsMetaMask(pending) && !isMetaMaskInAppBrowser() && !isMetaMaskBrowserAvailable()) return
-    if (walletHintIsPhantom(pending) && !isPhantomInAppBrowser()) return
+
     resumeAttempted.current = true
     const timer = window.setTimeout(() => {
-      void connectWallet(pending).catch(() => {
-        resumeAttempted.current = false
-      })
-    }, 900)
+      void (async () => {
+        if (walletHintIsPhantom(pending)) {
+          const provider = await waitForPhantomProvider(8000)
+          if (!provider && !isPhantomInAppBrowser()) {
+            resumeAttempted.current = false
+            return
+          }
+        }
+        await connectWallet(pending).catch(() => {
+          resumeAttempted.current = false
+        })
+      })()
+    }, 500)
     return () => window.clearTimeout(timer)
   }, [wallets, connected])
 
@@ -377,6 +462,7 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
         await walletApi.recordDisconnect(walletAddress)
       }
       await disconnect()
+      setNativeOverride(null)
       clearLastWalletAdapter()
       setBalanceSol(null)
       setIsVerified(false)
@@ -437,11 +523,12 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
     shortAddress,
     walletName:
       getWalletAdapterName(wallet ? { adapter: wallet.adapter, readyState: wallet.adapter.readyState } : undefined) ||
+      nativeOverride?.name ||
       null,
     walletIcon: wallet?.adapter.icon || null,
     chain: 'solana',
     network,
-    connected,
+    connected: connected || Boolean(nativeOverride?.address),
     connecting,
     disconnecting,
     error,
