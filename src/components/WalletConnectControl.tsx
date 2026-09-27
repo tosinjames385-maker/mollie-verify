@@ -33,6 +33,7 @@ export function WalletConnectControl({ variant = 'compact', className = '' }: Wa
   const [menuOpen, setMenuOpen] = useState(false)
 
   const isConnected = connected && publicKey
+  // Match verifiedjup style: 6M...KK (2 + 2)
   const chipAddress = walletAddress
     ? `${walletAddress.slice(0, 2)}...${walletAddress.slice(-2)}`
     : shortAddress
@@ -44,10 +45,10 @@ export function WalletConnectControl({ variant = 'compact', className = '' }: Wa
         <button
           type="button"
           disabled
-          className={`flex-1 md:flex-initial md:w-[140px] px-4 py-2 md:py-1.5 bg-[#091018] border border-[#B7F34A]/40 text-[#B7F34A] rounded-lg font-bold text-sm flex items-center justify-center gap-2 cursor-wait opacity-90 ${className}`}
+          className={`flex-1 md:flex-initial min-w-[108px] px-3 py-2 md:py-1.5 bg-[#0B1219] border border-[#1E2A38] text-[#B7F34A] rounded-lg font-bold text-sm flex items-center justify-center gap-2 cursor-wait opacity-90 ${className}`}
         >
           <Loader2 className="w-4 h-4 animate-spin" />
-          Connecting
+          …
         </button>
       )
     }
@@ -71,13 +72,13 @@ export function WalletConnectControl({ variant = 'compact', className = '' }: Wa
           onClick={() => setMenuOpen((o) => !o)}
           className={
             variant === 'hero'
-              ? 'flex-1 md:flex-initial min-w-[132px] px-2.5 py-1.5 bg-[#12161c] hover:bg-[#1a1f26] border border-[#21262d] text-[#c7f284] rounded-full font-semibold text-sm flex items-center justify-center gap-1.5 transition-all'
-              : 'bg-[#12161c] hover:bg-[#1a1f26] border border-[#21262d] text-[#c7f284] pl-1.5 pr-2 py-1 rounded-full flex items-center gap-1.5 transition-all'
+              ? 'flex-1 md:flex-initial min-w-[108px] px-3 py-2 md:py-1.5 bg-[#0B1219] hover:bg-[#121A24] border border-[#1E2A38] text-[#B7F34A] rounded-lg font-semibold text-sm flex items-center justify-center gap-1.5 transition-colors'
+              : 'bg-[#0B1219] hover:bg-[#121A24] border border-[#1E2A38] text-[#B7F34A] pl-2.5 pr-2 py-1.5 rounded-full flex items-center gap-1.5 transition-colors'
           }
         >
-          <WalletLogo name={brand} className="w-5 h-5" rounded={false} />
+          {variant !== 'hero' ? <WalletLogo name={brand} className="w-5 h-5" rounded={false} /> : null}
           <span className="font-mono text-[13px] font-semibold tracking-tight">{chipAddress}</span>
-          <ChevronDown className="w-3.5 h-3.5 text-[#c7f284]" />
+          <ChevronDown className="w-3.5 h-3.5 text-[#B7F34A] shrink-0" />
         </button>
 
         {menuOpen && (

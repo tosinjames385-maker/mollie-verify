@@ -16,26 +16,47 @@ const XLogo = ({ className = 'w-3.5 h-3.5' }: { className?: string }) => (
 const SignInWithXButton = ({
   onClick,
   compact = false,
+  loading = false,
 }: {
   onClick: () => void
   compact?: boolean
+  loading?: boolean
 }) => (
   <button
+    type="button"
     onClick={onClick}
+    disabled={loading}
     aria-label="Sign in with X"
-    className={`bg-[#F3EEE4] hover:bg-[#EBE4D6] text-[#111111] font-semibold rounded-full flex items-center justify-center gap-1.5 transition-colors whitespace-nowrap shadow-sm ${
+    className={`bg-[#F3EEE4] hover:bg-[#EBE4D6] text-[#111111] font-semibold rounded-full flex items-center justify-center gap-1.5 transition-colors whitespace-nowrap shadow-sm disabled:opacity-70 ${
       compact ? 'text-[11px] px-2.5 py-[6px]' : 'text-xs px-3.5 py-1.5'
     }`}
   >
-    <span>Sign in with</span>
-    <XLogo className={compact ? 'w-3 h-3' : 'w-3.5 h-3.5'} />
+    {loading ? (
+      <span>Opening X…</span>
+    ) : (
+      <>
+        <span>Sign in with</span>
+        <XLogo className={compact ? 'w-3 h-3' : 'w-3.5 h-3.5'} />
+      </>
+    )}
   </button>
 )
 
 export const Navbar = () => {
   const navigate = useNavigate()
   const location = useLocation()
-  const { user, isAuthenticated, openAuthModal, logout } = useAuth()
+  const { user, isAuthenticated, loginWithX, logout } = useAuth()
+  const [xSigningIn, setXSigningIn] = useState(false)
+
+  const handleSignInWithX = async () => {
+    if (xSigningIn) return
+    setXSigningIn(true)
+    try {
+      await loginWithX()
+    } finally {
+      setXSigningIn(false)
+    }
+  }
 
   const [showSelector, setShowSelector] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -275,7 +296,7 @@ export const Navbar = () => {
                 </div>
               </>
             ) : (
-              <SignInWithXButton onClick={openAuthModal} />
+              <SignInWithXButton onClick={() => void handleSignInWithX()} loading={xSigningIn} />
             )}
           </div>
         </div>
@@ -383,7 +404,7 @@ export const Navbar = () => {
                 )}
               </div>
             ) : (
-              <SignInWithXButton onClick={openAuthModal} compact />
+              <SignInWithXButton onClick={() => void handleSignInWithX()} loading={xSigningIn} compact />
             )}
           </div>
         </div>

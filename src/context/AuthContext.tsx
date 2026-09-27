@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
-import { peekAuthReturn, rememberCurrentPageForAuth } from '../lib/authRedirect'
+import { peekAuthReturn, rememberCurrentPageForAuth, getAuthCallbackUrl } from '../lib/authRedirect'
 import { isRestrictedAuthBrowser } from '../lib/inAppBrowser'
+import { getXOAuthUrl } from '../lib/supabaseOAuth'
 
 export interface UserProfile {
   id: string
@@ -123,6 +124,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const returnPath = peekAuthReturn()
       closeAuthModal()
 
+      // Wallet in-app browsers still need the Safari handoff page.
       if (isRestrictedAuthBrowser()) {
         const params = new URLSearchParams({
           next: returnPath,
@@ -132,13 +134,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return
       }
 
-      // Same simple path on iOS Safari/Chrome: prepare PKCE then go to X.
-      const params = new URLSearchParams({
-        next: returnPath,
-        safari: '1',
-        auto: '1',
-      })
-      window.location.assign(`/auth/x/start?${params.toString()}`)
+      // Go straight to X's authorize page (Authorize app).
+      const oauthUrl = await getXOAuthUrl(getAuthCallbackUrl(returnPath))
+      if (!oauthUrl) {
+        toast.error('Failed to start X sign-in. Please try again.')
+        return
+      }
+      window.location.assign(oauthUrl)
     } catch (err: any) {
       toast.error(err?.message || 'Failed to connect to X. Please try again.')
     }

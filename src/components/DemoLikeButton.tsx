@@ -17,13 +17,14 @@ function demoStats(seed: string) {
 }
 
 export function DemoLikeButton({ seed }: { seed: string }) {
-  const { isAuthenticated, openAuthModal } = useAuth()
+  const { isAuthenticated, loginWithX } = useAuth()
   const { connected, openWalletModal } = useWalletState()
   const base = useMemo(() => demoStats(seed), [seed])
   const [liked, setLiked] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const resumeLike = useRef(false)
   const finished = useRef(false)
+  const [signingIn, setSigningIn] = useState(false)
 
   const completeLike = (fromPending = false) => {
     if (finished.current) return
@@ -55,7 +56,9 @@ export function DemoLikeButton({ seed }: { seed: string }) {
     event.preventDefault()
     if (!isAuthenticated) {
       rememberAuthReturn(likeReturnPath(seed), seed)
-      openAuthModal()
+      if (signingIn) return
+      setSigningIn(true)
+      void loginWithX().finally(() => setSigningIn(false))
       return
     }
     if (!connected) {
