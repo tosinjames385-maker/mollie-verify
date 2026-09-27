@@ -31,6 +31,7 @@ import {
   walletRequestedInUrl,
 } from '../lib/mobileWallet'
 import { rememberRecentWallet } from '../lib/detectInstalledWallets'
+import { clearLastWalletAdapter, rememberLastWalletAdapter } from '../lib/walletPersistence'
 import { clearSecurityCheckSession } from '../lib/metaMaskSecurityCheck'
 
 export interface WalletState {
@@ -319,6 +320,7 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
           /* admin log must not break a live wallet session */
         })
       rememberRecentWallet(name || hint)
+      rememberLastWalletAdapter(name || hint)
       clearPendingMobileWallet()
       stripConnectQuery()
 
@@ -375,6 +377,7 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
         await walletApi.recordDisconnect(walletAddress)
       }
       await disconnect()
+      clearLastWalletAdapter()
       setBalanceSol(null)
       setIsVerified(false)
       setError(null)

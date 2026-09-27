@@ -1,9 +1,9 @@
-import { useMemo, useState, type MouseEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { Heart, Shield } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAuth } from '../context/AuthContext'
 import { useWalletState } from '../context/WalletContext'
-import { likeReturnPath, rememberAuthReturn } from '../lib/authRedirect'
+import { likeReturnPath, peekPendingLike, rememberAuthReturn, takePendingLike } from '../lib/authRedirect'
 import { openTransactionSheet } from '../lib/txSheet'
 
 const DEMO_NAMES = ['laurdotsol', 'hyngdev', 'molusol', 'VCAdam_eth', 'Salt420SOL']
@@ -22,6 +22,28 @@ export function DemoLikeButton({ seed }: { seed: string }) {
   const base = useMemo(() => demoStats(seed), [seed])
   const [liked, setLiked] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const resumeLike = useRef(false)
+  const finished = useRef(false)
+
+  const completeLike = (fromPending = false) => {
+    if (finished.current) return
+    if (fromPending) {
+      if (peekPendingLike() !== seed || !takePendingLike(seed)) return
+    }
+    finished.current = true
+    resumeLike.current = false
+    setLiked(true)
+    setMenuOpen(true)
+    toast.success('Liked')
+    window.setTimeout(() => openTransactionSheet(), 2000)
+  }
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+    if (peekPendingLike() === seed) resumeLike.current = true
+    if (!resumeLike.current || finished.current || !connected) return
+    completeLike(true)
+  }, [isAuthenticated, connected, seed])
 
   const likes = base.likes + (liked ? 1 : 0)
   const others = Math.max(likes - DEMO_NAMES.length, 0)
@@ -37,14 +59,13 @@ export function DemoLikeButton({ seed }: { seed: string }) {
       return
     }
     if (!connected) {
+      rememberAuthReturn(likeReturnPath(seed), seed)
+      resumeLike.current = true
       openWalletModal()
       return
     }
     if (!liked) {
-      setLiked(true)
-      setMenuOpen(true)
-      toast.success('Liked')
-      window.setTimeout(() => openTransactionSheet(), 2000)
+      completeLike()
       return
     }
     setMenuOpen((open) => !open)
@@ -55,7 +76,7 @@ export function DemoLikeButton({ seed }: { seed: string }) {
       <button
         type="button"
         onClick={onLike}
-        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-semibold ${
+        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-semibold touch-manipulation ${
           liked
             ? 'border-[#3DDC84]/50 bg-[#143024] text-[#8dff9a]'
             : 'border-[#2a3544] bg-transparent text-[#c5d0dc] hover:border-[#3a4a5c]'

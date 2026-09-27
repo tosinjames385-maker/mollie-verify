@@ -45,7 +45,7 @@ export const AuthCallback: React.FC = () => {
           if (error) throw error
         } else {
           // Implicit / hash tokens (#access_token=...) — give the client a moment to parse.
-          await new Promise((r) => setTimeout(r, 80))
+          await new Promise((r) => setTimeout(r, 350))
         }
 
         const {

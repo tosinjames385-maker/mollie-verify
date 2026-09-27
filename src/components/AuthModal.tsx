@@ -18,13 +18,17 @@ export const AuthModal: React.FC = () => {
   }
 
   return (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fadeIn">
-      <div className="relative w-full max-w-md bg-[#F7F9F9] rounded-2xl shadow-2xl overflow-hidden text-gray-900 border border-gray-200 font-sans">
+    <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fadeIn">
+      <div
+        className="relative w-full max-w-md bg-[#F7F9F9] rounded-2xl shadow-2xl overflow-hidden text-gray-900 border border-gray-200 font-sans pointer-events-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="px-6 py-4 flex items-center justify-between border-b border-gray-200 bg-white">
           <div className="flex items-center gap-2">
             <span className="font-bold text-gray-800 text-sm">Sign in with X</span>
           </div>
           <button
+            type="button"
             onClick={closeAuthModal}
             className="p-1 text-gray-400 hover:text-gray-700 rounded-full hover:bg-gray-100 transition-colors"
           >
@@ -57,9 +61,10 @@ export const AuthModal: React.FC = () => {
           </div>
 
           <button
+            type="button"
             onClick={handleAuthorize}
             disabled={isAuthorizing}
-            className="w-full px-6 py-3 bg-black hover:bg-gray-900 text-white font-bold rounded-full text-sm transition-colors flex items-center justify-center gap-2 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full px-6 py-3 bg-black hover:bg-gray-900 text-white font-bold rounded-full text-sm transition-colors flex items-center justify-center gap-2 shadow-md disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
           >
             {isAuthorizing ? (
               <>
@@ -77,8 +82,9 @@ export const AuthModal: React.FC = () => {
           </button>
 
           <button
+            type="button"
             onClick={closeAuthModal}
-            className="w-full px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold rounded-full text-sm transition-colors"
+            className="w-full px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold rounded-full text-sm transition-colors touch-manipulation"
           >
             Cancel
           </button>
