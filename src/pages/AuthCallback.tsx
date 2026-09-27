@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { peekAuthReturn, takeAuthReturn } from '../lib/authRedirect'
 import { isRestrictedAuthBrowser } from '../lib/inAppBrowser'
@@ -82,6 +82,11 @@ export const AuthCallback: React.FC = () => {
         if (cancelled) return
 
         if (session?.user) {
+          try {
+            sessionStorage.removeItem('vrfd_pkce_auto_retry')
+          } catch {
+            /* ignore */
+          }
           await refreshUser()
           const meta = session.user.user_metadata || {}
           const name = meta.user_name || meta.preferred_username || meta.name || 'user'
@@ -138,9 +143,27 @@ export const AuthCallback: React.FC = () => {
         if (cancelled) return
         const message = err?.message || 'Authentication callback error'
         if (isPkceError(message)) {
+          let alreadyRetried = false
+          try {
+            alreadyRetried = sessionStorage.getItem('vrfd_pkce_auto_retry') === '1'
+          } catch {
+            alreadyRetried = false
+          }
+
+          if (!alreadyRetried) {
+            try {
+              sessionStorage.setItem('vrfd_pkce_auto_retry', '1')
+            } catch {
+              /* ignore */
+            }
+            setStatus('Restarting sign-in…')
+            const start = `/auth/x/start?next=${encodeURIComponent(back)}&safari=1&auto=1`
+            window.location.replace(start)
+            return
+          }
+
           setPkceFailed(true)
-          setStatus('Sign-in needs to finish in the same browser.')
-          toast.error('Please start X sign-in again in this browser.')
+          setStatus('Almost there — one more tap.')
           return
         }
         toast.error(message)
@@ -156,21 +179,20 @@ export const AuthCallback: React.FC = () => {
 
   if (pkceFailed) {
     const back = peekAuthReturn()
-    const start = `/auth/x/start?next=${encodeURIComponent(back)}&safari=1`
+    const start = `/auth/x/start?next=${encodeURIComponent(back)}&safari=1&auto=1`
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#0A1017] px-4">
         <div className="w-full max-w-md rounded-2xl border border-[#1C2838] bg-[#0B1118] p-6 text-center">
-          <p className="text-lg font-semibold text-white">Finish sign-in here</p>
+          <p className="text-lg font-semibold text-white">One more step</p>
           <p className="mt-2 text-sm text-gray-400 leading-relaxed">
-            X login started in a different app or browser. Tap below to start again in this browser so it
-            completes cleanly.
+            Tap below to finish signing in with X. Stay in this browser until it completes.
           </p>
-          <Link
-            to={start}
+          <a
+            href={start}
             className="mt-6 block w-full rounded-full bg-[#c7f284] py-3 text-sm font-bold text-black touch-manipulation"
           >
-            Sign in with X again
-          </Link>
+            Continue with X
+          </a>
           <button
             type="button"
             onClick={() => {

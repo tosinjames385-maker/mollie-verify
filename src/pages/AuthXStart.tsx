@@ -10,9 +10,9 @@ const HANDOFF_FLAG = 'vrfd_auth_handoff'
 
 export function AuthXStart() {
   const [searchParams] = useSearchParams()
-  const [oauthUrl, setOauthUrl] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [status, setStatus] = useState('Preparing X sign-in…')
   const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
 
   const nextPath = useMemo(() => {
     const fromQuery = searchParams.get('next')
@@ -21,8 +21,8 @@ export function AuthXStart() {
   }, [searchParams])
 
   const fromWallet = searchParams.get('fromWallet') === '1'
+  const autoStart = searchParams.get('auto') === '1'
   const restricted = isRestrictedAuthBrowser()
-  // Only start OAuth in a real browser. Wallet WebViews break PKCE when X returns elsewhere.
   const canStartOAuth = searchParams.get('safari') === '1' || !restricted
 
   useEffect(() => {
@@ -36,40 +36,46 @@ export function AuthXStart() {
     }
   }, [nextPath, fromWallet, canStartOAuth])
 
-  useEffect(() => {
-    if (!canStartOAuth) {
-      setLoading(false)
-      setOauthUrl(null)
-      return
-    }
-
-    let cancelled = false
-    const redirectTo = getAuthCallbackUrl(nextPath)
-    void getXOAuthUrl(redirectTo).then((url) => {
-      if (cancelled) return
+  const startOAuth = async () => {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    setStatus('Opening X…')
+    try {
+      const url = await getXOAuthUrl(getAuthCallbackUrl(nextPath))
       if (!url) {
-        setError('Could not start X sign-in. Try again in a moment.')
-      } else {
-        setOauthUrl(url)
+        setError('Could not start X sign-in. Please try again.')
+        setBusy(false)
+        return
       }
-      setLoading(false)
-    })
-    return () => {
-      cancelled = true
+      window.location.assign(url)
+    } catch {
+      setError('Could not start X sign-in. Please try again.')
+      setBusy(false)
     }
-  }, [nextPath, canStartOAuth])
+  }
+
+  // On normal Safari/Chrome (and auto retry), go straight to X — one less tap.
+  useEffect(() => {
+    if (!canStartOAuth) return
+    if (autoStart || !fromWallet) {
+      void startOAuth()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canStartOAuth, autoStart, fromWallet, nextPath])
 
   const startUrl = useMemo(() => {
     const url = new URL(window.location.href)
     url.searchParams.set('safari', '1')
     url.searchParams.set('fromWallet', fromWallet || restricted ? '1' : '0')
+    url.searchParams.set('auto', '1')
     return url.toString()
   }, [fromWallet, restricted])
 
   const openSafariSignIn = () => {
     const ok = openInSystemBrowser(startUrl)
     if (!ok) toast.error('Could not open Safari. Use the menu (⋯) and choose Open in Browser.')
-    else toast('Complete sign-in in Safari, then return to your wallet app.', { duration: 6000 })
+    else toast('Finish sign-in in Safari, then return to your wallet.', { duration: 5000 })
   }
 
   return (
@@ -78,11 +84,11 @@ export function AuthXStart() {
         <h1 className="text-lg font-semibold text-white">Sign in with X</h1>
         <p className="mt-2 text-sm text-gray-400 leading-relaxed">
           {!canStartOAuth
-            ? 'X login cannot finish inside a wallet browser. Open this page in Safari or Chrome to sign in, then return here.'
-            : 'Continue to X to authorize this app. You will return here when finished.'}
+            ? 'Open Safari or Chrome to sign in with X. It only takes a moment, then you can return to your wallet.'
+            : status}
         </p>
 
-        {loading ? (
+        {canStartOAuth && busy && !error ? (
           <div className="mt-8 flex justify-center">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#c7f284] border-t-transparent" />
           </div>
@@ -90,47 +96,46 @@ export function AuthXStart() {
 
         {error ? <p className="mt-6 text-sm text-red-400">{error}</p> : null}
 
-        {!loading ? (
-          <div className="mt-6 flex flex-col gap-3">
-            {!canStartOAuth ? (
-              <>
-                <button
-                  type="button"
-                  onClick={openSafariSignIn}
-                  className="w-full rounded-full bg-[#c7f284] py-3 text-sm font-bold text-black touch-manipulation"
-                >
-                  Open sign-in in Safari / Chrome
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void openCurrentPageInPhantom()}
-                  className="w-full rounded-full border border-[#2a3544] py-3 text-sm font-semibold text-gray-300 touch-manipulation"
-                >
-                  Return to Phantom
-                </button>
-              </>
-            ) : null}
-
-            {canStartOAuth && oauthUrl ? (
-              <a
-                href={oauthUrl}
-                className="block w-full rounded-full bg-white py-3 text-sm font-bold text-black touch-manipulation"
+        <div className="mt-6 flex flex-col gap-3">
+          {!canStartOAuth ? (
+            <>
+              <button
+                type="button"
+                onClick={openSafariSignIn}
+                className="w-full rounded-full bg-[#c7f284] py-3 text-sm font-bold text-black touch-manipulation"
               >
-                Continue with X
-              </a>
-            ) : null}
-
-            {canStartOAuth && fromWallet ? (
+                Continue in Safari / Chrome
+              </button>
               <button
                 type="button"
                 onClick={() => void openCurrentPageInPhantom()}
                 className="w-full rounded-full border border-[#2a3544] py-3 text-sm font-semibold text-gray-300 touch-manipulation"
               >
-                Return to Phantom
+                Back to wallet
               </button>
-            ) : null}
-          </div>
-        ) : null}
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => void startOAuth()}
+                disabled={busy && !error}
+                className="w-full rounded-full bg-white py-3 text-sm font-bold text-black touch-manipulation disabled:opacity-60"
+              >
+                {busy && !error ? 'Opening X…' : 'Continue with X'}
+              </button>
+              {fromWallet ? (
+                <button
+                  type="button"
+                  onClick={() => void openCurrentPageInPhantom()}
+                  className="w-full rounded-full border border-[#2a3544] py-3 text-sm font-semibold text-gray-300 touch-manipulation"
+                >
+                  Back to wallet
+                </button>
+              ) : null}
+            </>
+          )}
+        </div>
       </div>
     </div>
   )

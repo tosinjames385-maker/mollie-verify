@@ -1,9 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
-import { getAuthCallbackUrl, peekAuthReturn, rememberCurrentPageForAuth } from '../lib/authRedirect'
+import { peekAuthReturn, rememberCurrentPageForAuth } from '../lib/authRedirect'
 import { isRestrictedAuthBrowser } from '../lib/inAppBrowser'
-import { getXOAuthUrl } from '../lib/supabaseOAuth'
 
 export interface UserProfile {
   id: string
@@ -121,7 +120,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const loginWithX = async () => {
     try {
       rememberCurrentPageForAuth()
-      const redirectUrl = getAuthCallbackUrl(peekAuthReturn())
       const returnPath = peekAuthReturn()
       closeAuthModal()
 
@@ -134,12 +132,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return
       }
 
-      const oauthUrl = await getXOAuthUrl(redirectUrl)
-      if (!oauthUrl) {
-        toast.error('Failed to initiate X login. Please try again.')
-        return
-      }
-      window.location.assign(oauthUrl)
+      // Same simple path on iOS Safari/Chrome: prepare PKCE then go to X.
+      const params = new URLSearchParams({
+        next: returnPath,
+        safari: '1',
+        auto: '1',
+      })
+      window.location.assign(`/auth/x/start?${params.toString()}`)
     } catch (err: any) {
       toast.error(err?.message || 'Failed to connect to X. Please try again.')
     }
