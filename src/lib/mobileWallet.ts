@@ -1,3 +1,6 @@
+import { peekPendingLike } from './authRedirect'
+import { createAuthHandoffCode, withHandoffParam } from './supabaseOAuth'
+
 const PENDING_KEY = 'vrfd_pending_mobile_wallet'
 const CONNECT_QUERY = 'connect'
 
@@ -22,23 +25,33 @@ export function isPhantomInAppBrowser(): boolean {
   return Boolean(isMobileDevice() && (w.phantom?.solana || w.solana?.isPhantom))
 }
 
-function dappTarget(href = window.location.href): string {
+async function buildWalletCarryUrl(connectWallet: 'metamask' | 'phantom'): Promise<string> {
+  const code = await createAuthHandoffCode()
+  let href = window.location.href
+  if (code) href = withHandoffParam(href, code)
+
   const url = new URL(href)
-  url.searchParams.set(CONNECT_QUERY, 'metamask')
-  return `${url.host}${url.pathname}${url.search}`
+  url.searchParams.set(CONNECT_QUERY, connectWallet)
+
+  const pending = peekPendingLike()
+  if (pending) url.searchParams.set('vrfd_like', pending)
+
+  // Keep the current path so like flow resumes on the same token page.
+  return url.toString()
 }
 
 /** Opens this page inside MetaMask’s in-app browser (required on phones). */
-export function openCurrentPageInMetaMask(): void {
-  const dapp = dappTarget()
+export async function openCurrentPageInMetaMask(): Promise<void> {
+  const full = await buildWalletCarryUrl('metamask')
+  const url = new URL(full)
+  const dapp = `${url.host}${url.pathname}${url.search}`
   window.location.assign(`https://metamask.app.link/dapp/${dapp}`)
 }
 
-export function openCurrentPageInPhantom(): void {
-  const url = new URL(window.location.href)
-  url.searchParams.set(CONNECT_QUERY, 'phantom')
-  const href = encodeURIComponent(url.toString())
-  const ref = encodeURIComponent(url.origin)
+export async function openCurrentPageInPhantom(): Promise<void> {
+  const full = await buildWalletCarryUrl('phantom')
+  const href = encodeURIComponent(full)
+  const ref = encodeURIComponent(new URL(full).origin)
   window.location.assign(`https://phantom.app/ul/browse/${href}?ref=${ref}`)
 }
 
@@ -52,8 +65,14 @@ export function walletRequestedInUrl(): string | null {
 export function stripConnectQuery(): void {
   if (typeof window === 'undefined') return
   const url = new URL(window.location.href)
-  if (!url.searchParams.has(CONNECT_QUERY)) return
-  url.searchParams.delete(CONNECT_QUERY)
+  let changed = false
+  for (const key of [CONNECT_QUERY, 'vrfd_like']) {
+    if (url.searchParams.has(key)) {
+      url.searchParams.delete(key)
+      changed = true
+    }
+  }
+  if (!changed) return
   window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`)
 }
 

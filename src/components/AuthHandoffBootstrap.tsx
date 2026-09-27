@@ -2,9 +2,10 @@ import { useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { useAuth } from '../context/AuthContext'
+import { rememberAuthReturn } from '../lib/authRedirect'
 import { applyAuthHandoffCode } from '../lib/supabaseOAuth'
 
-/** Restores Supabase session in wallet browsers after Safari X sign-in. */
+/** Restores X session when landing in MetaMask/Phantom after signing in elsewhere. */
 export function AuthHandoffBootstrap() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -14,19 +15,26 @@ export function AuthHandoffBootstrap() {
   useEffect(() => {
     const params = new URLSearchParams(location.search)
     const code = params.get('vrfd_handoff')
+    const likeSeed = params.get('vrfd_like')
+
+    if (likeSeed) {
+      rememberAuthReturn(location.pathname, likeSeed)
+    }
+
     if (!code || handled.current === code) return
     handled.current = code
 
     void (async () => {
-      const ok = await applyAuthHandoffCode(code)
+      const result = await applyAuthHandoffCode(code)
       params.delete('vrfd_handoff')
+      params.delete('vrfd_like')
       const next = `${location.pathname}${params.toString() ? `?${params}` : ''}${location.hash}`
       navigate(next, { replace: true })
-      if (ok) {
+      if (result.ok) {
         await refreshUser()
         toast.success('Signed in with X')
       } else {
-        toast.error('Sign-in link expired. Please try again.')
+        toast.error('Could not restore your X sign-in. Please sign in again.')
       }
     })()
   }, [location.pathname, location.search, location.hash, navigate, refreshUser])

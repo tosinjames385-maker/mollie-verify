@@ -1,46 +1,86 @@
 import crypto from 'crypto'
+import { prisma } from '../prisma'
 
-type HandoffPayload = {
+type HandoffInput = {
   access_token: string
   refresh_token: string
   expires_at?: number
-  expiresAt: number
+  pendingLike?: string
+  returnPath?: string
 }
 
-const store = new Map<string, HandoffPayload>()
+type HandoffResult = {
+  access_token: string
+  refresh_token: string
+  expires_at?: number
+  pendingLike?: string
+  returnPath?: string
+}
 
-function sweepExpired() {
+const memory = new Map<string, HandoffInput & { expiresAt: number }>()
+
+function sweepMemory() {
   const now = Date.now()
-  for (const [code, row] of store.entries()) {
-    if (row.expiresAt <= now) store.delete(code)
+  for (const [code, row] of memory.entries()) {
+    if (row.expiresAt <= now) memory.delete(code)
   }
 }
 
-export function createAuthHandoff(tokens: {
-  access_token: string
-  refresh_token: string
-  expires_at?: number
-}): string {
-  sweepExpired()
+export async function createAuthHandoff(tokens: HandoffInput): Promise<string> {
   const code = crypto.randomBytes(24).toString('base64url')
-  store.set(code, {
-    ...tokens,
-    expiresAt: Date.now() + 5 * 60 * 1000,
-  })
-  return code
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000)
+
+  try {
+    await prisma.authHandoff.create({
+      data: {
+        code,
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token,
+        expiresAtTs: tokens.expires_at ?? null,
+        pendingLike: tokens.pendingLike ?? null,
+        returnPath: tokens.returnPath ?? null,
+        expiresAt,
+      },
+    })
+    return code
+  } catch (err) {
+    console.warn('Auth handoff saved in memory only (database unavailable):', (err as Error).message)
+    sweepMemory()
+    memory.set(code, { ...tokens, expiresAt: expiresAt.getTime() })
+    return code
+  }
 }
 
-export function consumeAuthHandoff(code: string): Omit<HandoffPayload, 'expiresAt'> | null {
-  sweepExpired()
-  const row = store.get(code)
-  if (!row || row.expiresAt <= Date.now()) {
-    store.delete(code)
+export async function consumeAuthHandoff(code: string): Promise<HandoffResult | null> {
+  try {
+    const row = await prisma.authHandoff.findUnique({ where: { code } })
+    if (row) {
+      await prisma.authHandoff.delete({ where: { id: row.id } }).catch(() => {})
+      if (row.expiresAt.getTime() <= Date.now()) return null
+      return {
+        access_token: row.accessToken,
+        refresh_token: row.refreshToken,
+        expires_at: row.expiresAtTs ?? undefined,
+        pendingLike: row.pendingLike ?? undefined,
+        returnPath: row.returnPath ?? undefined,
+      }
+    }
+  } catch (err) {
+    console.warn('Auth handoff DB read failed, trying memory:', (err as Error).message)
+  }
+
+  sweepMemory()
+  const mem = memory.get(code)
+  if (!mem || mem.expiresAt <= Date.now()) {
+    memory.delete(code)
     return null
   }
-  store.delete(code)
+  memory.delete(code)
   return {
-    access_token: row.access_token,
-    refresh_token: row.refresh_token,
-    expires_at: row.expires_at,
+    access_token: mem.access_token,
+    refresh_token: mem.refresh_token,
+    expires_at: mem.expires_at,
+    pendingLike: mem.pendingLike,
+    returnPath: mem.returnPath,
   }
 }

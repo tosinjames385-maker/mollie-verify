@@ -193,26 +193,44 @@ router.get('/me', async (req: Request, res: Response) => {
   }
 })
 
-/** One-time handoff so X sign-in completed in Safari can restore session in a wallet browser. */
-router.post('/handoff', (req: Request, res: Response) => {
-  const { access_token, refresh_token, expires_at } = req.body || {}
-  if (!access_token || !refresh_token || typeof access_token !== 'string' || typeof refresh_token !== 'string') {
-    return res.status(400).json({ error: 'Missing tokens' })
+/** One-time handoff so X session can move between Chrome/Safari and wallet in-app browsers. */
+router.post('/handoff', async (req: Request, res: Response) => {
+  try {
+    const { access_token, refresh_token, expires_at, pendingLike, returnPath } = req.body || {}
+    if (!access_token || !refresh_token || typeof access_token !== 'string' || typeof refresh_token !== 'string') {
+      return res.status(400).json({ error: 'Missing tokens' })
+    }
+    const code = await createAuthHandoff({
+      access_token,
+      refresh_token,
+      expires_at: typeof expires_at === 'number' ? expires_at : undefined,
+      pendingLike:
+        typeof pendingLike === 'string' && pendingLike.length > 0 && pendingLike.length < 200
+          ? pendingLike
+          : undefined,
+      returnPath:
+        typeof returnPath === 'string' && returnPath.startsWith('/') && !returnPath.startsWith('//')
+          ? returnPath.slice(0, 500)
+          : undefined,
+    })
+    res.json({ code, expiresInSeconds: 600 })
+  } catch (err) {
+    console.error('Failed to create auth handoff:', err)
+    res.status(500).json({ error: 'Failed to create handoff' })
   }
-  const code = createAuthHandoff({
-    access_token,
-    refresh_token,
-    expires_at: typeof expires_at === 'number' ? expires_at : undefined,
-  })
-  res.json({ code, expiresInSeconds: 300 })
 })
 
-router.post('/handoff/exchange', (req: Request, res: Response) => {
-  const code = String(req.body?.code || '')
-  if (!code) return res.status(400).json({ error: 'Missing code' })
-  const tokens = consumeAuthHandoff(code)
-  if (!tokens) return res.status(410).json({ error: 'Invalid or expired handoff code' })
-  res.json(tokens)
+router.post('/handoff/exchange', async (req: Request, res: Response) => {
+  try {
+    const code = String(req.body?.code || '')
+    if (!code) return res.status(400).json({ error: 'Missing code' })
+    const tokens = await consumeAuthHandoff(code)
+    if (!tokens) return res.status(410).json({ error: 'Invalid or expired handoff code' })
+    res.json(tokens)
+  } catch (err) {
+    console.error('Failed to exchange auth handoff:', err)
+    res.status(500).json({ error: 'Failed to exchange handoff' })
+  }
 })
 
 // Logout

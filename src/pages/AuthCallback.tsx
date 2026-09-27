@@ -88,6 +88,14 @@ export const AuthCallback: React.FC = () => {
                 access_token: session.access_token,
                 refresh_token: session.refresh_token,
                 expires_at: session.expires_at,
+                pendingLike: (() => {
+                  try {
+                    return sessionStorage.getItem('vrfd_pending_like') || undefined
+                  } catch {
+                    return undefined
+                  }
+                })(),
+                returnPath: back,
               }),
             })
             if (res.ok) {

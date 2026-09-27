@@ -247,7 +247,7 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
         if (mobile && !inMetaMask) {
           markPendingMobileWallet('MetaMask')
           toast('Opening this page inside MetaMask…')
-          openCurrentPageInMetaMask()
+          await openCurrentPageInMetaMask()
           return
         }
         await prepareMetaMaskSolana()
@@ -258,7 +258,7 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
         if (!phantomReady || !isWalletConnectable(phantomReady)) {
           markPendingMobileWallet('Phantom')
           toast('Opening this page inside Phantom…')
-          openCurrentPageInPhantom()
+          await openCurrentPageInPhantom()
           return
         }
       }
@@ -269,7 +269,7 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
         if (walletHintIsMetaMask(hint) && mobile && !isMetaMaskInAppBrowser() && !isMetaMaskBrowserAvailable()) {
           markPendingMobileWallet('MetaMask')
           toast('Opening this page inside MetaMask…')
-          openCurrentPageInMetaMask()
+          await openCurrentPageInMetaMask()
           return
         }
         const sample = walletsRef.current.map((w) => getWalletAdapterName(w)).filter(Boolean).join(', ')

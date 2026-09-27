@@ -64,7 +64,7 @@ export function AuthXStart() {
   }
 
   const returnToPhantom = () => {
-    openCurrentPageInPhantom()
+    void openCurrentPageInPhantom()
   }
 
   return (

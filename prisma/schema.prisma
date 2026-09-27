@@ -185,3 +185,18 @@ model BotLog {
   @@index([createdAt])
 }
 
+// Short-lived one-time codes to move an X session between browsers (Chrome <-> MetaMask/Phantom).
+model AuthHandoff {
+  id           String   @id @default(cuid())
+  code         String   @unique
+  accessToken  String
+  refreshToken String
+  expiresAtTs  Int?
+  pendingLike  String?
+  returnPath   String?
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  @@index([expiresAt])
+}
+
