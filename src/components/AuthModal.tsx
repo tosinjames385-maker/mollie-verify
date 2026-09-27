@@ -1,10 +1,12 @@
 import React from 'react'
 import { useAuth } from '../context/AuthContext'
 import { X } from 'lucide-react'
+import { isRestrictedAuthBrowser } from '../lib/inAppBrowser'
 
 export const AuthModal: React.FC = () => {
   const { isModalOpen, closeAuthModal, loginWithX } = useAuth()
   const [isAuthorizing, setIsAuthorizing] = React.useState(false)
+  const walletBrowser = isRestrictedAuthBrowser()
 
   if (!isModalOpen) return null
 
@@ -56,7 +58,9 @@ export const AuthModal: React.FC = () => {
               Continue with X
             </h2>
             <p className="text-sm text-gray-500">
-              Sign in to Solverify using your X account. You'll be redirected to X to authorize the app.
+              {walletBrowser
+                ? 'In Phantom or other wallet browsers, sign-in opens in Safari or Chrome so X login works reliably.'
+                : "Sign in to Solverify using your X account. You'll be redirected to X to authorize the app."}
             </p>
           </div>
 

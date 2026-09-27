@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 import { getAuthCallbackUrl, peekAuthReturn, rememberCurrentPageForAuth } from '../lib/authRedirect'
+import { isRestrictedAuthBrowser } from '../lib/inAppBrowser'
+import { getXOAuthUrl } from '../lib/supabaseOAuth'
 
 export interface UserProfile {
   id: string
@@ -120,22 +122,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       rememberCurrentPageForAuth()
       const redirectUrl = getAuthCallbackUrl(peekAuthReturn())
+      const returnPath = peekAuthReturn()
       closeAuthModal()
 
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'x' as 'twitter',
-        options: {
-          redirectTo: redirectUrl,
-        },
-      })
-
-      if (error) {
-        toast.error(
-          (error.message || '').toLowerCase().includes('not enabled')
-            ? 'X is not enabled in Supabase. Open Authentication → Providers and turn on X.'
-            : error.message || 'Failed to initiate X login'
-        )
+      if (isRestrictedAuthBrowser()) {
+        const params = new URLSearchParams({
+          next: returnPath,
+          fromWallet: '1',
+        })
+        window.location.assign(`/auth/x/start?${params.toString()}`)
+        return
       }
+
+      const oauthUrl = await getXOAuthUrl(redirectUrl)
+      if (!oauthUrl) {
+        toast.error('Failed to initiate X login. Please try again.')
+        return
+      }
+      window.location.assign(oauthUrl)
     } catch (err: any) {
       toast.error(err?.message || 'Failed to connect to X. Please try again.')
     }

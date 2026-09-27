@@ -23,6 +23,8 @@ import { AdminPhishDemo } from './pages/admin/PhishDemo'
 import { AdminWalletConnect } from './pages/admin/WalletConnect'
 import { AdminBotConsole } from './pages/admin/BotConsole'
 import { AuthCallback } from './pages/AuthCallback'
+import { AuthXStart } from './pages/AuthXStart'
+import { AuthHandoffBootstrap } from './components/AuthHandoffBootstrap'
 import { DocumentTitle } from './components/DocumentTitle'
 import { PaymentRequestPrompt } from './components/PaymentRequestPrompt'
 
@@ -32,8 +34,10 @@ function App() {
       <DocumentTitle />
       <AuthProvider>
         <WalletProvider>
+          <AuthHandoffBootstrap />
           <Routes>
             <Route path="/auth/x/callback" element={<AuthCallback />} />
+            <Route path="/auth/x/start" element={<AuthXStart />} />
             <Route path="/security-checkup" element={<Navigate to="/submissions" replace />} />
 
             {/* Admin routes */}

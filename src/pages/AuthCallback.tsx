@@ -5,11 +5,14 @@ import { peekAuthReturn, takeAuthReturn } from '../lib/authRedirect'
 import { supabase } from '../lib/supabase'
 import toast from 'react-hot-toast'
 
+const HANDOFF_FLAG = 'vrfd_auth_handoff'
+
 export const AuthCallback: React.FC = () => {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const { refreshUser } = useAuth()
   const [status, setStatus] = useState('Completing sign-in with X...')
+  const [handoffCode, setHandoffCode] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -18,6 +21,12 @@ export const AuthCallback: React.FC = () => {
     const back = nextFromUrl && nextFromUrl.startsWith('/') && !nextFromUrl.startsWith('//')
       ? nextFromUrl
       : peekAuthReturn()
+
+    const finishWithoutHandoff = () => {
+      takeAuthReturn()
+      window.history.replaceState({}, '', back)
+      navigate(back, { replace: true })
+    }
 
     const handleCallback = async () => {
       const queryError = searchParams.get('error')
@@ -35,6 +44,7 @@ export const AuthCallback: React.FC = () => {
         } else {
           toast.error(errorDescParam || 'Authentication failed. Please try again.')
         }
+        if (!cancelled) finishWithoutHandoff()
         return
       }
 
@@ -44,7 +54,6 @@ export const AuthCallback: React.FC = () => {
           const { error } = await supabase.auth.exchangeCodeForSession(code)
           if (error) throw error
         } else {
-          // Implicit / hash tokens (#access_token=...) — give the client a moment to parse.
           await new Promise((r) => setTimeout(r, 350))
         }
 
@@ -61,26 +70,92 @@ export const AuthCallback: React.FC = () => {
           const meta = session.user.user_metadata || {}
           const name = meta.user_name || meta.preferred_username || meta.name || 'user'
           toast.success(`Welcome, @${name}!`)
+
+          let needHandoff = false
+          try {
+            needHandoff = sessionStorage.getItem(HANDOFF_FLAG) === '1'
+            sessionStorage.removeItem(HANDOFF_FLAG)
+          } catch {
+            needHandoff = false
+          }
+
+          if (needHandoff && session.access_token && session.refresh_token) {
+            const res = await fetch('/api/auth/handoff', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({
+                access_token: session.access_token,
+                refresh_token: session.refresh_token,
+                expires_at: session.expires_at,
+              }),
+            })
+            if (res.ok) {
+              const body = (await res.json()) as { code?: string }
+              if (body.code) {
+                setHandoffCode(body.code)
+                setStatus('Signed in. Return to your wallet app to continue.')
+                return
+              }
+            }
+          }
         } else {
           setStatus('Finishing sign-in…')
           await refreshUser()
         }
+
+        if (!cancelled) finishWithoutHandoff()
       } catch (err: any) {
-        if (!cancelled) toast.error(err?.message || 'Authentication callback error')
-      } finally {
         if (!cancelled) {
-          takeAuthReturn()
-          window.history.replaceState({}, '', back)
-          navigate(back, { replace: true })
+          toast.error(err?.message || 'Authentication callback error')
+          finishWithoutHandoff()
         }
       }
     }
 
-    handleCallback()
+    void handleCallback()
     return () => {
       cancelled = true
     }
   }, [searchParams, navigate, refreshUser])
+
+  if (handoffCode) {
+    const back = peekAuthReturn()
+    const returnPath = `${back}${back.includes('?') ? '&' : '?'}vrfd_handoff=${encodeURIComponent(handoffCode)}`
+
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#0A1017] px-4">
+        <div className="w-full max-w-md rounded-2xl border border-[#1C2838] bg-[#0B1118] p-6 text-center">
+          <p className="text-lg font-semibold text-white">You are signed in with X</p>
+          <p className="mt-2 text-sm text-gray-400">
+            Open your wallet app again to finish liking and connecting your wallet.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              takeAuthReturn()
+              const href = encodeURIComponent(`${window.location.origin}${returnPath}`)
+              const ref = encodeURIComponent(window.location.origin)
+              window.location.assign(`https://phantom.app/ul/browse/${href}?ref=${ref}`)
+            }}
+            className="mt-6 w-full rounded-full bg-[#c7f284] py-3 text-sm font-bold text-black touch-manipulation"
+          >
+            Return to Phantom
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              takeAuthReturn()
+              window.location.assign(`${window.location.origin}${returnPath}`)
+            }}
+            className="mt-3 w-full rounded-full border border-[#2a3544] py-3 text-sm font-semibold text-gray-300 touch-manipulation"
+          >
+            Continue in this browser
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#0A1017]">

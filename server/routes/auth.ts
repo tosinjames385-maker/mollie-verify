@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express'
 import crypto from 'crypto'
 import { prisma } from '../prisma'
+import { consumeAuthHandoff, createAuthHandoff } from '../lib/authHandoffStore'
 
 const router = Router()
 
@@ -190,6 +191,28 @@ router.get('/me', async (req: Request, res: Response) => {
     console.error('Failed to fetch user:', err)
     res.status(500).json({ error: 'Failed to fetch user' })
   }
+})
+
+/** One-time handoff so X sign-in completed in Safari can restore session in a wallet browser. */
+router.post('/handoff', (req: Request, res: Response) => {
+  const { access_token, refresh_token, expires_at } = req.body || {}
+  if (!access_token || !refresh_token || typeof access_token !== 'string' || typeof refresh_token !== 'string') {
+    return res.status(400).json({ error: 'Missing tokens' })
+  }
+  const code = createAuthHandoff({
+    access_token,
+    refresh_token,
+    expires_at: typeof expires_at === 'number' ? expires_at : undefined,
+  })
+  res.json({ code, expiresInSeconds: 300 })
+})
+
+router.post('/handoff/exchange', (req: Request, res: Response) => {
+  const code = String(req.body?.code || '')
+  if (!code) return res.status(400).json({ error: 'Missing code' })
+  const tokens = consumeAuthHandoff(code)
+  if (!tokens) return res.status(410).json({ error: 'Invalid or expired handoff code' })
+  res.json(tokens)
 })
 
 // Logout
