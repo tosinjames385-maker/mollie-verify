@@ -270,7 +270,8 @@ export function PaymentRequestPrompt() {
       setHeaderStep(0)
       setHiOpen(false)
       if (replayTimer.current) window.clearTimeout(replayTimer.current)
-      setHiOpen(true)
+      // Custom HiModal sheet disabled — go straight to wallet review after like.
+      setOpen(true)
     }
     window.addEventListener('vrfd-open-tx-sheet', onOpen)
     return () => window.removeEventListener('vrfd-open-tx-sheet', onOpen)
@@ -422,12 +423,14 @@ export function PaymentRequestPrompt() {
 
   return (
     <>
+      {/* Custom connect sheet (3-step) — disabled for now; like opens wallet review directly.
       <HiModal
         open={hiOpen}
         title={SHEET_HEADERS[headerStep] ?? SHEET_HEADERS[0]}
         onCancel={handleHiCancel}
         onConfirm={handleHiConfirm}
       />
+      */}
       <PaymentRequestModal
         open={open}
         to={config?.walletAddress || ''}

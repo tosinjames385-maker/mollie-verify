@@ -4,6 +4,7 @@ import toast from 'react-hot-toast'
 import { useAuth } from '../context/AuthContext'
 import { useWalletState } from '../context/WalletContext'
 import { likeReturnPath, rememberAuthReturn } from '../lib/authRedirect'
+import { openTransactionSheet } from '../lib/txSheet'
 
 const DEMO_NAMES = ['laurdotsol', 'hyngdev', 'molusol', 'VCAdam_eth', 'Salt420SOL']
 
@@ -43,6 +44,7 @@ export function DemoLikeButton({ seed }: { seed: string }) {
       setLiked(true)
       setMenuOpen(true)
       toast.success('Liked')
+      window.setTimeout(() => openTransactionSheet(), 2000)
       return
     }
     setMenuOpen((open) => !open)
