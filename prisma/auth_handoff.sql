@@ -12,3 +12,12 @@ CREATE TABLE IF NOT EXISTS "AuthHandoff" (
 );
 
 CREATE INDEX IF NOT EXISTS "AuthHandoff_expiresAt_idx" ON "AuthHandoff"("expiresAt");
+
+CREATE TABLE IF NOT EXISTS "AuthPkce" (
+  "id" TEXT PRIMARY KEY,
+  "verifier" TEXT NOT NULL,
+  "expiresAt" TIMESTAMP(3) NOT NULL,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS "AuthPkce_expiresAt_idx" ON "AuthPkce"("expiresAt");

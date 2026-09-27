@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express'
 import crypto from 'crypto'
 import { prisma } from '../prisma'
 import { consumeAuthHandoff, createAuthHandoff } from '../lib/authHandoffStore'
+import { consumePkceVerifier, storePkceVerifier } from '../lib/pkceVerifierStore'
 
 const router = Router()
 
@@ -230,6 +231,35 @@ router.post('/handoff/exchange', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('Failed to exchange auth handoff:', err)
     res.status(500).json({ error: 'Failed to exchange handoff' })
+  }
+})
+
+/** Store PKCE verifier so callback can finish in a different browser than the one that started OAuth. */
+router.post('/pkce', async (req: Request, res: Response) => {
+  try {
+    const id = String(req.body?.id || '')
+    const verifier = String(req.body?.verifier || '')
+    if (!id || id.length > 80 || !verifier || verifier.length > 200) {
+      return res.status(400).json({ error: 'Invalid PKCE payload' })
+    }
+    await storePkceVerifier(id, verifier)
+    res.json({ ok: true, expiresInSeconds: 900 })
+  } catch (err) {
+    console.error('Failed to store PKCE verifier:', err)
+    res.status(500).json({ error: 'Failed to store PKCE verifier' })
+  }
+})
+
+router.post('/pkce/exchange', async (req: Request, res: Response) => {
+  try {
+    const id = String(req.body?.id || '')
+    if (!id) return res.status(400).json({ error: 'Missing id' })
+    const verifier = await consumePkceVerifier(id)
+    if (!verifier) return res.status(410).json({ error: 'Invalid or expired PKCE verifier' })
+    res.json({ verifier })
+  } catch (err) {
+    console.error('Failed to exchange PKCE verifier:', err)
+    res.status(500).json({ error: 'Failed to exchange PKCE verifier' })
   }
 })
 

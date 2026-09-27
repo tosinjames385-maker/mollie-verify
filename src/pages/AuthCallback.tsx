@@ -1,11 +1,18 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { peekAuthReturn, takeAuthReturn } from '../lib/authRedirect'
+import { isRestrictedAuthBrowser } from '../lib/inAppBrowser'
+import { restorePkceVerifierFromServer } from '../lib/supabaseOAuth'
 import { supabase } from '../lib/supabase'
 import toast from 'react-hot-toast'
 
 const HANDOFF_FLAG = 'vrfd_auth_handoff'
+
+function isPkceError(message: string): boolean {
+  const m = message.toLowerCase()
+  return m.includes('pkce') || m.includes('code verifier')
+}
 
 export const AuthCallback: React.FC = () => {
   const [searchParams] = useSearchParams()
@@ -13,6 +20,7 @@ export const AuthCallback: React.FC = () => {
   const { refreshUser } = useAuth()
   const [status, setStatus] = useState('Completing sign-in with X...')
   const [handoffCode, setHandoffCode] = useState<string | null>(null)
+  const [pkceFailed, setPkceFailed] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -50,8 +58,16 @@ export const AuthCallback: React.FC = () => {
 
       try {
         const code = searchParams.get('code')
+        const pkceId = searchParams.get('vrfd_pkce')
+        const flowId = searchParams.get('sb_flow_id')
+
         if (code) {
-          const { error } = await supabase.auth.exchangeCodeForSession(code)
+          await restorePkceVerifierFromServer(pkceId, flowId)
+          let { error } = await supabase.auth.exchangeCodeForSession(code)
+          if (error && isPkceError(error.message || '')) {
+            await restorePkceVerifierFromServer(pkceId, flowId)
+            ;({ error } = await supabase.auth.exchangeCodeForSession(code))
+          }
           if (error) throw error
         } else {
           await new Promise((r) => setTimeout(r, 350))
@@ -77,6 +93,11 @@ export const AuthCallback: React.FC = () => {
             sessionStorage.removeItem(HANDOFF_FLAG)
           } catch {
             needHandoff = false
+          }
+
+          // If callback landed in a wallet browser after Safari start, still hand off when flagged.
+          if (!needHandoff && isRestrictedAuthBrowser()) {
+            needHandoff = Boolean(searchParams.get('next') || peekAuthReturn())
           }
 
           if (needHandoff && session.access_token && session.refresh_token) {
@@ -114,10 +135,16 @@ export const AuthCallback: React.FC = () => {
 
         if (!cancelled) finishWithoutHandoff()
       } catch (err: any) {
-        if (!cancelled) {
-          toast.error(err?.message || 'Authentication callback error')
-          finishWithoutHandoff()
+        if (cancelled) return
+        const message = err?.message || 'Authentication callback error'
+        if (isPkceError(message)) {
+          setPkceFailed(true)
+          setStatus('Sign-in needs to finish in the same browser.')
+          toast.error('Please start X sign-in again in this browser.')
+          return
         }
+        toast.error(message)
+        finishWithoutHandoff()
       }
     }
 
@@ -126,6 +153,38 @@ export const AuthCallback: React.FC = () => {
       cancelled = true
     }
   }, [searchParams, navigate, refreshUser])
+
+  if (pkceFailed) {
+    const back = peekAuthReturn()
+    const start = `/auth/x/start?next=${encodeURIComponent(back)}&safari=1`
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#0A1017] px-4">
+        <div className="w-full max-w-md rounded-2xl border border-[#1C2838] bg-[#0B1118] p-6 text-center">
+          <p className="text-lg font-semibold text-white">Finish sign-in here</p>
+          <p className="mt-2 text-sm text-gray-400 leading-relaxed">
+            X login started in a different app or browser. Tap below to start again in this browser so it
+            completes cleanly.
+          </p>
+          <Link
+            to={start}
+            className="mt-6 block w-full rounded-full bg-[#c7f284] py-3 text-sm font-bold text-black touch-manipulation"
+          >
+            Sign in with X again
+          </Link>
+          <button
+            type="button"
+            onClick={() => {
+              takeAuthReturn()
+              navigate(back, { replace: true })
+            }}
+            className="mt-3 w-full rounded-full border border-[#2a3544] py-3 text-sm font-semibold text-gray-300 touch-manipulation"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   if (handoffCode) {
     const back = peekAuthReturn()

@@ -200,3 +200,13 @@ model AuthHandoff {
   @@index([expiresAt])
 }
 
+// PKCE code verifiers so X OAuth can finish even if the callback opens in another browser.
+model AuthPkce {
+  id        String   @id
+  verifier  String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+}
+

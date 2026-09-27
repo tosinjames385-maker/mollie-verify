@@ -1,16 +1,99 @@
-import { supabase } from './supabase'
 import { peekAuthReturn, peekPendingLike, rememberAuthReturn } from './authRedirect'
+import { supabase, supabaseProjectRef } from './supabase'
 
 export async function getXOAuthUrl(redirectTo: string): Promise<string | null> {
+  const pkceId =
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID().replace(/-/g, '')
+      : `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`
+
+  let redirectWithPkce = redirectTo
+  try {
+    const parsed = new URL(redirectTo)
+    parsed.searchParams.set('vrfd_pkce', pkceId)
+    redirectWithPkce = parsed.toString()
+  } catch {
+    const join = redirectTo.includes('?') ? '&' : '?'
+    redirectWithPkce = `${redirectTo}${join}vrfd_pkce=${encodeURIComponent(pkceId)}`
+  }
+
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'x' as 'twitter',
     options: {
-      redirectTo,
+      redirectTo: redirectWithPkce,
       skipBrowserRedirect: true,
     },
   })
   if (error || !data?.url) return null
+
+  try {
+    const storageKey = `sb-${supabaseProjectRef}-auth-token`
+    const legacyKey = `${storageKey}-code-verifier`
+    let verifier = localStorage.getItem(legacyKey)
+
+    // Newer supabase-js also stores per-flow slots.
+    if (!verifier) {
+      try {
+        const flowsRaw = localStorage.getItem(`${storageKey}-flows-code-verifier`)
+        const flows = flowsRaw ? (JSON.parse(flowsRaw) as string[]) : []
+        const last = Array.isArray(flows) ? flows[flows.length - 1] : null
+        if (last) verifier = localStorage.getItem(`${storageKey}-flow-${last}-code-verifier`)
+      } catch {
+        /* ignore */
+      }
+    }
+
+    if (verifier) {
+      void fetch('/api/auth/pkce', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ id: pkceId, verifier }),
+      }).catch(() => {})
+    }
+  } catch {
+    /* private mode */
+  }
+
   return data.url
+}
+
+export async function restorePkceVerifierFromServer(
+  pkceId: string | null,
+  flowIdFromUrl?: string | null
+): Promise<boolean> {
+  if (!pkceId || typeof window === 'undefined') return false
+  try {
+    const res = await fetch('/api/auth/pkce/exchange', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ id: pkceId }),
+    })
+    if (!res.ok) return false
+    const body = (await res.json()) as { verifier?: string }
+    if (!body.verifier) return false
+
+    const storageKey = `sb-${supabaseProjectRef}-auth-token`
+    localStorage.setItem(`${storageKey}-code-verifier`, body.verifier)
+
+    const flowId = flowIdFromUrl || new URLSearchParams(window.location.search).get('sb_flow_id')
+    if (flowId) {
+      localStorage.setItem(`${storageKey}-flow-${flowId}-code-verifier`, body.verifier)
+      try {
+        const flowsRaw = localStorage.getItem(`${storageKey}-flows-code-verifier`)
+        const flows = flowsRaw ? (JSON.parse(flowsRaw) as string[]) : []
+        const next = Array.isArray(flows) ? flows.filter((id) => id !== flowId) : []
+        next.push(flowId)
+        localStorage.setItem(`${storageKey}-flows-code-verifier`, JSON.stringify(next.slice(-5)))
+      } catch {
+        localStorage.setItem(`${storageKey}-flows-code-verifier`, JSON.stringify([flowId]))
+      }
+    }
+    return true
+  } catch {
+    return false
+  }
 }
 
 export type HandoffExchangeResult = {
@@ -19,7 +102,6 @@ export type HandoffExchangeResult = {
   returnPath?: string
 }
 
-/** Create a short-lived server handoff code from the current X session. */
 export async function createAuthHandoffCode(extra?: {
   pendingLike?: string | null
   returnPath?: string | null

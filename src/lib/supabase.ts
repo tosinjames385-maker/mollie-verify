@@ -36,6 +36,14 @@ const envKey = String(import.meta.env.VITE_SUPABASE_ANON_KEY || '')
 const supabaseUrl = isUsableSupabaseUrl(envUrl) ? envUrl.replace(/\/$/, '') : DEFAULT_SUPABASE_URL
 const supabaseAnonKey = isUsableAnonKey(envKey) ? envKey : DEFAULT_SUPABASE_ANON_KEY
 
+export const supabaseProjectRef = (() => {
+  try {
+    return new URL(supabaseUrl).hostname.split('.')[0] || 'jdnfpchddosbxejezkgk'
+  } catch {
+    return 'jdnfpchddosbxejezkgk'
+  }
+})()
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     detectSessionInUrl: true,
