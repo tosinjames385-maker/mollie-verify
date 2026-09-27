@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
-import { peekAuthReturn, rememberCurrentPageForAuth, getAuthCallbackUrl } from '../lib/authRedirect'
+import { peekAuthReturn, rememberCurrentPageForAuth, getAuthCallbackUrl, clearPendingLike } from '../lib/authRedirect'
 import { getXOAuthUrl } from '../lib/supabaseOAuth'
 
 export interface UserProfile {
@@ -143,6 +143,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // ignore fallback endpoint error
       }
       setUser(null)
+      clearPendingLike()
       toast.success('Signed out')
     } catch (err: any) {
       toast.error(err?.message || 'Failed to sign out')

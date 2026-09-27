@@ -40,7 +40,13 @@ export function DemoLikeButton({ seed }: { seed: string }) {
   }
 
   useEffect(() => {
-    if (!isAuthenticated) return
+    if (!isAuthenticated) {
+      setLiked(false)
+      setMenuOpen(false)
+      finished.current = false
+      resumeLike.current = false
+      return
+    }
     if (peekPendingLike() === seed) resumeLike.current = true
     if (!resumeLike.current || finished.current || !connected) return
     completeLike(true)

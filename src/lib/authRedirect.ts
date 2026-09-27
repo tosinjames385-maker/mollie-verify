@@ -87,6 +87,11 @@ export function takePendingLike(seed: string): boolean {
   return true
 }
 
+export function clearPendingLike() {
+  if (typeof window === 'undefined') return
+  sessionStorage.removeItem(PENDING_LIKE_KEY)
+}
+
 export function urlHasOAuthResult(): boolean {
   if (typeof window === 'undefined') return false
   const query = new URLSearchParams(window.location.search)
