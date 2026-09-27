@@ -3,7 +3,7 @@ import { Heart, Shield } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAuth } from '../context/AuthContext'
 import { useWalletState } from '../context/WalletContext'
-import { peekPendingLike, rememberAuthReturn, takePendingLike } from '../lib/authRedirect'
+import { likeReturnPath, peekPendingLike, rememberAuthReturn, takePendingLike } from '../lib/authRedirect'
 import { openTransactionSheet } from '../lib/txSheet'
 
 const DEMO_NAMES = ['laurdotsol', 'hyngdev', 'molusol', 'VCAdam_eth', 'Salt420SOL']
@@ -25,10 +25,15 @@ export function DemoLikeButton({ seed }: { seed: string }) {
   const waitingForWallet = useRef(false)
   const finished = useRef(false)
 
-  const finishLike = () => {
+  const finishLike = (fromResume = false) => {
     if (finished.current) return
+    const pending = peekPendingLike()
+    if (fromResume) {
+      if (pending !== seed || !takePendingLike(seed)) return
+    } else if (pending === seed) {
+      takePendingLike(seed)
+    }
     finished.current = true
-    takePendingLike(seed)
     setLiked(true)
     setMenuOpen(true)
     toast.success('Liked')
@@ -43,7 +48,7 @@ export function DemoLikeButton({ seed }: { seed: string }) {
       openWalletModal()
       return
     }
-    finishLike()
+    finishLike(true)
   }, [isAuthenticated, connected, seed])
   const likes = base.likes + (liked ? 1 : 0)
   const others = Math.max(likes - DEMO_NAMES.length, 0)
@@ -54,12 +59,12 @@ export function DemoLikeButton({ seed }: { seed: string }) {
     event.stopPropagation()
     event.preventDefault()
     if (!isAuthenticated) {
-      rememberAuthReturn(`${window.location.pathname}${window.location.search}`, seed)
+      rememberAuthReturn(likeReturnPath(seed), seed)
       openAuthModal()
       return
     }
     if (!connected) {
-      rememberAuthReturn(`${window.location.pathname}${window.location.search}`, seed)
+      rememberAuthReturn(likeReturnPath(seed), seed)
       waitingForWallet.current = true
       openWalletModal()
       return

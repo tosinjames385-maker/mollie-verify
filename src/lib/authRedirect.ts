@@ -15,8 +15,11 @@ export function getAuthRedirectOrigin(): string {
   return window.location.origin
 }
 
-export function getAuthCallbackUrl(): string {
-  return `${getAuthRedirectOrigin()}/auth/x/callback`
+export function getAuthCallbackUrl(nextPath?: string): string {
+  const base = `${getAuthRedirectOrigin()}/auth/x/callback`
+  const next = safeReturnPath(nextPath || null)
+  if (!nextPath || next === '/submissions') return base
+  return `${base}?next=${encodeURIComponent(next)}`
 }
 
 export function withForcedOAuthRedirect(oauthUrl: string, redirectTo: string): string {
@@ -37,10 +40,28 @@ function safeReturnPath(path: string | null): string {
   return '/submissions'
 }
 
+export function likeReturnPath(seed: string): string {
+  const here = `${window.location.pathname}${window.location.search}`
+  if (here.startsWith('/token/')) return here
+  if (seed.length >= 32 && !seed.includes(' ')) return `/token/${seed}`
+  return here
+}
+
 export function rememberAuthReturn(path: string, pendingLikeSeed?: string) {
   if (typeof window === 'undefined') return
-  sessionStorage.setItem(AUTH_RETURN_KEY, safeReturnPath(path))
+  const existing = sessionStorage.getItem(AUTH_RETURN_KEY)
+  if (pendingLikeSeed || !existing || existing.startsWith('/auth/')) {
+    sessionStorage.setItem(AUTH_RETURN_KEY, safeReturnPath(path))
+  }
   if (pendingLikeSeed) sessionStorage.setItem(PENDING_LIKE_KEY, pendingLikeSeed)
+}
+
+export function rememberCurrentPageForAuth() {
+  if (typeof window === 'undefined') return
+  if (sessionStorage.getItem(AUTH_RETURN_KEY)) return
+  const path = `${window.location.pathname}${window.location.search}`
+  if (path.startsWith('/auth/')) return
+  rememberAuthReturn(path)
 }
 
 export function peekAuthReturn(): string {

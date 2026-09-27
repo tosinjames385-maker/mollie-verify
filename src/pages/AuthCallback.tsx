@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { takeAuthReturn } from '../lib/authRedirect'
+import { peekAuthReturn, takeAuthReturn } from '../lib/authRedirect'
 import { supabase } from '../lib/supabase'
 import toast from 'react-hot-toast'
 
@@ -13,6 +13,11 @@ export const AuthCallback: React.FC = () => {
 
   useEffect(() => {
     let cancelled = false
+
+    const nextFromUrl = searchParams.get('next')
+    const back = nextFromUrl && nextFromUrl.startsWith('/') && !nextFromUrl.startsWith('//')
+      ? nextFromUrl
+      : peekAuthReturn()
 
     const handleCallback = async () => {
       const queryError = searchParams.get('error')
@@ -64,7 +69,7 @@ export const AuthCallback: React.FC = () => {
         if (!cancelled) toast.error(err?.message || 'Authentication callback error')
       } finally {
         if (!cancelled) {
-          const back = takeAuthReturn()
+          takeAuthReturn()
           window.history.replaceState({}, '', back)
           navigate(back, { replace: true })
         }

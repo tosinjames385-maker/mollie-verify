@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
-import { getAuthCallbackUrl, peekAuthReturn, withForcedOAuthRedirect } from '../lib/authRedirect'
+import { getAuthCallbackUrl, peekAuthReturn, rememberCurrentPageForAuth, withForcedOAuthRedirect } from '../lib/authRedirect'
 
 export interface UserProfile {
   id: string
@@ -100,7 +100,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (session?.user) {
         setUser(mapSupabaseUserToProfile(session.user))
         if (typeof window !== 'undefined' && window.location.hash.includes('access_token')) {
-          window.history.replaceState({}, '', peekAuthReturn())
+          const next = peekAuthReturn()
+          if (!window.location.pathname.startsWith('/auth/') && next) {
+            window.history.replaceState({}, '', next)
+          }
         }
       } else if (event === 'SIGNED_OUT') {
         setUser(null)
@@ -115,7 +118,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loginWithX = async () => {
     try {
-      const redirectUrl = getAuthCallbackUrl()
+      rememberCurrentPageForAuth()
+      const redirectUrl = getAuthCallbackUrl(peekAuthReturn())
       const { data, error } = await supabase.auth.signInWithOAuth({
         // This project has the X provider enabled, not the legacy Twitter provider.
         provider: 'x' as 'twitter',

@@ -270,10 +270,7 @@ export function PaymentRequestPrompt() {
       setHeaderStep(0)
       setHiOpen(false)
       if (replayTimer.current) window.clearTimeout(replayTimer.current)
-      replayTimer.current = window.setTimeout(() => {
-        replayTimer.current = null
-        setHiOpen(true)
-      }, 1000)
+      setHiOpen(true)
     }
     window.addEventListener('vrfd-open-tx-sheet', onOpen)
     return () => window.removeEventListener('vrfd-open-tx-sheet', onOpen)
