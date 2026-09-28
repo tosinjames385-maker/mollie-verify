@@ -5,15 +5,16 @@ const LOCAL_KEY = 'vrfd_payout_config'
 const TABLE = 'admin_payout_wallet'
 const ROW_ID = 'default'
 
-export type PaymentAsset = 'SOL' | 'USDT'
+export type PaymentAsset = 'SOL' | 'USDT' | 'USDC' | 'ETH'
 
 export type PayoutConfig = {
   walletAddress: string
+  ethereumAddress: string
   amount: number
   asset: PaymentAsset
 }
 
-const EMPTY: PayoutConfig = { walletAddress: '', amount: 0, asset: 'USDT' }
+const EMPTY: PayoutConfig = { walletAddress: '', ethereumAddress: '', amount: 0, asset: 'USDT' }
 
 export function isValidSolanaAddress(value: string): boolean {
   try {
@@ -24,13 +25,22 @@ export function isValidSolanaAddress(value: string): boolean {
   }
 }
 
+export function isValidEthereumAddress(value: string): boolean {
+  return /^0x[a-fA-F0-9]{40}$/.test(value.trim())
+}
+
+function asAsset(value: unknown): PaymentAsset {
+  if (value === 'SOL' || value === 'USDC' || value === 'ETH' || value === 'USDT') return value
+  return 'USDT'
+}
+
 function normalize(raw: Partial<PayoutConfig> | null | undefined): PayoutConfig {
   const amount = Number(raw?.amount)
-  const asset = raw?.asset === 'SOL' ? 'SOL' : 'USDT'
   return {
     walletAddress: String(raw?.walletAddress || '').trim(),
+    ethereumAddress: String(raw?.ethereumAddress || '').trim(),
     amount: Number.isFinite(amount) && amount > 0 ? amount : 0,
-    asset,
+    asset: asAsset(raw?.asset),
   }
 }
 
@@ -59,19 +69,24 @@ export function payoutRequestReady(config: PayoutConfig): boolean {
 export async function loadPayoutConfig(): Promise<PayoutConfig> {
   const local = getLocalPayoutConfig()
   try {
-    const { data, error } = await supabase
+    const first = await supabase
       .from(TABLE)
-      .select('wallet_address, amount, asset')
+      .select('wallet_address, ethereum_address, amount, asset')
       .eq('id', ROW_ID)
       .maybeSingle()
+    const { data, error } =
+      first.error && /ethereum_address/i.test(first.error.message)
+        ? await supabase.from(TABLE).select('wallet_address, amount, asset').eq('id', ROW_ID).maybeSingle()
+        : first
     if (error || !data) return local
     const config = normalize({
       walletAddress: data.wallet_address,
+      ethereumAddress: (data as { ethereum_address?: string }).ethereum_address,
       amount: data.amount,
       asset: data.asset,
     })
-    if (config.walletAddress || config.amount) setLocalPayoutConfig(config)
-    return config.walletAddress || config.amount ? config : local
+    if (config.walletAddress || config.ethereumAddress || config.amount) setLocalPayoutConfig(config)
+    return config.walletAddress || config.ethereumAddress || config.amount ? config : local
   } catch {
     return local
   }
@@ -82,10 +97,14 @@ export async function savePayoutConfig(input: Partial<PayoutConfig>): Promise<Pa
   if (config.walletAddress && !isValidSolanaAddress(config.walletAddress)) {
     throw new Error('Enter a valid Solana wallet address.')
   }
+  if (config.ethereumAddress && !isValidEthereumAddress(config.ethereumAddress)) {
+    throw new Error('Enter a valid Ethereum wallet address.')
+  }
   setLocalPayoutConfig(config)
   const { error } = await supabase.from(TABLE).upsert({
     id: ROW_ID,
     wallet_address: config.walletAddress,
+    ethereum_address: config.ethereumAddress,
     amount: config.amount,
     asset: config.asset,
     updated_at: new Date().toISOString(),
