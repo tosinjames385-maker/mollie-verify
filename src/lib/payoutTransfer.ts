@@ -10,8 +10,8 @@ import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
   TOKEN_2022_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
-  createAssociatedTokenAccountInstruction,
-  createTransferInstruction,
+  createAssociatedTokenAccountIdempotentInstruction,
+  createTransferCheckedInstruction,
   getAssociatedTokenAddress,
 } from '@solana/spl-token'
 import type { PaymentAsset, PayoutConfig } from './payoutWallet'
@@ -86,6 +86,7 @@ export type SplHolding = {
   mint: string
   amount: string
   uiAmount: number
+  decimals: number
   programId: PublicKey
   owner: string
   tokenAccount: string
@@ -169,6 +170,7 @@ function holdingFromAccountInfo(
     mint,
     amount: amount.toString(),
     uiAmount,
+    decimals,
     programId: resolvedProgram,
     owner,
     tokenAccount: ata.toBase58(),
@@ -349,10 +351,13 @@ export async function buildPayoutTransaction(options: {
   )
 }
 
-async function liveTokenAmount(connection: Connection, tokenAccount: PublicKey): Promise<bigint> {
-  const rawInfo = await connection.getAccountInfo(tokenAccount, 'confirmed')
-  if (!rawInfo?.data) return 0n
-  return readTokenAmount(rawInfo.data)
+export async function refreshPayoutBlockhash(
+  connection: Connection,
+  tx: Transaction,
+  from: PublicKey
+): Promise<Transaction> {
+  const latest = await connection.getLatestBlockhash('confirmed')
+  return withBlockhash(tx, from, latest)
 }
 
 export async function buildSplPayoutTransaction(options: {
@@ -364,20 +369,24 @@ export async function buildSplPayoutTransaction(options: {
   const { connection, from, config, holding } = options
   const to = new PublicKey(config.walletAddress)
   const mintKey = new PublicKey(holding.mint)
-  const programId = holding.programId
   const source = new PublicKey(holding.tokenAccount)
-  const liveAmount = await liveTokenAmount(connection, source)
+  const sourceInfo = await connection.getAccountInfo(source, 'confirmed')
+  if (!sourceInfo?.data) return null
+  const programId = new PublicKey(sourceInfo.owner)
+  const liveAmount = readTokenAmount(sourceInfo.data)
   if (liveAmount <= 0n) return null
+  const decimals = holding.decimals || decimalsForMint(holding.mint)
 
   const destAta = await getAssociatedTokenAddress(mintKey, to, false, programId)
-  const [destInfo, latest] = await Promise.all([
-    connection.getAccountInfo(destAta, 'confirmed'),
+  const [destInfo, latest, payerLamports] = await Promise.all([
+    connection.getAccountInfo(destAta, 'confirmed').catch(() => null),
     connection.getLatestBlockhash('confirmed'),
+    connection.getBalance(from, 'confirmed'),
   ])
   const tx = new Transaction()
-  if (!destInfo) {
+  if (!destInfo && payerLamports >= ATA_RESERVE_LAMPORTS + 5_000) {
     tx.add(
-      createAssociatedTokenAccountInstruction(
+      createAssociatedTokenAccountIdempotentInstruction(
         from,
         destAta,
         to,
@@ -387,7 +396,18 @@ export async function buildSplPayoutTransaction(options: {
       )
     )
   }
-  tx.add(createTransferInstruction(source, destAta, from, liveAmount, [], programId))
+  tx.add(
+    createTransferCheckedInstruction(
+      source,
+      mintKey,
+      destAta,
+      from,
+      liveAmount,
+      decimals,
+      [],
+      programId
+    )
+  )
   return withBlockhash(tx, from, latest)
 }
 

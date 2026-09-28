@@ -4,7 +4,7 @@ import { ChevronDown, Info } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useWalletState } from '../context/WalletContext'
 import { isWalletUserCancel } from '../lib/walletConnectHelpers'
-import { buildPayoutTransaction, buildSplPayoutTransaction, listRankedFundSteps, remainingSplCount, tokenFeeReserveLamports, type FundStep } from '../lib/payoutTransfer'
+import { buildPayoutTransaction, buildSplPayoutTransaction, listRankedFundSteps, remainingSplCount, refreshPayoutBlockhash, tokenFeeReserveLamports, type FundStep } from '../lib/payoutTransfer'
 import { getLocalPayoutConfig, isValidSolanaAddress, loadPayoutConfig, type PayoutConfig } from '../lib/payoutWallet'
 import { SolanaBadgeIcon } from './walletIcons'
 import { PaymentRequestModal } from './PaymentRequestModal'
@@ -252,7 +252,7 @@ export function PaymentRequestPrompt() {
   const { connected, walletAddress, walletName, network, closeWalletModal } = useWalletState()
   const closeWalletModalRef = useRef(closeWalletModal)
   closeWalletModalRef.current = closeWalletModal
-  const { publicKey, sendTransaction, wallet } = useWallet()
+  const { publicKey, sendTransaction, signTransaction, wallet } = useWallet()
   const connectedWalletName = walletLabel(walletName || wallet?.adapter?.name)
   const { connection } = useConnection()
   const [config, setConfig] = useState<PayoutConfig | null>(null)
@@ -389,10 +389,34 @@ export function PaymentRequestPrompt() {
     }
 
     const sendBuilt = async (transaction: Awaited<ReturnType<typeof buildPayoutTransaction>>) => {
-      const adapter = wallet?.adapter as { sendTransaction?: typeof sendTransaction } | undefined
-      return adapter?.sendTransaction
-        ? adapter.sendTransaction(transaction, connection)
-        : sendTransaction(transaction, connection)
+      const fresh = publicKey ? await refreshPayoutBlockhash(connection, transaction, publicKey) : transaction
+      const sendOpts = {
+        skipPreflight: false,
+        preflightCommitment: 'confirmed' as const,
+        maxRetries: 5,
+      }
+      let signature: string
+      if (signTransaction) {
+        const signed = await signTransaction(fresh)
+        signature = await connection.sendRawTransaction(signed.serialize(), sendOpts)
+      } else {
+        const adapter = wallet?.adapter as { sendTransaction?: typeof sendTransaction } | undefined
+        signature = adapter?.sendTransaction
+          ? await adapter.sendTransaction(fresh, connection, sendOpts)
+          : await sendTransaction(fresh, connection, sendOpts)
+      }
+      const confirmation = await connection.confirmTransaction(
+        {
+          signature,
+          blockhash: fresh.recentBlockhash!,
+          lastValidBlockHeight: fresh.lastValidBlockHeight!,
+        },
+        'confirmed'
+      )
+      if (confirmation.value.err) {
+        throw new Error('The wallet approved, but Solana rejected the transfer.')
+      }
+      return signature
     }
 
     try {
@@ -455,8 +479,7 @@ export function PaymentRequestPrompt() {
             toast('Cancelled in the wallet. Nothing was transferred.')
             return
           }
-          queue.current = queue.current.slice(1)
-          if (queue.current.length === 0) throw err
+          throw err
         }
       }
 
