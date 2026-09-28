@@ -1,5 +1,26 @@
 import { peekPendingLike } from './authRedirect'
 import { attachAuthCarry, createAuthHandoffCode, readReadyWalletAuthCarry } from './supabaseOAuth'
+import {
+  detectMobileWalletBrowser,
+  isMobileWalletKey,
+  isWalletInAppBrowser,
+  mobileWalletLabel,
+  openPageInWallet,
+  type MobileWalletKey,
+  walletBrowseUrl,
+  walletKeyFromHint,
+} from './walletDeepLinks'
+
+export {
+  detectMobileWalletBrowser,
+  isMobileWalletKey,
+  isWalletInAppBrowser,
+  mobileWalletLabel,
+  openPageInWallet,
+  walletBrowseUrl,
+  walletKeyFromHint,
+}
+export type { MobileWalletKey }
 
 const PENDING_KEY = 'vrfd_pending_mobile_wallet'
 const CONNECT_QUERY = 'connect'
@@ -45,7 +66,7 @@ export function isSolflareInAppBrowser(): boolean {
   return true
 }
 
-type MobileWalletName = 'metamask' | 'phantom' | 'solflare'
+type MobileWalletName = MobileWalletKey
 
 function buildWalletCarryUrlSync(connectWallet: MobileWalletName): string {
   const url = new URL(window.location.href)
@@ -191,10 +212,20 @@ export async function openCurrentPageInSolflare(): Promise<void> {
 export function walletRequestedInUrl(): string | null {
   if (typeof window === 'undefined') return null
   const value = new URLSearchParams(window.location.search).get(CONNECT_QUERY)
-  if (value === 'metamask') return 'MetaMask'
-  if (value === 'phantom') return 'Phantom'
-  if (value === 'solflare') return 'Solflare'
+  if (isMobileWalletKey(value)) return mobileWalletLabel(value)
   return null
+}
+
+export function openCurrentPageInWalletNow(key: MobileWalletKey): void {
+  openPageInWallet(key, attachReadyAuthCarry(buildWalletCarryUrlSync(key)))
+}
+
+export async function openCurrentPageInWallet(key: MobileWalletKey): Promise<void> {
+  if (isAndroidDevice()) {
+    openCurrentPageInWalletNow(key)
+    return
+  }
+  openPageInWallet(key, await buildWalletCarryUrl(key))
 }
 
 export function stripConnectQuery(): void {
@@ -250,9 +281,6 @@ export function walletHintIsSolflare(hint: string): boolean {
   return hint.toLowerCase().includes('solflare')
 }
 
-export function detectWalletBrowser(): 'phantom' | 'metamask' | 'solflare' | null {
-  if (isPhantomInAppBrowser()) return 'phantom'
-  if (isSolflareInAppBrowser()) return 'solflare'
-  if (isMetaMaskInAppBrowser()) return 'metamask'
-  return null
+export function detectWalletBrowser(): MobileWalletKey | null {
+  return detectMobileWalletBrowser()
 }

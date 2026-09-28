@@ -9,7 +9,7 @@ export function isGenericEmbeddedBrowser(): boolean {
 export function isNamedWalletBrowser(): boolean {
   if (typeof navigator === 'undefined') return false
   const ua = navigator.userAgent || ''
-  return /Phantom|MetaMask|Trust|Solflare|CoinbaseWallet|Rainbow|Exodus|Backpack|OKX/i.test(ua)
+  return /Phantom|MetaMask|Trust|Solflare|CoinbaseWallet|Rainbow|Exodus|Backpack|OKX|Coin98|BitKeep|Bitget|Jupiter|MagicEden|TipLink|Ledger/i.test(ua)
 }
 
 /** Wallet or embedded in-app browsers where X login often breaks. */

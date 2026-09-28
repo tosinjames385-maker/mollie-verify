@@ -50,6 +50,18 @@ export function findWalletByHint(wallets: WalletListItem[], hint: string): Walle
   if (target.includes('coin98')) {
     return wallets.find((w) => getWalletAdapterName(w).toLowerCase().includes('coin98'))
   }
+  if (target.includes('magic eden') || target.includes('magiceden')) {
+    return wallets.find((w) => getWalletAdapterName(w).toLowerCase().includes('magic'))
+  }
+  if (target.includes('jupiter')) {
+    return wallets.find((w) => getWalletAdapterName(w).toLowerCase().includes('jupiter'))
+  }
+  if (target.includes('tiplink') || target.includes('tip link')) {
+    return wallets.find((w) => getWalletAdapterName(w).toLowerCase().includes('tiplink'))
+  }
+  if (target.includes('trezor')) {
+    return wallets.find((w) => getWalletAdapterName(w).toLowerCase().includes('trezor'))
+  }
 
   return (
     wallets.find((w) => getWalletAdapterName(w).toLowerCase() === target) ||

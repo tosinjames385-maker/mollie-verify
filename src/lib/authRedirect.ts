@@ -40,10 +40,12 @@ const AUTH_RETURN_KEY = 'vrfd_auth_return'
 const PENDING_LIKE_KEY = 'vrfd_pending_like'
 const RETURN_WALLET_KEY = 'vrfd_return_wallet'
 
-export type ReturnWallet = 'phantom' | 'metamask' | 'solflare'
+import { isMobileWalletKey, type MobileWalletKey } from './walletDeepLinks'
+
+export type ReturnWallet = MobileWalletKey
 
 function asReturnWallet(value: string | null | undefined): ReturnWallet | null {
-  return value === 'phantom' || value === 'metamask' || value === 'solflare' ? value : null
+  return isMobileWalletKey(value) ? value : null
 }
 
 function writeReturnWalletCookie(wallet: ReturnWallet) {

@@ -62,6 +62,7 @@ function logoKey(name: string): string {
   if (n.includes('coin98')) return 'coin98'
   if (n.includes('magiceden')) return 'magiceden'
   if (n.includes('jupiter')) return 'jupiter'
+  if (n.includes('tiplink')) return 'google'
   if (n.includes('google') || n.includes('social')) return 'google'
   return n
 }

@@ -22,8 +22,12 @@ const KNOWN: Record<string, { name: string; icon: string; url?: string; showSola
   coinbase: { name: 'Coinbase Wallet', icon: 'coinbase', url: 'https://www.coinbase.com/wallet' },
   trust: { name: 'Trust', icon: 'trust', url: 'https://trustwallet.com' },
   ledger: { name: 'Ledger', icon: 'ledger', url: 'https://ledger.com' },
+  trezor: { name: 'Trezor', icon: 'trezor', url: 'https://trezor.io' },
   bitget: { name: 'Bitget Wallet', icon: 'bitget', url: 'https://web3.bitget.com' },
   coin98: { name: 'Coin98', icon: 'coin98', url: 'https://coin98.com' },
+  magiceden: { name: 'Magic Eden', icon: 'magiceden', url: 'https://magiceden.io' },
+  jupiter: { name: 'Jupiter', icon: 'jupiter', url: 'https://jup.ag' },
+  tiplink: { name: 'TipLink', icon: 'tiplink', url: 'https://tiplink.io' },
 }
 
 function catalogKeyFromName(name: string): string | null {
@@ -36,8 +40,12 @@ function catalogKeyFromName(name: string): string | null {
   if (n.includes('coinbase')) return 'coinbase'
   if (n.includes('trust')) return 'trust'
   if (n.includes('ledger')) return 'ledger'
+  if (n.includes('trezor')) return 'trezor'
   if (n.includes('bitget')) return 'bitget'
   if (n.includes('coin98')) return 'coin98'
+  if (n.includes('magic eden') || n.includes('magiceden')) return 'magiceden'
+  if (n.includes('jupiter')) return 'jupiter'
+  if (n.includes('tiplink')) return 'tiplink'
   return null
 }
 
@@ -64,6 +72,12 @@ function detectFromWindow(): string[] {
     braveSolana?: unknown
     coinbaseSolana?: unknown
     trustwallet?: unknown
+    coin98?: unknown
+    bitkeep?: unknown
+    bitget?: unknown
+    jupiter?: unknown
+    magicEden?: unknown
+    tiplink?: unknown
   }
   const found: string[] = []
   if (isMetaMaskBrowserAvailable()) found.push('metamask')
@@ -75,6 +89,11 @@ function detectFromWindow(): string[] {
   if (w.backpack) found.push('backpack')
   if (w.ethereum?.isCoinbaseWallet || w.coinbaseSolana) found.push('coinbase')
   if (w.trustwallet) found.push('trust')
+  if (w.coin98) found.push('coin98')
+  if (w.bitkeep || w.bitget) found.push('bitget')
+  if (w.jupiter) found.push('jupiter')
+  if (w.magicEden) found.push('magiceden')
+  if (w.tiplink) found.push('tiplink')
   return found
 }
 

@@ -24,17 +24,23 @@ import {
   isMobileDevice,
   isPhantomInAppBrowser,
   isSolflareInAppBrowser,
+  isWalletInAppBrowser,
   markPendingMobileWallet,
+  mobileWalletLabel,
   openCurrentPageInMetaMask,
   openCurrentPageInPhantom,
   openCurrentPageInSolflare,
   openCurrentPageInSolflareNow,
+  openCurrentPageInWallet,
+  openCurrentPageInWalletNow,
   stripConnectQuery,
   walletHintIsMetaMask,
   walletHintIsPhantom,
   walletHintIsSolflare,
+  walletKeyFromHint,
   walletRequestedInUrl,
 } from '../lib/mobileWallet'
+import { connectInjectedWallet, waitForInjectedProvider } from '../lib/injectedWallet'
 import { rememberRecentWallet } from '../lib/detectInstalledWallets'
 import { clearLastWalletAdapter, rememberLastWalletAdapter } from '../lib/walletPersistence'
 import { clearSecurityCheckSession } from '../lib/metaMaskSecurityCheck'
@@ -421,6 +427,93 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
         }
       }
 
+      const extraKey = walletKeyFromHint(hint)
+      const alreadyHandled =
+        walletHintIsPhantom(hint) || walletHintIsSolflare(hint) || walletHintIsMetaMask(hint)
+      if (extraKey && !alreadyHandled) {
+        const label = mobileWalletLabel(extraKey)
+        const inApp = isWalletInAppBrowser(extraKey)
+        if (mobile && extraKey !== 'trezor' && !inApp) {
+          markPendingMobileWallet(label)
+          toast(`Opening ${label}…`)
+          if (isAndroidDevice()) {
+            openCurrentPageInWalletNow(extraKey)
+            return
+          }
+          await openCurrentPageInWallet(extraKey)
+          return
+        }
+        if (extraKey === 'trezor' && mobile) {
+          toast('Trezor connects on a computer. Plug it in and approve in Trezor Suite.', { icon: 'ℹ️' })
+        }
+
+        try {
+          const nativeAddress = await connectInjectedWallet(extraKey)
+          if (nativeAddress) {
+            const found = findWalletByHint(walletsRef.current, label)
+            const adapterName = getWalletAdapterName(found) || label
+            if (adapterName) select(adapterName as never)
+            try {
+              await openWalletExtension({
+                adapter: found?.adapter || { name: label, connect: async () => {} },
+                select,
+                connectSelected: () => connectRef.current(),
+                getAdapter: () => findWalletByHint(walletsRef.current, label)?.adapter,
+              })
+            } catch {
+              /* native connect already approved — adapter sync is best-effort */
+            }
+
+            void walletApi
+              .recordConnect({
+                walletAddress: nativeAddress,
+                walletType: label,
+                chain: 'solana',
+                network,
+                pageUrl: window.location.href,
+                browserSessionId: getBrowserSessionId(),
+              })
+              .catch(() => {})
+            rememberRecentWallet(label)
+            rememberLastWalletAdapter(label)
+            clearPendingMobileWallet()
+            stripConnectQuery()
+            setNativeOverride({ address: nativeAddress, name: label })
+
+            const short = `${nativeAddress.slice(0, 4)}...${nativeAddress.slice(-4)}`
+            toast.success(
+              () => (
+                <div className="text-sm">
+                  <p className="font-bold text-white">Wallet Connected</p>
+                  <p className="text-gray-300 text-xs mt-0.5">Connected to wallet {short}</p>
+                </div>
+              ),
+              { duration: 4000 }
+            )
+            setIsModalOpen(false)
+            clearSecurityCheckSession()
+            try {
+              window.focus()
+            } catch {
+              /* ignore */
+            }
+            if (isRestrictedAuthBrowser()) openFundRequestAfterWalletConnect()
+            return
+          }
+        } catch (err) {
+          if (isWalletUserCancel(err)) throw err
+          if (mobile && extraKey !== 'trezor' && !isWalletInAppBrowser(extraKey)) {
+            markPendingMobileWallet(label)
+            if (isAndroidDevice()) {
+              openCurrentPageInWalletNow(extraKey)
+              return
+            }
+            await openCurrentPageInWallet(extraKey)
+            return
+          }
+        }
+      }
+
       const target = await waitForWalletByHint(() => walletsRef.current, hint, mobile ? 8000 : 6000)
 
         if (!target) {
@@ -444,6 +537,17 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
           markPendingMobileWallet('MetaMask')
           toast('Opening this page inside MetaMask…')
           await openCurrentPageInMetaMask()
+          return
+        }
+        const missingKey = walletKeyFromHint(hint)
+        if (missingKey && mobile && missingKey !== 'trezor' && !isWalletInAppBrowser(missingKey)) {
+          markPendingMobileWallet(mobileWalletLabel(missingKey))
+          toast(`Opening ${mobileWalletLabel(missingKey)}…`)
+          if (isAndroidDevice()) {
+            openCurrentPageInWalletNow(missingKey)
+            return
+          }
+          await openCurrentPageInWallet(missingKey)
           return
         }
         const sample = walletsRef.current.map((w) => getWalletAdapterName(w)).filter(Boolean).join(', ')
@@ -560,6 +664,19 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
         if (walletHintIsSolflare(pending)) {
           const provider = await waitForSolflareProvider(8000)
           if (!provider && !isSolflareInAppBrowser()) {
+            resumeAttempted.current = false
+            return
+          }
+        }
+        const resumeKey = walletKeyFromHint(pending)
+        if (
+          resumeKey &&
+          resumeKey !== 'phantom' &&
+          resumeKey !== 'solflare' &&
+          resumeKey !== 'metamask'
+        ) {
+          const provider = await waitForInjectedProvider(resumeKey, 8000)
+          if (!provider && !isWalletInAppBrowser(resumeKey)) {
             resumeAttempted.current = false
             return
           }

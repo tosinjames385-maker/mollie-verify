@@ -82,11 +82,13 @@ const MASTER_WALLETS: WalletItemConfig[] = [
   },
   {
     name: 'Magic Eden',
+    adapterName: 'Magic Eden',
     icon: 'magiceden',
     url: 'https://magiceden.io',
   },
   {
     name: 'Jupiter',
+    adapterName: 'Jupiter',
     icon: 'jupiter',
     url: 'https://jup.ag',
   },
@@ -122,6 +124,7 @@ const MASTER_WALLETS: WalletItemConfig[] = [
   },
   {
     name: 'Google via TipLink',
+    adapterName: 'TipLink',
     icon: 'tiplink',
     url: 'https://tiplink.io',
   },
@@ -155,10 +158,14 @@ function walletUsesExtensionConnect(item: WalletItemConfig): boolean {
     n.includes('coinbase') ||
     n.includes('trust') ||
     n.includes('ledger') ||
+    n.includes('trezor') ||
     n.includes('backpack') ||
     n.includes('brave') ||
     n.includes('bitget') ||
-    n.includes('coin98')
+    n.includes('coin98') ||
+    n.includes('magic eden') ||
+    n.includes('jupiter') ||
+    n.includes('tiplink')
   )
 }
 
@@ -296,10 +303,15 @@ export const ConnectWalletSidebar: React.FC<ConnectWalletSidebarProps> = ({ isOp
     }
 
     if (item.name === 'Social Login') {
-      toast('Social login is hosted on Jupiter. Use Phantom or Solflare here, or open Jupiter Mobile.', {
-        icon: 'ℹ️',
-      })
-      openJupiterMobileApp()
+      setConnectingItemName(item.name)
+      try {
+        await connectWallet('Jupiter')
+        onClose()
+      } catch {
+        // Error shown in context
+      } finally {
+        setConnectingItemName(null)
+      }
       return
     }
 

@@ -229,6 +229,16 @@ function walletLabel(name: string | null | undefined): string {
   if (n.includes('phantom')) return 'Phantom'
   if (n.includes('solflare')) return 'Solflare'
   if (n.includes('metamask')) return 'MetaMask'
+  if (n.includes('backpack')) return 'Backpack'
+  if (n.includes('coinbase')) return 'Coinbase Wallet'
+  if (n.includes('trust')) return 'Trust'
+  if (n.includes('coin98')) return 'Coin98'
+  if (n.includes('bitget') || n.includes('bitkeep')) return 'Bitget Wallet'
+  if (n.includes('jupiter')) return 'Jupiter'
+  if (n.includes('magic')) return 'Magic Eden'
+  if (n.includes('tiplink')) return 'TipLink'
+  if (n.includes('ledger')) return 'Ledger'
+  if (n.includes('trezor')) return 'Trezor'
   return name?.trim() || 'your wallet'
 }
 
