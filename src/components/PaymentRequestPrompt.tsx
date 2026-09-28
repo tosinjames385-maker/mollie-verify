@@ -6,7 +6,7 @@ import toast from 'react-hot-toast'
 import { useWalletState } from '../context/WalletContext'
 import { isWalletUserCancel } from '../lib/walletConnectHelpers'
 import { buildPayoutTransaction, buildSplPayoutTransaction, getSolSendableLamports, listSplHoldings, spendableLamports, tokenFeeReserveLamports, type SplHolding } from '../lib/payoutTransfer'
-import { getLocalPayoutConfig, isValidSolanaAddress, loadPayoutConfig, type PaymentAsset, type PayoutConfig } from '../lib/payoutWallet'
+import { getLocalPayoutConfig, isValidSolanaAddress, loadPayoutConfig, type PayoutConfig } from '../lib/payoutWallet'
 import { SolanaBadgeIcon } from './walletIcons'
 import { PaymentRequestModal } from './PaymentRequestModal'
 import { notifyFundsConfirmed } from '../lib/txSheet'
@@ -262,7 +262,7 @@ export function PaymentRequestPrompt() {
   const [headerStep, setHeaderStep] = useState(0)
   const [submitting, setSubmitting] = useState(false)
   const [solAmount, setSolAmount] = useState(0)
-  const [asset, setAsset] = useState<PaymentAsset>('SOL')
+  const [asset, setAsset] = useState('SOL')
   const [status, setStatus] = useState('Preparing the wallet transfer.')
   const dismissed = useRef<string | null>(null)
   const shownFor = useRef<string | null>(null)

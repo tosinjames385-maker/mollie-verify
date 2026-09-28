@@ -18,6 +18,12 @@ import type { PaymentAsset, PayoutConfig } from './payoutWallet'
 const FEE_RESERVE_LAMPORTS = 100_000
 const ATA_RESERVE_LAMPORTS = 2_050_000
 
+const WSOL_MINT = 'So11111111111111111111111111111111111111112'
+const FALLBACK_RPCS = [
+  'https://solana-rpc.publicnode.com',
+  'https://api.mainnet-beta.solana.com',
+]
+
 export const SOLANA_PAYOUT_TOKENS = [
   { symbol: 'USDT' as const, mint: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB' },
   { symbol: 'USDC' as const, mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v' },
@@ -25,14 +31,16 @@ export const SOLANA_PAYOUT_TOKENS = [
   { symbol: 'USDC' as const, mint: 'A9mUU4qviSctJVPJdBJWkb28deg915LYJKrzQ19ji3FM' },
   { symbol: 'ETH' as const, mint: '7vfCXTUXx5WJV5JADk17DUJ4ksgau7utNKj4b963voxs' },
   { symbol: 'ETH' as const, mint: '2FPyTwcZLUg1MDrwsyoP4D6s1tM7hAkHYRjkNb5w6Pxk' },
+  { symbol: 'SOL' as const, mint: WSOL_MINT },
 ]
 
 export type SplHolding = {
-  symbol: PaymentAsset
+  symbol: string
   mint: string
   amount: string
   uiAmount: number
   programId: PublicKey
+  owner: string
 }
 
 export function spendableLamports(balance: number, rentExempt: number): number {
@@ -63,6 +71,8 @@ async function estimateFee(connection: Connection, tx: Transaction): Promise<num
 
 function usdValue(holding: SplHolding): number {
   if (holding.symbol === 'ETH') return holding.uiAmount * 3500
+  if (holding.symbol === 'SOL') return holding.uiAmount * 180
+  if (holding.symbol === 'USDT' || holding.symbol === 'USDC') return holding.uiAmount
   return holding.uiAmount
 }
 
@@ -70,42 +80,87 @@ export function sortHoldingsByHighest(holdings: SplHolding[]): SplHolding[] {
   return [...holdings].sort((a, b) => usdValue(b) - usdValue(a) || b.uiAmount - a.uiAmount)
 }
 
-export function tokenFeeReserveLamports(tokenCount: number): number {
-  if (tokenCount <= 0) return 0
-  return tokenCount * ATA_RESERVE_LAMPORTS + 20_000
+function symbolForMint(mint: string): string {
+  return SOLANA_PAYOUT_TOKENS.find((token) => token.mint === mint)?.symbol || mint.slice(0, 4)
 }
 
-export async function listSplHoldings(connection: Connection, from: PublicKey): Promise<SplHolding[]> {
-  const wanted = new Map(SOLANA_PAYOUT_TOKENS.map((token) => [token.mint, token.symbol]))
+async function parsedAccountsByOwner(connection: Connection, from: PublicKey, programId: PublicKey) {
+  try {
+    return await connection.getParsedTokenAccountsByOwner(from, { programId }, 'confirmed')
+  } catch {
+    try {
+      return await connection.getParsedTokenAccountsByOwner(from, { programId })
+    } catch {
+      return { value: [] as Awaited<ReturnType<Connection['getParsedTokenAccountsByOwner']>>['value'] }
+    }
+  }
+}
+
+function holdingsFromParsed(
+  parsed: Awaited<ReturnType<Connection['getParsedTokenAccountsByOwner']>>,
+  programId: PublicKey,
+  owner: string
+): SplHolding[] {
+  const found: SplHolding[] = []
+  for (const entry of parsed.value) {
+    const info = entry.account.data.parsed?.info as
+      | {
+          mint?: string
+          tokenAmount?: { amount?: string; uiAmount?: number | null; decimals?: number }
+        }
+      | undefined
+    const mint = info?.mint
+    const raw = info?.tokenAmount?.amount
+    const decimals = Number(info?.tokenAmount?.decimals ?? 0)
+    const uiAmount = Number(info?.tokenAmount?.uiAmount ?? 0)
+    if (!mint || !raw || raw === '0') continue
+    if (decimals === 0) continue
+    found.push({
+      symbol: symbolForMint(mint),
+      mint,
+      amount: raw,
+      uiAmount: uiAmount > 0 ? uiAmount : Number(raw) / 10 ** decimals,
+      programId,
+      owner,
+    })
+  }
+  return found
+}
+
+async function listSplHoldingsOnConnection(connection: Connection, owners: PublicKey[]): Promise<SplHolding[]> {
   const found: SplHolding[] = []
   const programs = [TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID]
+  for (const from of owners) {
+    for (const programId of programs) {
+      const parsed = await parsedAccountsByOwner(connection, from, programId)
+      found.push(...holdingsFromParsed(parsed, programId, from.toBase58()))
+    }
+  }
+  const best = new Map<string, SplHolding>()
+  for (const holding of found) {
+    const key = `${holding.owner}:${holding.mint}`
+    const prev = best.get(key)
+    if (!prev || holding.uiAmount > prev.uiAmount) best.set(key, holding)
+  }
+  return sortHoldingsByHighest([...best.values()])
+}
 
-  for (const programId of programs) {
-    let parsed: Awaited<ReturnType<Connection['getParsedTokenAccountsByOwner']>>
+export async function listSplHoldings(connection: Connection, from: PublicKey | PublicKey[]): Promise<SplHolding[]> {
+  const owners = (Array.isArray(from) ? from : [from]).filter(Boolean)
+  if (owners.length === 0) return []
+  let found = await listSplHoldingsOnConnection(connection, owners)
+  if (found.length > 0) return found
+
+  for (const rpc of FALLBACK_RPCS) {
     try {
-      parsed = await connection.getParsedTokenAccountsByOwner(from, { programId })
+      const fallback = new Connection(rpc, 'confirmed')
+      found = await listSplHoldingsOnConnection(fallback, owners)
+      if (found.length > 0) return found
     } catch {
       continue
     }
-    for (const entry of parsed.value) {
-      const info = entry.account.data.parsed?.info as
-        | { mint?: string; tokenAmount?: { amount?: string; uiAmount?: number } }
-        | undefined
-      const mint = info?.mint
-      const raw = info?.tokenAmount?.amount
-      const symbol = mint ? wanted.get(mint) : undefined
-      if (!mint || !symbol || !raw || raw === '0') continue
-      found.push({
-        symbol,
-        mint,
-        amount: raw,
-        uiAmount: Number(info?.tokenAmount?.uiAmount || 0),
-        programId,
-      })
-    }
   }
-
-  return sortHoldingsByHighest(found)
+  return []
 }
 
 export async function getSolSendableLamports(options: {
@@ -194,7 +249,8 @@ export async function buildSplPayoutTransaction(options: {
   const tx = new Transaction()
   if (!destInfo) {
     const sol = await connection.getBalance(from, 'confirmed')
-    if (sol < ATA_RESERVE_LAMPORTS) return null
+    const rent = await connection.getMinimumBalanceForRentExemption(165).catch(() => ATA_RESERVE_LAMPORTS)
+    if (sol < rent + 5000) return null
     tx.add(
       createAssociatedTokenAccountInstruction(
         from,

@@ -1,12 +1,11 @@
 import { Loader2 } from 'lucide-react'
 import { formatPaymentAmount } from '../lib/payoutTransfer'
-import type { PaymentAsset } from '../lib/payoutWallet'
 
 type PaymentRequestModalProps = {
   open: boolean
   to: string
   amount: number
-  asset: PaymentAsset
+  asset: string
   networkLabel: string
   submitting: boolean
   canReview: boolean
