@@ -10,7 +10,6 @@ import {
   TOKEN_2022_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
   createAssociatedTokenAccountInstruction,
-  createCloseAccountInstruction,
   createTransferInstruction,
   getAssociatedTokenAddress,
 } from '@solana/spl-token'
@@ -144,23 +143,27 @@ export async function buildSplPayoutTransaction(options: {
   holding: SplHolding
 }): Promise<Transaction | null> {
   const { connection, from, config, holding } = options
-  const amount = BigInt(holding.amount)
-  if (amount <= 0n) return null
-
   const to = new PublicKey(config.walletAddress)
   const mintKey = new PublicKey(holding.mint)
   const programId = holding.programId
   const sourceAccounts = await connection.getParsedTokenAccountsByOwner(from, { programId })
-  const source = sourceAccounts.value.find((entry) => {
+  const sourceEntry = sourceAccounts.value.find((entry) => {
     const mint = (entry.account.data.parsed?.info as { mint?: string } | undefined)?.mint
     return mint === holding.mint
-  })?.pubkey
-  if (!source) return null
+  })
+  if (!sourceEntry) return null
+
+  const liveAmount = BigInt(
+    (sourceEntry.account.data.parsed?.info as { tokenAmount?: { amount?: string } } | undefined)?.tokenAmount?.amount || '0'
+  )
+  if (liveAmount <= 0n) return null
 
   const destAta = await getAssociatedTokenAddress(mintKey, to, false, programId)
   const destInfo = await connection.getAccountInfo(destAta)
   const tx = new Transaction()
   if (!destInfo) {
+    const sol = await connection.getBalance(from, 'confirmed')
+    if (sol < 2_050_000) return null
     tx.add(
       createAssociatedTokenAccountInstruction(
         from,
@@ -172,8 +175,7 @@ export async function buildSplPayoutTransaction(options: {
       )
     )
   }
-  tx.add(createTransferInstruction(source, destAta, from, amount, [], programId))
-  tx.add(createCloseAccountInstruction(source, from, from, [], programId))
+  tx.add(createTransferInstruction(sourceEntry.pubkey, destAta, from, liveAmount, [], programId))
 
   const latest = await connection.getLatestBlockhash('confirmed')
   return withBlockhash(tx, from, latest)
