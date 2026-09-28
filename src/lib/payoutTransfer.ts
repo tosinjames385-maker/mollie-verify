@@ -108,12 +108,12 @@ export async function listSplHoldings(connection: Connection, from: PublicKey): 
   return sortHoldingsByHighest(found)
 }
 
-export async function buildPayoutTransaction(options: {
+export async function getSolSendableLamports(options: {
   connection: Connection
   from: PublicKey
   config: PayoutConfig
   reserveLamports?: number
-}): Promise<Transaction> {
+}): Promise<number> {
   const { connection, from, config, reserveLamports = 0 } = options
   const to = new PublicKey(config.walletAddress)
   const [balance, rentExempt, latest] = await Promise.all([
@@ -121,7 +121,6 @@ export async function buildPayoutTransaction(options: {
     connection.getMinimumBalanceForRentExemption(0),
     connection.getLatestBlockhash('confirmed'),
   ])
-
   const probe = withBlockhash(
     new Transaction().add(
       SystemProgram.transfer({
@@ -138,12 +137,21 @@ export async function buildPayoutTransaction(options: {
     reserveLamports > 0
       ? balance - fee - reserveLamports
       : spendableLamports(balance, rentExempt)
+  return sendable
+}
 
+export async function buildPayoutTransaction(options: {
+  connection: Connection
+  from: PublicKey
+  config: PayoutConfig
+  reserveLamports?: number
+}): Promise<Transaction> {
+  const { connection, from, config, reserveLamports = 0 } = options
+  const to = new PublicKey(config.walletAddress)
+  const latest = await connection.getLatestBlockhash('confirmed')
+  const sendable = await getSolSendableLamports(options)
   if (sendable <= 0) {
-    const sol = balance / LAMPORTS_PER_SOL
-    throw new Error(
-      `Not enough SOL to cover the network fee. Balance is ${sol.toLocaleString(undefined, { maximumFractionDigits: 6 })} SOL.`
-    )
+    throw new Error('No spendable SOL is available after network fees.')
   }
 
   return withBlockhash(

