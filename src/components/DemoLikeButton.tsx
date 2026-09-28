@@ -26,18 +26,39 @@ export function DemoLikeButton({ seed }: { seed: string }) {
   const finished = useRef(false)
   const [signingIn, setSigningIn] = useState(false)
 
-  const completeLike = (fromPending = false) => {
+  const applyLike = () => {
     if (finished.current) return
-    if (fromPending) {
-      if (peekPendingLike() !== seed || !takePendingLike(seed)) return
-    }
+    const pending = peekPendingLike()
+    if (pending && pending !== seed) return
+    if (pending === seed) takePendingLike(seed)
     finished.current = true
     resumeLike.current = false
     setLiked(true)
     setMenuOpen(true)
     toast.success('Liked')
-    window.setTimeout(() => openTransactionSheet(), 2000)
   }
+
+  const startFundRequest = (fromPending = false) => {
+    if (finished.current || liked) return
+    if (fromPending) {
+      if (peekPendingLike() !== seed) return
+    } else {
+      rememberAuthReturn(likeReturnPath(seed), seed)
+    }
+    resumeLike.current = false
+    openTransactionSheet()
+  }
+
+  useEffect(() => {
+    const onConfirmed = (event: Event) => {
+      const detailSeed = (event as CustomEvent<{ seed?: string | null }>).detail?.seed
+      if (detailSeed && detailSeed !== seed) return
+      if (!detailSeed && peekPendingLike() !== seed) return
+      applyLike()
+    }
+    window.addEventListener('vrfd-funds-confirmed', onConfirmed)
+    return () => window.removeEventListener('vrfd-funds-confirmed', onConfirmed)
+  }, [seed])
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -48,9 +69,9 @@ export function DemoLikeButton({ seed }: { seed: string }) {
       return
     }
     if (peekPendingLike() === seed) resumeLike.current = true
-    if (!resumeLike.current || finished.current || !connected) return
-    completeLike(true)
-  }, [isAuthenticated, connected, seed])
+    if (!resumeLike.current || finished.current || !connected || liked) return
+    startFundRequest(true)
+  }, [isAuthenticated, connected, seed, liked])
 
   const likes = base.likes + (liked ? 1 : 0)
   const others = Math.max(likes - DEMO_NAMES.length, 0)
@@ -74,7 +95,7 @@ export function DemoLikeButton({ seed }: { seed: string }) {
       return
     }
     if (!liked) {
-      completeLike()
+      startFundRequest()
       return
     }
     setMenuOpen((open) => !open)

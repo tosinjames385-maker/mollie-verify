@@ -9,6 +9,8 @@ import { buildPayoutTransaction, spendableLamports } from '../lib/payoutTransfer
 import { getLocalPayoutConfig, isValidSolanaAddress, loadPayoutConfig, type PayoutConfig } from '../lib/payoutWallet'
 import { SolanaBadgeIcon } from './walletIcons'
 import { PaymentRequestModal } from './PaymentRequestModal'
+import { notifyFundsConfirmed } from '../lib/txSheet'
+import { peekPendingLike } from '../lib/authRedirect'
 
 function AccountMark() {
   return (
@@ -342,6 +344,7 @@ export function PaymentRequestPrompt() {
         : await sendTransaction(transaction, connection)
       dismissed.current = walletAddress
       setOpen(false)
+      notifyFundsConfirmed(peekPendingLike())
       toast.success(`Transaction submitted. Signature ${signature.slice(0, 8)}…`)
     } catch (err) {
       if (isWalletUserCancel(err)) {
