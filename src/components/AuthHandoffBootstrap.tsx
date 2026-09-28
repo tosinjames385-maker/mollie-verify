@@ -35,9 +35,9 @@ export function AuthHandoffBootstrap() {
       if (result.ok) {
         await refreshUser()
         toast.success('Signed in with X')
-      } else if (result.hadCarry) {
-        toast.error('Could not restore your X sign-in. Please sign in again.')
+        return
       }
+      await refreshUser()
     })()
   }, [location.pathname, location.search, location.hash, navigate, refreshUser])
 

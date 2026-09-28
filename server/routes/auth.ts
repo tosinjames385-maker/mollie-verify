@@ -197,11 +197,12 @@ router.get('/me', async (req: Request, res: Response) => {
 /** One-time handoff so X session can move between Chrome/Safari and wallet in-app browsers. */
 router.post('/handoff', async (req: Request, res: Response) => {
   try {
-    const { access_token, refresh_token, expires_at, pendingLike, returnPath } = req.body || {}
+    const { access_token, refresh_token, expires_at, pendingLike, returnPath, code: requestedCode } = req.body || {}
     if (!access_token || !refresh_token || typeof access_token !== 'string' || typeof refresh_token !== 'string') {
       return res.status(400).json({ error: 'Missing tokens' })
     }
     const code = await createAuthHandoff({
+      code: typeof requestedCode === 'string' ? requestedCode : undefined,
       access_token,
       refresh_token,
       expires_at: typeof expires_at === 'number' ? expires_at : undefined,

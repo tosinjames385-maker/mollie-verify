@@ -1,4 +1,12 @@
 import { peekAuthReturn, peekPendingLike, rememberAuthReturn } from './authRedirect'
+import {
+  consumeHandoffFromApi,
+  consumeHandoffFromSupabase,
+  isHandoffCode,
+  newHandoffCode,
+  storeHandoffOnApi,
+  storeHandoffOnSupabase,
+} from './authHandoffClient'
 import { supabase, supabaseProjectRef } from './supabase'
 
 const PKCE_COOKIE = 'vrfd_pkce_bundle'
@@ -108,9 +116,17 @@ export function toXAuthorizeUrl(oauthUrl: string): string {
     if (parsed.hostname === 'twitter.com' || parsed.hostname === 'www.twitter.com') {
       parsed.hostname = 'x.com'
     }
-    if (parsed.pathname.includes('/i/oauth2/authorize')) {
-      parsed.protocol = 'https:'
+    parsed.protocol = 'https:'
+
+    // iPhone: X's logged-out "Log in" interstitial often ignores a normal tap
+    // (press-and-hold works). Send them to the real login flow first; if they
+    // already have an X session it continues straight to authorize.
+    const ios = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent || '')
+    if (ios && parsed.pathname.includes('/i/oauth2/authorize')) {
+      const next = `${parsed.pathname}${parsed.search}`
+      return `https://x.com/i/flow/login?redirect_after_login=${encodeURIComponent(next)}`
     }
+
     return parsed.toString()
   } catch {
     return oauthUrl.replace('https://twitter.com/', 'https://x.com/').replace('https://www.twitter.com/', 'https://x.com/')
@@ -211,22 +227,21 @@ export async function createAuthHandoffCode(extra?: {
 
     const pendingLike = extra?.pendingLike ?? peekPendingLike()
     const returnPath = extra?.returnPath ?? peekAuthReturn()
+    const code = newHandoffCode()
+    const payload = {
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
+      expires_at: session.expires_at,
+      pendingLike: pendingLike || undefined,
+      returnPath: returnPath || undefined,
+    }
 
-    const res = await fetch('/api/auth/handoff', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({
-        access_token: session.access_token,
-        refresh_token: session.refresh_token,
-        expires_at: session.expires_at,
-        pendingLike: pendingLike || undefined,
-        returnPath: returnPath || undefined,
-      }),
-    })
-    if (!res.ok) return null
-    const body = (await res.json()) as { code?: string }
-    return body.code || null
+    const [savedRemote, savedApi] = await Promise.all([
+      storeHandoffOnSupabase(code, payload),
+      storeHandoffOnApi(code, payload),
+    ])
+    if (!savedRemote && !savedApi) return null
+    return code
   } catch {
     return null
   }
@@ -324,10 +339,9 @@ export async function applySessionCarry(encoded: string): Promise<boolean> {
 }
 
 export function attachAuthCarry(href: string, carry: { code?: string | null; sess?: string | null }): string {
-  let next = href
-  if (carry.code) next = withHandoffParam(next, carry.code)
-  if (carry.sess) next = withQueryParam(next, 'vrfd_sess', carry.sess)
-  return next
+  // Only the short code. Full session tokens make Phantom/MetaMask iOS links too long and they get cut off.
+  if (carry.code && isHandoffCode(carry.code)) return withHandoffParam(href, carry.code)
+  return href
 }
 
 export function readReadyWalletAuthCarry(): { code?: string; sess?: string } {
@@ -361,43 +375,50 @@ export type AuthCarryResult = { ok: boolean; hadCarry: boolean }
 
 let carryPromise: Promise<AuthCarryResult> | null = null
 
+function sessLooksComplete(sess: string): boolean {
+  if (sess.length < 80) return false
+  try {
+    const parsed = JSON.parse(fromBase64Url(sess)) as { a?: string; r?: string }
+    return Boolean(parsed.a && parsed.r && parsed.a.length > 20 && parsed.r.length > 20)
+  } catch {
+    return false
+  }
+}
+
 async function applyAuthCarryFromUrl(): Promise<AuthCarryResult> {
   if (typeof window === 'undefined') return { ok: false, hadCarry: false }
   const params = new URLSearchParams(window.location.search)
   const code = params.get('vrfd_handoff')
   const sess = params.get('vrfd_sess')
-  if (!code && !sess) return { ok: false, hadCarry: false }
+  const validCode = isHandoffCode(code) ? code : null
+  const validSess = sess && sessLooksComplete(sess) ? sess : null
+  if (!validCode && !validSess) return { ok: false, hadCarry: false }
 
   let ok = false
-  if (sess) ok = await applySessionCarry(sess)
-  if (!ok && code) {
-    const result = await applyAuthHandoffCode(code)
+  if (validCode) {
+    const result = await applyAuthHandoffCode(validCode)
     ok = result.ok
   }
+  if (!ok && validSess) ok = await applySessionCarry(validSess)
   return { ok, hadCarry: true }
 }
 
 export function applyAuthCarryFromUrlOnce(): Promise<AuthCarryResult> {
-  if (!carryPromise) carryPromise = applyAuthCarryFromUrl()
+  if (!carryPromise) {
+    carryPromise = applyAuthCarryFromUrl().then((result) => {
+      if (!result.ok) carryPromise = null
+      return result
+    })
+  }
   return carryPromise
 }
 
 export async function applyAuthHandoffCode(code: string): Promise<HandoffExchangeResult> {
   try {
-    const res = await fetch('/api/auth/handoff/exchange', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ code }),
-    })
-    if (!res.ok) return { ok: false }
-    const body = (await res.json()) as {
-      access_token?: string
-      refresh_token?: string
-      pendingLike?: string
-      returnPath?: string
-    }
-    if (!body.access_token || !body.refresh_token) return { ok: false }
+    const body =
+      (await consumeHandoffFromApi(code)) ||
+      (await consumeHandoffFromSupabase(code))
+    if (!body?.access_token || !body.refresh_token) return { ok: false }
 
     const { error } = await supabase.auth.setSession({
       access_token: body.access_token,

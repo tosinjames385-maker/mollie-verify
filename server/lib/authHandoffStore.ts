@@ -2,6 +2,7 @@ import crypto from 'crypto'
 import { prisma } from '../prisma'
 
 type HandoffInput = {
+  code?: string
   access_token: string
   refresh_token: string
   expires_at?: number
@@ -18,6 +19,7 @@ type HandoffResult = {
 }
 
 const memory = new Map<string, HandoffInput & { expiresAt: number }>()
+let tableReady: Promise<void> | null = null
 
 function sweepMemory() {
   const now = Date.now()
@@ -26,11 +28,66 @@ function sweepMemory() {
   }
 }
 
+function nextCode(preferred?: string): string {
+  if (preferred && /^[A-Za-z0-9_-]{16,80}$/.test(preferred)) return preferred
+  return crypto.randomBytes(24).toString('base64url')
+}
+
+async function ensureHandoffTables(): Promise<void> {
+  if (!tableReady) {
+    tableReady = (async () => {
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "AuthHandoff" (
+          "id" TEXT PRIMARY KEY,
+          "code" TEXT NOT NULL UNIQUE,
+          "accessToken" TEXT NOT NULL,
+          "refreshToken" TEXT NOT NULL,
+          "expiresAtTs" INTEGER,
+          "pendingLike" TEXT,
+          "returnPath" TEXT,
+          "expiresAt" TIMESTAMP(3) NOT NULL,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+      `)
+      try {
+        await prisma.$executeRawUnsafe(`
+          CREATE TABLE IF NOT EXISTS vrfd_auth_handoff (
+            id text PRIMARY KEY,
+            access_token text NOT NULL,
+            refresh_token text NOT NULL,
+            pending_like text,
+            return_path text,
+            expires_at timestamptz NOT NULL,
+            created_at timestamptz NOT NULL DEFAULT now()
+          )
+        `)
+        await prisma.$executeRawUnsafe(`ALTER TABLE vrfd_auth_handoff ENABLE ROW LEVEL SECURITY`)
+        await prisma.$executeRawUnsafe(`GRANT ALL ON TABLE vrfd_auth_handoff TO anon, authenticated, service_role`)
+        await prisma.$executeRawUnsafe(`
+          DO $$ BEGIN
+            CREATE POLICY vrfd_auth_handoff_all ON vrfd_auth_handoff
+              FOR ALL TO anon, authenticated
+              USING (true) WITH CHECK (true);
+          EXCEPTION WHEN duplicate_object THEN NULL;
+          END $$
+        `)
+      } catch {
+        /* optional public table — Prisma AuthHandoff is enough for the API path */
+      }
+    })().catch((err) => {
+      tableReady = null
+      throw err
+    })
+  }
+  await tableReady
+}
+
 export async function createAuthHandoff(tokens: HandoffInput): Promise<string> {
-  const code = crypto.randomBytes(24).toString('base64url')
+  const code = nextCode(tokens.code)
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000)
 
   try {
+    await ensureHandoffTables()
     await prisma.authHandoff.create({
       data: {
         code,

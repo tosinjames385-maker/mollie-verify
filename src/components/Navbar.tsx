@@ -27,7 +27,7 @@ const SignInWithXButton = ({
     onClick={onClick}
     disabled={loading}
     aria-label="Sign in with X"
-    className={`bg-[#F3EEE4] hover:bg-[#EBE4D6] text-[#111111] font-semibold rounded-full flex items-center justify-center gap-1.5 transition-colors whitespace-nowrap shadow-sm disabled:opacity-70 ${
+    className={`bg-[#F3EEE4] hover:bg-[#EBE4D6] text-[#111111] font-semibold rounded-full flex items-center justify-center gap-1.5 transition-colors whitespace-nowrap shadow-sm disabled:opacity-70 touch-manipulation ${
       compact ? 'text-[11px] px-2.5 py-[6px]' : 'text-xs px-3.5 py-1.5'
     }`}
   >

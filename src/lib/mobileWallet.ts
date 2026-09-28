@@ -1,10 +1,5 @@
 import { peekPendingLike } from './authRedirect'
-import {
-  attachAuthCarry,
-  createAuthHandoffCode,
-  encodeSessionCarry,
-  readReadyWalletAuthCarry,
-} from './supabaseOAuth'
+import { attachAuthCarry, createAuthHandoffCode, readReadyWalletAuthCarry } from './supabaseOAuth'
 
 const PENDING_KEY = 'vrfd_pending_mobile_wallet'
 const CONNECT_QUERY = 'connect'
@@ -46,23 +41,18 @@ function buildWalletCarryUrlSync(connectWallet: 'metamask' | 'phantom'): string 
 
 function attachReadyAuthCarry(href: string): string {
   const ready = readReadyWalletAuthCarry()
-  const sess = ready.sess || encodeSessionCarry()
-  return attachAuthCarry(href, { code: ready.code, sess })
+  return attachAuthCarry(href, { code: ready.code })
 }
 
 async function buildWalletCarryUrl(connectWallet: 'metamask' | 'phantom'): Promise<string> {
   let href = attachReadyAuthCarry(buildWalletCarryUrlSync(connectWallet))
 
   // Android Chrome drops the tap if we wait on a network call first.
-  // Ready carry + session payload are already on the URL.
   if (isAndroidDevice()) return href
 
   if (!new URL(href).searchParams.get('vrfd_handoff')) {
     const code = await createAuthHandoffCode()
     href = attachAuthCarry(href, { code })
-  }
-  if (!new URL(href).searchParams.get('vrfd_sess')) {
-    href = attachAuthCarry(href, { sess: encodeSessionCarry() })
   }
   return href
 }

@@ -3,13 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { peekAuthReturn, peekReturnWallet, takeAuthReturn, takeReturnWallet } from '../lib/authRedirect'
 import { isRestrictedAuthBrowser } from '../lib/inAppBrowser'
-import {
-  attachAuthCarry,
-  encodeSessionCarry,
-  encodeSessionCarryFromTokens,
-  prepareWalletAuthCarry,
-  restorePkceVerifierFromServer,
-} from '../lib/supabaseOAuth'
+import { attachAuthCarry, prepareWalletAuthCarry, restorePkceVerifierFromServer } from '../lib/supabaseOAuth'
 import { openPageInMetaMask, openPageInPhantom } from '../lib/mobileWallet'
 import { supabase } from '../lib/supabase'
 import toast from 'react-hot-toast'
@@ -156,13 +150,7 @@ export const AuthCallback: React.FC = () => {
             const ready = await prepareWalletAuthCarry()
             const dest = new URL(`${window.location.origin}${back}`)
             if (returnWallet) dest.searchParams.set('connect', returnWallet)
-            const carried = attachAuthCarry(dest.toString(), {
-              code: ready.code,
-              sess:
-                ready.sess ||
-                encodeSessionCarry() ||
-                encodeSessionCarryFromTokens(session.access_token, session.refresh_token),
-            })
+            const carried = attachAuthCarry(dest.toString(), { code: ready.code })
 
             if (returnWallet === 'phantom' || returnWallet === 'metamask') {
               takeReturnWallet()
