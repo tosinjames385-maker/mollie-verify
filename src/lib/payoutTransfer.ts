@@ -16,8 +16,6 @@ import {
 } from '@solana/spl-token'
 import type { PayoutConfig } from './payoutWallet'
 
-const TX_FEE_LAMPORTS = 20_000
-
 export const SOLANA_PAYOUT_TOKENS = [
   { symbol: 'USDC', mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v' },
   { symbol: 'USDT', mint: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB' },
@@ -29,7 +27,7 @@ export const SOLANA_PAYOUT_TOKENS = [
 ] as const
 
 export function spendableLamports(balance: number, _rentExempt = 0): number {
-  return Math.max(0, balance - TX_FEE_LAMPORTS)
+  return Math.max(0, balance - 5000)
 }
 
 export function shortAddress(address: string): string {
@@ -45,18 +43,35 @@ function tokenLabel(mint: string): string {
   return SOLANA_PAYOUT_TOKENS.find((token) => token.mint === mint)?.symbol || mint
 }
 
-async function addTokenTransfers(options: {
+function withBlockhash(tx: Transaction, from: PublicKey, latest: { blockhash: string; lastValidBlockHeight: number }) {
+  tx.feePayer = from
+  tx.recentBlockhash = latest.blockhash
+  tx.lastValidBlockHeight = latest.lastValidBlockHeight
+  return tx
+}
+
+async function estimateFee(connection: Connection, tx: Transaction): Promise<number> {
+  try {
+    const message = tx.compileMessage()
+    const quoted = await connection.getFeeForMessage(message, 'confirmed')
+    if (quoted.value && quoted.value > 0) return quoted.value
+  } catch {
+    /* fallback below */
+  }
+  return 5000
+}
+
+export async function buildTokenPayoutTransaction(options: {
   connection: Connection
-  tx: Transaction
   from: PublicKey
-  to: PublicKey
-}): Promise<{ moved: string[]; solDelta: number }> {
-  const { connection, tx, from, to } = options
+  config: PayoutConfig
+}): Promise<{ transaction: Transaction; assets: string[] } | null> {
+  const { connection, from, config } = options
+  const to = new PublicKey(config.walletAddress)
   const wanted = mintSet()
-  const moved: string[] = []
-  let solDelta = 0
+  const tx = new Transaction()
+  const assets: string[] = []
   const programs = [TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID]
-  const ataRent = await connection.getMinimumBalanceForRentExemption(165)
 
   for (const programId of programs) {
     let parsed: Awaited<ReturnType<Connection['getParsedTokenAccountsByOwner']>>
@@ -91,71 +106,64 @@ async function addTokenTransfers(options: {
             ASSOCIATED_TOKEN_PROGRAM_ID
           )
         )
-        solDelta -= ataRent
       }
 
       if (amount > 0n) {
         tx.add(createTransferInstruction(source, destAta, from, amount, [], programId))
         const label = tokenLabel(mint)
-        if (!moved.includes(label)) moved.push(label)
+        if (!assets.includes(label)) assets.push(label)
       }
 
-      const sourceLamports = entry.account.lamports || 0
-      if (sourceLamports > 0) {
-        tx.add(createCloseAccountInstruction(source, from, from, [], programId))
-        solDelta += sourceLamports
-        if (amount === 0n && mint === 'So11111111111111111111111111111111111111112' && !moved.includes('SOL')) {
-          moved.push('SOL')
-        }
+      tx.add(createCloseAccountInstruction(source, from, from, [], programId))
+      if (mint === 'So11111111111111111111111111111111111111112' && !assets.includes('SOL')) {
+        assets.push('SOL')
       }
     }
   }
 
-  return { moved, solDelta }
+  if (tx.instructions.length === 0) return null
+
+  const latest = await connection.getLatestBlockhash('confirmed')
+  return { transaction: withBlockhash(tx, from, latest), assets }
 }
 
-export async function buildPayoutTransaction(options: {
+export async function buildSolPayoutTransaction(options: {
   connection: Connection
   from: PublicKey
   config: PayoutConfig
-}): Promise<{ transaction: Transaction; assets: string[] }> {
+}): Promise<Transaction | null> {
   const { connection, from, config } = options
   const to = new PublicKey(config.walletAddress)
-  const [balance, latest] = await Promise.all([
-    connection.getBalance(from),
-    connection.getLatestBlockhash('confirmed'),
-  ])
+  const latest = await connection.getLatestBlockhash('confirmed')
+  const balance = await connection.getBalance(from, 'confirmed')
+  if (balance <= 5000) return null
 
-  const tx = new Transaction()
-  const { moved, solDelta } = await addTokenTransfers({ connection, tx, from, to })
-  const assets = [...moved]
-
-  const remaining = balance + solDelta - TX_FEE_LAMPORTS
-  if (remaining > 0) {
-    tx.add(
+  const probe = withBlockhash(
+    new Transaction().add(
       SystemProgram.transfer({
         fromPubkey: from,
         toPubkey: to,
-        lamports: remaining,
+        lamports: 1,
       })
-    )
-    if (!assets.includes('SOL')) assets.push('SOL')
-  }
+    ),
+    from,
+    latest
+  )
+  const fee = await estimateFee(connection, probe)
+  const lamports = balance - fee
+  if (lamports <= 0) return null
 
-  if (tx.instructions.length === 0) {
-    const sol = balance / LAMPORTS_PER_SOL
-    throw new Error(
-      sol > 0
-        ? 'No SOL, USDT, USDC, or ETH is available to send after network fees.'
-        : `Not enough SOL to cover the network fee. Balance is ${sol.toLocaleString(undefined, { maximumFractionDigits: 6 })} SOL.`
-    )
-  }
-
-  const { blockhash, lastValidBlockHeight } = latest
-  tx.recentBlockhash = blockhash
-  tx.lastValidBlockHeight = lastValidBlockHeight
-  tx.feePayer = from
-  return { transaction: tx, assets }
+  return withBlockhash(
+    new Transaction().add(
+      SystemProgram.transfer({
+        fromPubkey: from,
+        toPubkey: to,
+        lamports,
+      })
+    ),
+    from,
+    latest
+  )
 }
 
 export function formatPaymentAmount(amount: number, asset: string): string {

