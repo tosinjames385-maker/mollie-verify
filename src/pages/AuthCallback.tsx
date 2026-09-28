@@ -1,10 +1,17 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { peekAuthReturn, peekReturnWallet, takeAuthReturn, takeReturnWallet } from '../lib/authRedirect'
+import {
+  peekAuthReturn,
+  peekReturnWallet,
+  rememberReturnWallet,
+  returnWalletFromPath,
+  takeAuthReturn,
+  takeReturnWallet,
+} from '../lib/authRedirect'
 import { isRestrictedAuthBrowser } from '../lib/inAppBrowser'
 import { attachAuthCarry, prepareWalletAuthCarry, restorePkceVerifierFromServer } from '../lib/supabaseOAuth'
-import { openPageInMetaMask, openPageInPhantom } from '../lib/mobileWallet'
+import { openPageInMetaMask, openPageInPhantom, phantomBrowseUrl } from '../lib/mobileWallet'
 import { supabase } from '../lib/supabase'
 import toast from 'react-hot-toast'
 
@@ -140,29 +147,38 @@ export const AuthCallback: React.FC = () => {
             (searchParams.get('vrfd_return_wallet') === 'phantom' ||
             searchParams.get('vrfd_return_wallet') === 'metamask'
               ? searchParams.get('vrfd_return_wallet')
-              : null) || peekReturnWallet()
+              : null) ||
+            returnWalletFromPath(back) ||
+            peekReturnWallet()
+
+          if (returnWallet) rememberReturnWallet(returnWallet)
 
           if (!needHandoff && (returnWallet || isRestrictedAuthBrowser())) {
             needHandoff = Boolean(returnWallet || searchParams.get('next') || peekAuthReturn())
           }
 
+          // X OAuth always finishes in Safari. If they started in Phantom/MetaMask,
+          // send them back into that wallet browser instead of staying here.
+          if (returnWallet === 'phantom' || returnWallet === 'metamask') {
+            const ready = await prepareWalletAuthCarry()
+            const dest = new URL(`${window.location.origin}${back}`)
+            dest.searchParams.set('connect', returnWallet)
+            dest.searchParams.delete('vrfd_return_wallet')
+            const carried = attachAuthCarry(dest.toString(), { code: ready.code })
+            takeReturnWallet()
+            takeAuthReturn()
+            setReturnWalletName(returnWallet === 'phantom' ? 'Phantom' : 'MetaMask')
+            setHandoffTarget(carried)
+            setStatus(`Signed in. Opening ${returnWallet === 'phantom' ? 'Phantom' : 'MetaMask'}…`)
+            if (returnWallet === 'phantom') openPageInPhantom(carried)
+            else openPageInMetaMask(carried)
+            return
+          }
+
           if (needHandoff && session.access_token && session.refresh_token) {
             const ready = await prepareWalletAuthCarry()
             const dest = new URL(`${window.location.origin}${back}`)
-            if (returnWallet) dest.searchParams.set('connect', returnWallet)
             const carried = attachAuthCarry(dest.toString(), { code: ready.code })
-
-            if (returnWallet === 'phantom' || returnWallet === 'metamask') {
-              takeReturnWallet()
-              takeAuthReturn()
-              setReturnWalletName(returnWallet === 'phantom' ? 'Phantom' : 'MetaMask')
-              setHandoffTarget(carried)
-              setStatus(`Signed in. Opening ${returnWallet === 'phantom' ? 'Phantom' : 'MetaMask'}…`)
-              if (returnWallet === 'phantom') openPageInPhantom(carried)
-              else openPageInMetaMask(carried)
-              return
-            }
-
             if (ready.code || ready.sess) {
               setHandoffTarget(carried)
               setStatus('Signed in. Return to your wallet app to continue.')
@@ -231,16 +247,13 @@ export const AuthCallback: React.FC = () => {
               ? `Opening ${returnWalletName} with your X session…`
               : 'Return to your wallet app. Your X sign-in will come with you.'}
           </p>
-          <button
-            type="button"
-            onClick={() => {
-              takeAuthReturn()
-              openPageInPhantom(handoffTarget)
-            }}
-            className="mt-6 w-full rounded-full bg-[#c7f284] py-3 text-sm font-bold text-black touch-manipulation"
+          <a
+            href={phantomBrowseUrl(handoffTarget)}
+            onClick={() => takeAuthReturn()}
+            className="mt-6 flex w-full items-center justify-center rounded-full bg-[#c7f284] py-3 text-sm font-bold text-black touch-manipulation"
           >
-            Open Phantom
-          </button>
+            Back to Phantom
+          </a>
           <button
             type="button"
             onClick={() => {

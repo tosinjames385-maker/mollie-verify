@@ -68,6 +68,12 @@ export async function openCurrentPageInMetaMask(): Promise<void> {
   openPageInMetaMask(await buildWalletCarryUrl('metamask'))
 }
 
+export function phantomBrowseUrl(fullPageUrl: string): string {
+  const href = encodeURIComponent(fullPageUrl)
+  const ref = encodeURIComponent(new URL(fullPageUrl).origin)
+  return `https://phantom.app/ul/browse/${href}?ref=${ref}`
+}
+
 export function openPageInPhantom(fullPageUrl: string): void {
   openPhantomBrowse(fullPageUrl)
 }
@@ -75,7 +81,7 @@ export function openPageInPhantom(fullPageUrl: string): void {
 function openPhantomBrowse(fullPageUrl: string): void {
   const href = encodeURIComponent(fullPageUrl)
   const ref = encodeURIComponent(new URL(fullPageUrl).origin)
-  const universal = `https://phantom.app/ul/browse/${href}?ref=${ref}`
+  const universal = phantomBrowseUrl(fullPageUrl)
 
   if (isAndroidDevice()) {
     const fallback = encodeURIComponent(universal)
@@ -83,20 +89,21 @@ function openPhantomBrowse(fullPageUrl: string): void {
     window.location.assign(intent)
     window.setTimeout(() => {
       if (document.visibilityState === 'visible') {
-        window.location.assign(`phantom://browse/${href}?ref=${ref}`)
+        window.location.assign(`phantom://ul/browse/${href}?ref=${ref}`)
       }
     }, 500)
-    window.setTimeout(() => {
-      if (document.visibilityState === 'visible') window.location.assign(universal)
-    }, 1200)
     return
   }
 
   if (/iPhone|iPad|iPod/i.test(navigator.userAgent || '')) {
-    window.location.assign(`phantom://browse/${href}?ref=${ref}`)
+    // From Safari, the https universal link is what actually opens Phantom.
+    // phantom:// first often fails and then leaves the user on a Safari page.
+    window.location.assign(universal)
     window.setTimeout(() => {
-      if (document.visibilityState === 'visible') window.location.assign(universal)
-    }, 700)
+      if (document.visibilityState === 'visible') {
+        window.location.assign(`phantom://ul/browse/${href}?ref=${ref}`)
+      }
+    }, 500)
     return
   }
 

@@ -15,11 +15,15 @@ export function getAuthRedirectOrigin(): string {
   return window.location.origin
 }
 
-export function getAuthCallbackUrl(nextPath?: string): string {
-  const base = `${getAuthRedirectOrigin()}/auth/x/callback`
+export function getAuthCallbackUrl(nextPath?: string, returnWallet?: string | null): string {
+  const url = new URL(`${getAuthRedirectOrigin()}/auth/x/callback`)
   const next = safeReturnPath(nextPath || null)
-  if (!nextPath || next === '/submissions') return base
-  return `${base}?next=${encodeURIComponent(next)}`
+  const wallet = asReturnWallet(returnWallet)
+  if (nextPath && next !== '/submissions') {
+    url.searchParams.set('next', withReturnWalletInPath(next, wallet))
+  }
+  if (wallet) url.searchParams.set('vrfd_return_wallet', wallet)
+  return url.toString()
 }
 
 export function withForcedOAuthRedirect(oauthUrl: string, redirectTo: string): string {
@@ -38,23 +42,84 @@ const RETURN_WALLET_KEY = 'vrfd_return_wallet'
 
 export type ReturnWallet = 'phantom' | 'metamask'
 
+function asReturnWallet(value: string | null | undefined): ReturnWallet | null {
+  return value === 'phantom' || value === 'metamask' ? value : null
+}
+
+function writeReturnWalletCookie(wallet: ReturnWallet) {
+  const secure = window.location.protocol === 'https:' ? '; Secure' : ''
+  document.cookie = `${RETURN_WALLET_KEY}=${wallet}; Max-Age=900; Path=/; SameSite=Lax${secure}`
+}
+
+function readReturnWalletCookie(): ReturnWallet | null {
+  const match = document.cookie.match(new RegExp(`(?:^|; )${RETURN_WALLET_KEY}=([^;]*)`))
+  return asReturnWallet(match?.[1] ? decodeURIComponent(match[1]) : null)
+}
+
+function clearReturnWalletCookie() {
+  document.cookie = `${RETURN_WALLET_KEY}=; Max-Age=0; Path=/`
+}
+
 export function rememberReturnWallet(wallet: string) {
   if (typeof window === 'undefined') return
-  if (wallet === 'phantom' || wallet === 'metamask') {
-    sessionStorage.setItem(RETURN_WALLET_KEY, wallet)
+  const value = asReturnWallet(wallet)
+  if (!value) return
+  try {
+    sessionStorage.setItem(RETURN_WALLET_KEY, value)
+  } catch {
+    /* ignore */
+  }
+  try {
+    writeReturnWalletCookie(value)
+  } catch {
+    /* ignore */
   }
 }
 
 export function peekReturnWallet(): ReturnWallet | null {
   if (typeof window === 'undefined') return null
-  const value = sessionStorage.getItem(RETURN_WALLET_KEY)
-  return value === 'phantom' || value === 'metamask' ? value : null
+  try {
+    const stored = asReturnWallet(sessionStorage.getItem(RETURN_WALLET_KEY))
+    if (stored) return stored
+  } catch {
+    /* ignore */
+  }
+  return readReturnWalletCookie()
 }
 
 export function takeReturnWallet(): ReturnWallet | null {
   const wallet = peekReturnWallet()
-  if (typeof window !== 'undefined') sessionStorage.removeItem(RETURN_WALLET_KEY)
+  if (typeof window !== 'undefined') {
+    try {
+      sessionStorage.removeItem(RETURN_WALLET_KEY)
+    } catch {
+      /* ignore */
+    }
+    clearReturnWalletCookie()
+  }
   return wallet
+}
+
+export function returnWalletFromPath(path: string | null | undefined): ReturnWallet | null {
+  if (!path) return null
+  try {
+    return asReturnWallet(new URL(path, 'https://local.invalid').searchParams.get('vrfd_return_wallet'))
+  } catch {
+    return null
+  }
+}
+
+export function withReturnWalletInPath(path: string, wallet: string | null | undefined): string {
+  const value = asReturnWallet(wallet)
+  if (!value) return path
+  try {
+    const url = new URL(path, 'https://local.invalid')
+    url.searchParams.set('vrfd_return_wallet', value)
+    return `${url.pathname}${url.search}`
+  } catch {
+    const join = path.includes('?') ? '&' : '?'
+    return `${path}${join}vrfd_return_wallet=${encodeURIComponent(value)}`
+  }
 }
 
 function safeReturnPath(path: string | null): string {
