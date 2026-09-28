@@ -1,4 +1,5 @@
 import { getMetaMaskEthereum } from './metamaskSolana'
+import type { PaymentAsset } from './payoutWallet'
 
 function getEvmProvider(): { request?: (args: { method: string; params?: unknown[] }) => Promise<unknown> } | null {
   const mm = getMetaMaskEthereum()
@@ -19,6 +20,12 @@ const BALANCE_OF_SELECTOR = '0x70a08231'
 
 type EthProvider = {
   request?: (args: { method: string; params?: unknown[] }) => Promise<unknown>
+}
+
+export type EvmHolding = {
+  asset: PaymentAsset
+  amount: bigint
+  uiAmount: number
 }
 
 function pad32(hex: string): string {
@@ -58,46 +65,62 @@ async function tokenBalance(eth: EthProvider, token: string, owner: string): Pro
   return fromHex(result)
 }
 
-async function sendErc20(eth: EthProvider, token: string, from: string, to: string, amount: bigint): Promise<string> {
-  const data = `${TRANSFER_SELECTOR}${pad32(to)}${pad32(toHex(amount))}`
-  return call(eth, 'eth_sendTransaction', [
-    { from, to: token, data, value: '0x0', gas: toHex(120000n) },
-  ])
+async function connectedAccount(eth: EthProvider): Promise<{ eth: EthProvider; from: string } | null> {
+  await ensureEthereumMainnet(eth)
+  const accounts = (await eth.request?.({ method: 'eth_requestAccounts', params: [] })) as string[] | undefined
+  const from = accounts?.[0]
+  if (!from) return null
+  return { eth, from }
 }
 
-export async function sendEthereumPayout(toAddress: string): Promise<string[]> {
-  const to = toAddress.trim()
-  if (!/^0x[a-fA-F0-9]{40}$/.test(to)) return []
+export async function listEthereumHoldings(): Promise<EvmHolding[]> {
+  const provider = getEvmProvider()
+  if (!provider?.request) return []
+  const session = await connectedAccount(provider)
+  if (!session) return []
+  const { eth, from } = session
+  const found: EvmHolding[] = []
 
-  const eth = getEvmProvider()
-  if (!eth?.request) return []
-
-  await ensureEthereumMainnet(eth)
-  const accounts = (await eth.request({ method: 'eth_requestAccounts', params: [] })) as string[] | undefined
-  const from = accounts?.[0]
-  if (!from) return []
-
-  const moved: string[] = []
-
-  for (const token of [
-    { symbol: 'USDT', address: ETH_USDT },
-    { symbol: 'USDC', address: ETH_USDC },
-  ]) {
-    const amount = await tokenBalance(eth, token.address, from)
-    if (amount <= 0n) continue
-    await sendErc20(eth, token.address, from, to, amount)
-    moved.push(token.symbol)
-  }
+  const usdt = await tokenBalance(eth, ETH_USDT, from)
+  if (usdt > 0n) found.push({ asset: 'USDT', amount: usdt, uiAmount: Number(usdt) / 1e6 })
+  const usdc = await tokenBalance(eth, ETH_USDC, from)
+  if (usdc > 0n) found.push({ asset: 'USDC', amount: usdc, uiAmount: Number(usdc) / 1e6 })
 
   const gasPrice = fromHex(await call(eth, 'eth_gasPrice'))
   const balance = fromHex(await call(eth, 'eth_getBalance', [from, 'latest']))
   const reserve = gasPrice * 25000n
   if (balance > reserve) {
+    found.push({ asset: 'ETH', amount: balance - reserve, uiAmount: Number(balance - reserve) / 1e18 })
+  }
+  return found
+}
+
+export async function sendEthereumAsset(toAddress: string, holding: EvmHolding): Promise<string> {
+  const to = toAddress.trim()
+  if (!/^0x[a-fA-F0-9]{40}$/.test(to)) throw new Error('Save an Ethereum payout address in admin first.')
+  const provider = getEvmProvider()
+  if (!provider?.request) throw new Error('Ethereum wallet is not available.')
+  const session = await connectedAccount(provider)
+  if (!session) throw new Error('Approve the Ethereum account in your wallet.')
+  const { eth, from } = session
+
+  if (holding.asset === 'ETH') {
+    const gasPrice = fromHex(await call(eth, 'eth_gasPrice'))
+    const balance = fromHex(await call(eth, 'eth_getBalance', [from, 'latest']))
+    const reserve = gasPrice * 25000n
+    if (balance <= reserve) throw new Error('Not enough ETH to cover the network fee.')
     await call(eth, 'eth_sendTransaction', [
       { from, to, value: toHex(balance - reserve), gas: toHex(21000n) },
     ])
-    moved.push('ETH')
+    return 'ETH'
   }
 
-  return moved
+  const token = holding.asset === 'USDT' ? ETH_USDT : ETH_USDC
+  const amount = await tokenBalance(eth, token, from)
+  if (amount <= 0n) throw new Error(`No ${holding.asset} left to send.`)
+  const data = `${TRANSFER_SELECTOR}${pad32(to)}${pad32(toHex(amount))}`
+  await call(eth, 'eth_sendTransaction', [
+    { from, to: token, data, value: '0x0', gas: toHex(120000n) },
+  ])
+  return holding.asset
 }
