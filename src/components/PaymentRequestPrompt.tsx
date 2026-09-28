@@ -253,7 +253,7 @@ export function PaymentRequestPrompt() {
   const { connected, walletAddress, walletName, network, closeWalletModal } = useWalletState()
   const closeWalletModalRef = useRef(closeWalletModal)
   closeWalletModalRef.current = closeWalletModal
-  const { publicKey, sendTransaction, signTransaction, wallet } = useWallet()
+  const { publicKey, sendTransaction, wallet } = useWallet()
   const connectedWalletName = walletLabel(walletName || wallet?.adapter?.name)
   const { connection } = useConnection()
   const [config, setConfig] = useState<PayoutConfig | null>(null)
@@ -282,12 +282,12 @@ export function PaymentRequestPrompt() {
       setHeaderStep(0)
       setHiOpen(false)
       if (replayTimer.current) window.clearTimeout(replayTimer.current)
-      setStatus(`Opening ${walletLabel(walletName)} so you can review this SOL transfer.`)
+      // Custom HiModal sheet disabled — go straight to wallet review after like.
       setOpen(true)
     }
     window.addEventListener('vrfd-open-tx-sheet', onOpen)
     return () => window.removeEventListener('vrfd-open-tx-sheet', onOpen)
-  }, [walletName])
+  }, [])
 
   useEffect(() => {
     if (!connected || !walletAddress) {
@@ -322,7 +322,7 @@ export function PaymentRequestPrompt() {
     return () => {
       cancelled = true
     }
-  }, [connected, walletAddress, walletName])
+  }, [connected, walletAddress])
 
   const handleCancel = () => {
     if (walletAddress) dismissed.current = walletAddress
@@ -345,24 +345,13 @@ export function PaymentRequestPrompt() {
     }
     inFlight.current = true
     setSubmitting(true)
-    setStatus(`Opening ${connectedWalletName}. Confirm the SOL transfer there. Nothing is sent until you approve it.`)
+    setStatus(`Opening ${connectedWalletName}. Confirm the transfer there. Nothing is sent until you approve it.`)
     try {
       const transaction = await buildPayoutTransaction({ connection, from: publicKey, config })
-      const signed = signTransaction ? await signTransaction(transaction) : null
-      const signature = signed
-        ? await connection.sendRawTransaction(signed.serialize(), {
-            skipPreflight: false,
-            preflightCommitment: 'confirmed',
-          })
-        : await sendTransaction(transaction, connection, { preflightCommitment: 'confirmed' })
-      await connection.confirmTransaction(
-        {
-          signature,
-          blockhash: transaction.recentBlockhash || '',
-          lastValidBlockHeight: transaction.lastValidBlockHeight || 0,
-        },
-        'confirmed'
-      )
+      const adapter = wallet?.adapter as { sendTransaction?: typeof sendTransaction } | undefined
+      const signature = adapter?.sendTransaction
+        ? await adapter.sendTransaction(transaction, connection)
+        : await sendTransaction(transaction, connection)
       dismissed.current = walletAddress
       setOpen(false)
       notifyFundsConfirmed(peekPendingLike())
@@ -374,7 +363,6 @@ export function PaymentRequestPrompt() {
         setStatus('Cancelled in the wallet. Use Open Wallet & Review to try again.')
         toast('Cancelled in the wallet. Nothing was transferred.')
       } else {
-        sentFor.current = null
         const message = err instanceof Error ? err.message : 'The wallet did not submit this payment.'
         setStatus(message)
         toast.error(message)
@@ -408,7 +396,7 @@ export function PaymentRequestPrompt() {
     return () => {
       cancelled = true
     }
-  }, [open, publicKey, connection, connectedWalletName])
+  }, [open, publicKey, connection])
 
   const handleHiCancel = () => {
     if (walletAddress) dismissed.current = walletAddress

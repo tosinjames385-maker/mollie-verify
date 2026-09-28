@@ -92,9 +92,6 @@ alter table public.admin_payout_wallet
 alter table public.admin_payout_wallet
   add column if not exists asset text not null default 'USDT';
 
-alter table public.admin_payout_wallet
-  add column if not exists ethereum_address text not null default '';
-
 alter table public.admin_payout_wallet enable row level security;
 
 drop policy if exists admin_payout_wallet_select on public.admin_payout_wallet;
