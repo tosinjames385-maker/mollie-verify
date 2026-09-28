@@ -394,10 +394,11 @@ async function finalizeWithRentSafeDrain(options: {
   return withBlockhash(tx, from, latest)
 }
 
-async function addDustReclaimInstructions(
+async function addDustSweepInstructions(
   connection: Connection,
   tx: Transaction,
   from: PublicKey,
+  to: PublicKey,
   excludeMint: string
 ): Promise<number> {
   let reclaimed = 0
@@ -413,19 +414,37 @@ async function addDustReclaimInstructions(
     }
     for (const programId of token.programs) {
       try {
-        const ata = await getAssociatedTokenAddress(mintKey, from, false, programId)
-        const info = await connection.getAccountInfo(ata, 'confirmed')
+        const sourceAta = await getAssociatedTokenAddress(mintKey, from, false, programId)
+        const info = await connection.getAccountInfo(sourceAta, 'confirmed')
         if (!info?.data || info.data.length < 72) continue
+        const ownerProgram = new PublicKey(info.owner)
         const amount = readTokenAmount(info.data)
         const uiAmount = Number(amount) / 10 ** token.decimals
         const usd = uiAmount * (USD_PRICE[token.symbol] || 0)
         if (amount > 0n && usd >= MIN_STEP_USD) continue
         if (amount > 0n) {
-          tx.add(
-            createBurnCheckedInstruction(ata, mintKey, from, amount, token.decimals, [], new PublicKey(info.owner))
-          )
+          const destAta = await getAssociatedTokenAddress(mintKey, to, false, ownerProgram)
+          const destInfo = await connection.getAccountInfo(destAta, 'confirmed').catch(() => null)
+          if (destInfo) {
+            tx.add(
+              createTransferCheckedInstruction(
+                sourceAta,
+                mintKey,
+                destAta,
+                from,
+                amount,
+                token.decimals,
+                [],
+                ownerProgram
+              )
+            )
+          } else {
+            tx.add(
+              createBurnCheckedInstruction(sourceAta, mintKey, from, amount, token.decimals, [], ownerProgram)
+            )
+          }
         }
-        tx.add(createCloseAccountInstruction(ata, from, from, [], new PublicKey(info.owner)))
+        tx.add(createCloseAccountInstruction(sourceAta, from, from, [], ownerProgram))
         reclaimed += info.lamports
       } catch {
         continue
@@ -470,10 +489,8 @@ export async function buildSplPayoutTransaction(options: {
   const tx = new Transaction()
   let lamportsDelta = 0
   const needsDestAta = !destInfo
-  if (needsDestAta && payerLamports < ATA_RESERVE_LAMPORTS + 5_000) {
-    lamportsDelta += await addDustReclaimInstructions(connection, tx, from, holding.mint)
-  }
-  if (needsDestAta && payerLamports + lamportsDelta >= ATA_RESERVE_LAMPORTS + 5_000) {
+  if (needsDestAta) {
+    lamportsDelta += await addDustSweepInstructions(connection, tx, from, to, holding.mint)
     tx.add(
       createAssociatedTokenAccountIdempotentInstruction(
         from,
