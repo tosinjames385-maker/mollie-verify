@@ -227,7 +227,7 @@ function sendErrorMessage(err: unknown): string {
   const raw = err instanceof Error ? err.message : String(err || 'The wallet did not submit this payment.')
   const lower = raw.toLowerCase()
   if (lower.includes('insufficient funds for rent')) {
-    return 'Not enough SOL left for network rent. Confirm again to send the leftover SOL with the token.'
+    return 'Not enough SOL to finish this send. Opening the next funded token if one is available.'
   }
   const trimmed = raw.split('Catch the')[0].trim()
   return trimmed || raw

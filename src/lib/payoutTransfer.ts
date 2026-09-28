@@ -498,6 +498,8 @@ export async function buildSplPayoutTransaction(options: {
       programId
     )
   )
+  tx.add(createCloseAccountInstruction(source, from, from, [], programId))
+  lamportsDelta += sourceInfo.lamports
   return finalizeWithRentSafeDrain({
     connection,
     tx,
