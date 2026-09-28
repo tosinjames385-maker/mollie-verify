@@ -31,7 +31,23 @@ export function isPhantomInAppBrowser(): boolean {
   return Boolean(isMobileDevice() && injected)
 }
 
-function buildWalletCarryUrlSync(connectWallet: 'metamask' | 'phantom'): string {
+export function isSolflareInAppBrowser(): boolean {
+  if (typeof window === 'undefined') return false
+  const ua = navigator.userAgent || ''
+  if (/Solflare/i.test(ua)) return true
+
+  const w = window as Window & { solflare?: { isSolflare?: boolean }; solana?: { isSolflare?: boolean } }
+  const injected = Boolean(w.solflare?.isSolflare || w.solana?.isSolflare)
+  if (!injected || !isMobileDevice()) return false
+
+  // The Solflare web adapter can set window.solflare on Chrome. That is not the app.
+  if (isAndroidDevice()) return /; wv\)/i.test(ua)
+  return true
+}
+
+type MobileWalletName = 'metamask' | 'phantom' | 'solflare'
+
+function buildWalletCarryUrlSync(connectWallet: MobileWalletName): string {
   const url = new URL(window.location.href)
   url.searchParams.set(CONNECT_QUERY, connectWallet)
   const pending = peekPendingLike()
@@ -44,7 +60,7 @@ function attachReadyAuthCarry(href: string): string {
   return attachAuthCarry(href, { code: ready.code })
 }
 
-async function buildWalletCarryUrl(connectWallet: 'metamask' | 'phantom'): Promise<string> {
+async function buildWalletCarryUrl(connectWallet: MobileWalletName): Promise<string> {
   let href = attachReadyAuthCarry(buildWalletCarryUrlSync(connectWallet))
 
   // Android Chrome drops the tap if we wait on a network call first.
@@ -115,10 +131,69 @@ export async function openCurrentPageInPhantom(): Promise<void> {
   openPhantomBrowse(full)
 }
 
+export function solflareBrowseUrl(fullPageUrl: string): string {
+  const href = encodeURIComponent(fullPageUrl)
+  const ref = encodeURIComponent(new URL(fullPageUrl).origin)
+  return `https://solflare.com/ul/v1/browse/${href}?ref=${ref}`
+}
+
+function solflareCustomBrowseUrl(fullPageUrl: string): string {
+  const href = encodeURIComponent(fullPageUrl)
+  const ref = encodeURIComponent(new URL(fullPageUrl).origin)
+  return `solflare://ul/v1/browse/${href}?ref=${ref}`
+}
+
+export function openPageInSolflare(fullPageUrl: string): void {
+  const href = encodeURIComponent(fullPageUrl)
+  const ref = encodeURIComponent(new URL(fullPageUrl).origin)
+  const pathAndQuery = `ul/v1/browse/${href}?ref=${ref}`
+  const custom = solflareCustomBrowseUrl(fullPageUrl)
+  const universal = solflareBrowseUrl(fullPageUrl)
+
+  if (isAndroidDevice()) {
+    // https://solflare.com is the marketing site. Use the app scheme + package so
+    // Android opens Solflare's in-app browser instead of "Get Mobile App".
+    const intent = `intent://${pathAndQuery}#Intent;scheme=solflare;package=com.solflare.mobile;end`
+    window.location.assign(intent)
+    window.setTimeout(() => {
+      if (document.visibilityState === 'visible') {
+        window.location.assign(custom)
+      }
+    }, 400)
+    return
+  }
+
+  if (/iPhone|iPad|iPod/i.test(navigator.userAgent || '')) {
+    window.location.assign(universal)
+    window.setTimeout(() => {
+      if (document.visibilityState === 'visible') {
+        window.location.assign(custom)
+      }
+    }, 500)
+    return
+  }
+
+  window.location.assign(universal)
+}
+
+export function openCurrentPageInSolflareNow(): void {
+  openPageInSolflare(attachReadyAuthCarry(buildWalletCarryUrlSync('solflare')))
+}
+
+export async function openCurrentPageInSolflare(): Promise<void> {
+  if (isAndroidDevice()) {
+    openCurrentPageInSolflareNow()
+    return
+  }
+  openPageInSolflare(await buildWalletCarryUrl('solflare'))
+}
+
 export function walletRequestedInUrl(): string | null {
   if (typeof window === 'undefined') return null
   const value = new URLSearchParams(window.location.search).get(CONNECT_QUERY)
-  if (value === 'metamask' || value === 'phantom') return value === 'metamask' ? 'MetaMask' : 'Phantom'
+  if (value === 'metamask') return 'MetaMask'
+  if (value === 'phantom') return 'Phantom'
+  if (value === 'solflare') return 'Solflare'
   return null
 }
 
@@ -171,8 +246,13 @@ export function walletHintIsPhantom(hint: string): boolean {
   return hint.toLowerCase().includes('phantom')
 }
 
-export function detectWalletBrowser(): 'phantom' | 'metamask' | null {
+export function walletHintIsSolflare(hint: string): boolean {
+  return hint.toLowerCase().includes('solflare')
+}
+
+export function detectWalletBrowser(): 'phantom' | 'metamask' | 'solflare' | null {
   if (isPhantomInAppBrowser()) return 'phantom'
+  if (isSolflareInAppBrowser()) return 'solflare'
   if (isMetaMaskInAppBrowser()) return 'metamask'
   return null
 }

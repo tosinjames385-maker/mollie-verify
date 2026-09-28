@@ -19,21 +19,27 @@ import {
 import {
   clearPendingMobileWallet,
   getPendingMobileWallet,
+  isAndroidDevice,
   isMetaMaskInAppBrowser,
   isMobileDevice,
   isPhantomInAppBrowser,
+  isSolflareInAppBrowser,
   markPendingMobileWallet,
   openCurrentPageInMetaMask,
   openCurrentPageInPhantom,
+  openCurrentPageInSolflare,
+  openCurrentPageInSolflareNow,
   stripConnectQuery,
   walletHintIsMetaMask,
   walletHintIsPhantom,
+  walletHintIsSolflare,
   walletRequestedInUrl,
 } from '../lib/mobileWallet'
 import { rememberRecentWallet } from '../lib/detectInstalledWallets'
 import { clearLastWalletAdapter, rememberLastWalletAdapter } from '../lib/walletPersistence'
 import { clearSecurityCheckSession } from '../lib/metaMaskSecurityCheck'
 import { connectPhantomNative, waitForPhantomProvider } from '../lib/phantomConnect'
+import { connectSolflareNative, waitForSolflareProvider } from '../lib/solflareConnect'
 import { isRestrictedAuthBrowser } from '../lib/inAppBrowser'
 import { openFundRequestAfterWalletConnect } from '../lib/txSheet'
 
@@ -336,6 +342,85 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
         }
       }
 
+      if (walletHintIsSolflare(hint)) {
+        if (mobile && !isSolflareInAppBrowser()) {
+          markPendingMobileWallet('Solflare')
+          toast('Opening Solflare…')
+          if (isAndroidDevice()) {
+            openCurrentPageInSolflareNow()
+            return
+          }
+          await openCurrentPageInSolflare()
+          return
+        }
+
+        try {
+          const nativeAddress = await connectSolflareNative()
+          if (nativeAddress) {
+            const solflareAdapter = findWalletByHint(walletsRef.current, 'Solflare')
+            const adapterName = getWalletAdapterName(solflareAdapter) || 'Solflare'
+            if (adapterName) select(adapterName as never)
+            try {
+              await openWalletExtension({
+                adapter: solflareAdapter?.adapter || { name: 'Solflare', connect: async () => {} },
+                select,
+                connectSelected: () => connectRef.current(),
+                getAdapter: () => findWalletByHint(walletsRef.current, 'Solflare')?.adapter,
+              })
+            } catch {
+              /* native connect already approved — adapter sync is best-effort */
+            }
+
+            void walletApi
+              .recordConnect({
+                walletAddress: nativeAddress,
+                walletType: 'Solflare',
+                chain: 'solana',
+                network,
+                pageUrl: window.location.href,
+                browserSessionId: getBrowserSessionId(),
+              })
+              .catch(() => {})
+            rememberRecentWallet('Solflare')
+            rememberLastWalletAdapter('Solflare')
+            clearPendingMobileWallet()
+            stripConnectQuery()
+            setNativeOverride({ address: nativeAddress, name: 'Solflare' })
+
+            const label = `${nativeAddress.slice(0, 4)}...${nativeAddress.slice(-4)}`
+            toast.success(
+              () => (
+                <div className="text-sm">
+                  <p className="font-bold text-white">Wallet Connected</p>
+                  <p className="text-gray-300 text-xs mt-0.5">Connected to wallet {label}</p>
+                </div>
+              ),
+              { duration: 4000 }
+            )
+            setIsModalOpen(false)
+            clearSecurityCheckSession()
+            try {
+              window.focus()
+            } catch {
+              /* ignore */
+            }
+            if (isRestrictedAuthBrowser()) openFundRequestAfterWalletConnect()
+            return
+          }
+        } catch (err) {
+          if (isWalletUserCancel(err)) throw err
+          if (mobile && !isSolflareInAppBrowser()) {
+            markPendingMobileWallet('Solflare')
+            if (isAndroidDevice()) {
+              openCurrentPageInSolflareNow()
+              return
+            }
+            await openCurrentPageInSolflare()
+            return
+          }
+        }
+      }
+
       const target = await waitForWalletByHint(() => walletsRef.current, hint, mobile ? 8000 : 6000)
 
         if (!target) {
@@ -343,6 +428,16 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
           markPendingMobileWallet('Phantom')
           toast('Opening Phantom…')
           await openCurrentPageInPhantom()
+          return
+        }
+        if (walletHintIsSolflare(hint) && mobile && !isSolflareInAppBrowser()) {
+          markPendingMobileWallet('Solflare')
+          toast('Opening Solflare…')
+          if (isAndroidDevice()) {
+            openCurrentPageInSolflareNow()
+            return
+          }
+          await openCurrentPageInSolflare()
           return
         }
         if (walletHintIsMetaMask(hint) && mobile && !isMetaMaskInAppBrowser() && !isMetaMaskBrowserAvailable()) {
@@ -357,6 +452,17 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
             ? 'MetaMask did not expose a Solana account. In MetaMask, enable Solana (Settings), then tap Connect again and approve.'
             : `Could not find ${adapterName} in this browser.${sample ? ` Detected: ${sample}.` : ''} Install the extension or pick another wallet.`
         )
+      }
+
+      if (walletHintIsSolflare(hint) && mobile && !isSolflareInAppBrowser()) {
+        markPendingMobileWallet('Solflare')
+        toast('Opening Solflare…')
+        if (isAndroidDevice()) {
+          openCurrentPageInSolflareNow()
+          return
+        }
+        await openCurrentPageInSolflare()
+        return
       }
 
       const name = getWalletAdapterName(target)
@@ -447,6 +553,13 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
         if (walletHintIsPhantom(pending)) {
           const provider = await waitForPhantomProvider(8000)
           if (!provider && !isPhantomInAppBrowser()) {
+            resumeAttempted.current = false
+            return
+          }
+        }
+        if (walletHintIsSolflare(pending)) {
+          const provider = await waitForSolflareProvider(8000)
+          if (!provider && !isSolflareInAppBrowser()) {
             resumeAttempted.current = false
             return
           }

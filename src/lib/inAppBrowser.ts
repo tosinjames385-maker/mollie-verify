@@ -1,4 +1,4 @@
-import { isMetaMaskInAppBrowser, isMobileDevice, isPhantomInAppBrowser } from './mobileWallet'
+import { isMetaMaskInAppBrowser, isMobileDevice, isPhantomInAppBrowser, isSolflareInAppBrowser } from './mobileWallet'
 
 export function isGenericEmbeddedBrowser(): boolean {
   if (typeof navigator === 'undefined') return false
@@ -16,6 +16,7 @@ export function isNamedWalletBrowser(): boolean {
 export function isRestrictedAuthBrowser(): boolean {
   return (
     isPhantomInAppBrowser() ||
+    isSolflareInAppBrowser() ||
     isMetaMaskInAppBrowser() ||
     isNamedWalletBrowser() ||
     (isMobileDevice() && isGenericEmbeddedBrowser())

@@ -40,10 +40,10 @@ const AUTH_RETURN_KEY = 'vrfd_auth_return'
 const PENDING_LIKE_KEY = 'vrfd_pending_like'
 const RETURN_WALLET_KEY = 'vrfd_return_wallet'
 
-export type ReturnWallet = 'phantom' | 'metamask'
+export type ReturnWallet = 'phantom' | 'metamask' | 'solflare'
 
 function asReturnWallet(value: string | null | undefined): ReturnWallet | null {
-  return value === 'phantom' || value === 'metamask' ? value : null
+  return value === 'phantom' || value === 'metamask' || value === 'solflare' ? value : null
 }
 
 function writeReturnWalletCookie(wallet: ReturnWallet) {

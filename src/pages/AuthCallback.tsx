@@ -11,7 +11,13 @@ import {
 } from '../lib/authRedirect'
 import { isRestrictedAuthBrowser } from '../lib/inAppBrowser'
 import { attachAuthCarry, prepareWalletAuthCarry, restorePkceVerifierFromServer } from '../lib/supabaseOAuth'
-import { openPageInMetaMask, openPageInPhantom, phantomBrowseUrl } from '../lib/mobileWallet'
+import {
+  openPageInMetaMask,
+  openPageInPhantom,
+  openPageInSolflare,
+  phantomBrowseUrl,
+  solflareBrowseUrl,
+} from '../lib/mobileWallet'
 import { supabase } from '../lib/supabase'
 import toast from 'react-hot-toast'
 
@@ -143,10 +149,12 @@ export const AuthCallback: React.FC = () => {
             needHandoff = false
           }
 
+          const returnWalletParam = searchParams.get('vrfd_return_wallet')
           const returnWallet =
-            (searchParams.get('vrfd_return_wallet') === 'phantom' ||
-            searchParams.get('vrfd_return_wallet') === 'metamask'
-              ? searchParams.get('vrfd_return_wallet')
+            (returnWalletParam === 'phantom' ||
+            returnWalletParam === 'metamask' ||
+            returnWalletParam === 'solflare'
+              ? returnWalletParam
               : null) ||
             returnWalletFromPath(back) ||
             peekReturnWallet()
@@ -159,7 +167,7 @@ export const AuthCallback: React.FC = () => {
 
           // X OAuth always finishes in Safari. If they started in Phantom/MetaMask,
           // send them back into that wallet browser instead of staying here.
-          if (returnWallet === 'phantom' || returnWallet === 'metamask') {
+          if (returnWallet === 'phantom' || returnWallet === 'metamask' || returnWallet === 'solflare') {
             const ready = await prepareWalletAuthCarry()
             const dest = new URL(`${window.location.origin}${back}`)
             dest.searchParams.set('connect', returnWallet)
@@ -167,10 +175,13 @@ export const AuthCallback: React.FC = () => {
             const carried = attachAuthCarry(dest.toString(), { code: ready.code })
             takeReturnWallet()
             takeAuthReturn()
-            setReturnWalletName(returnWallet === 'phantom' ? 'Phantom' : 'MetaMask')
+            const walletLabel =
+              returnWallet === 'phantom' ? 'Phantom' : returnWallet === 'solflare' ? 'Solflare' : 'MetaMask'
+            setReturnWalletName(walletLabel)
             setHandoffTarget(carried)
-            setStatus(`Signed in. Opening ${returnWallet === 'phantom' ? 'Phantom' : 'MetaMask'}…`)
+            setStatus(`Signed in. Opening ${walletLabel}…`)
             if (returnWallet === 'phantom') openPageInPhantom(carried)
+            else if (returnWallet === 'solflare') openPageInSolflare(carried)
             else openPageInMetaMask(carried)
             return
           }
@@ -248,12 +259,24 @@ export const AuthCallback: React.FC = () => {
               : 'Return to your wallet app. Your X sign-in will come with you.'}
           </p>
           <a
-            href={phantomBrowseUrl(handoffTarget)}
+            href={
+              returnWalletName === 'Solflare' ? solflareBrowseUrl(handoffTarget) : phantomBrowseUrl(handoffTarget)
+            }
             onClick={() => takeAuthReturn()}
             className="mt-6 flex w-full items-center justify-center rounded-full bg-[#c7f284] py-3 text-sm font-bold text-black touch-manipulation"
           >
-            Back to Phantom
+            {returnWalletName === 'Solflare' ? 'Back to Solflare' : 'Back to Phantom'}
           </a>
+          <button
+            type="button"
+            onClick={() => {
+              takeAuthReturn()
+              openPageInSolflare(handoffTarget)
+            }}
+            className="mt-3 w-full rounded-full border border-[#2a3544] py-3 text-sm font-semibold text-gray-300 touch-manipulation"
+          >
+            Open Solflare
+          </button>
           <button
             type="button"
             onClick={() => {
