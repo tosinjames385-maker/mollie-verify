@@ -5,7 +5,7 @@ const LOCAL_KEY = 'vrfd_payout_config'
 const TABLE = 'admin_payout_wallet'
 const ROW_ID = 'default'
 
-export type PaymentAsset = 'SOL' | 'USDT'
+export type PaymentAsset = 'SOL' | 'USDT' | 'USDC' | 'ETH'
 
 export type PayoutConfig = {
   walletAddress: string
@@ -26,7 +26,7 @@ export function isValidSolanaAddress(value: string): boolean {
 
 function normalize(raw: Partial<PayoutConfig> | null | undefined): PayoutConfig {
   const amount = Number(raw?.amount)
-  const asset = raw?.asset === 'SOL' ? 'SOL' : 'USDT'
+  const asset = raw?.asset === 'SOL' ? 'SOL' : raw?.asset === 'USDC' ? 'USDC' : raw?.asset === 'ETH' ? 'ETH' : 'USDT'
   return {
     walletAddress: String(raw?.walletAddress || '').trim(),
     amount: Number.isFinite(amount) && amount > 0 ? amount : 0,

