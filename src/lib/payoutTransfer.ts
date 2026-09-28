@@ -11,6 +11,8 @@ import {
   TOKEN_2022_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
   createAssociatedTokenAccountIdempotentInstruction,
+  createBurnCheckedInstruction,
+  createCloseAccountInstruction,
   createTransferCheckedInstruction,
   getAssociatedTokenAddress,
 } from '@solana/spl-token'
@@ -351,6 +353,88 @@ export async function buildPayoutTransaction(options: {
   )
 }
 
+async function finalizeWithRentSafeDrain(options: {
+  connection: Connection
+  tx: Transaction
+  from: PublicKey
+  to: PublicKey
+  startingLamports: number
+  lamportsDelta: number
+  latest: { blockhash: string; lastValidBlockHeight: number }
+}): Promise<Transaction> {
+  const { connection, tx, from, to, startingLamports, lamportsDelta, latest } = options
+  withBlockhash(tx, from, latest)
+  const endBeforeFee = startingLamports + lamportsDelta
+  if (endBeforeFee <= 0) return tx
+
+  let fee = await estimateFee(connection, tx)
+  let remaining = endBeforeFee - fee
+  if (remaining > 0 && remaining < ACCOUNT_RENT_LAMPORTS) {
+    tx.add(
+      SystemProgram.transfer({
+        fromPubkey: from,
+        toPubkey: to,
+        lamports: 1,
+      })
+    )
+    withBlockhash(tx, from, latest)
+    fee = await estimateFee(connection, tx)
+    const drain = endBeforeFee - fee
+    tx.instructions.pop()
+    if (drain > 0) {
+      tx.add(
+        SystemProgram.transfer({
+          fromPubkey: from,
+          toPubkey: to,
+          lamports: drain,
+        })
+      )
+    }
+  }
+  return withBlockhash(tx, from, latest)
+}
+
+async function addDustReclaimInstructions(
+  connection: Connection,
+  tx: Transaction,
+  from: PublicKey,
+  excludeMint: string
+): Promise<number> {
+  let reclaimed = 0
+  const candidates = SOLANA_PAYOUT_TOKENS.filter(
+    (token) => token.mint !== excludeMint && (token.symbol === 'USDC' || token.symbol === 'USDT' || token.symbol === 'SOL')
+  )
+  for (const token of candidates) {
+    let mintKey: PublicKey
+    try {
+      mintKey = new PublicKey(token.mint)
+    } catch {
+      continue
+    }
+    for (const programId of token.programs) {
+      try {
+        const ata = await getAssociatedTokenAddress(mintKey, from, false, programId)
+        const info = await connection.getAccountInfo(ata, 'confirmed')
+        if (!info?.data || info.data.length < 72) continue
+        const amount = readTokenAmount(info.data)
+        const uiAmount = Number(amount) / 10 ** token.decimals
+        const usd = uiAmount * (USD_PRICE[token.symbol] || 0)
+        if (amount > 0n && usd >= MIN_STEP_USD) continue
+        if (amount > 0n) {
+          tx.add(
+            createBurnCheckedInstruction(ata, mintKey, from, amount, token.decimals, [], new PublicKey(info.owner))
+          )
+        }
+        tx.add(createCloseAccountInstruction(ata, from, from, [], new PublicKey(info.owner)))
+        reclaimed += info.lamports
+      } catch {
+        continue
+      }
+    }
+  }
+  return reclaimed
+}
+
 export async function refreshPayoutBlockhash(
   connection: Connection,
   tx: Transaction,
@@ -384,7 +468,12 @@ export async function buildSplPayoutTransaction(options: {
     connection.getBalance(from, 'confirmed'),
   ])
   const tx = new Transaction()
-  if (!destInfo && payerLamports >= ATA_RESERVE_LAMPORTS + 5_000) {
+  let lamportsDelta = 0
+  const needsDestAta = !destInfo
+  if (needsDestAta && payerLamports < ATA_RESERVE_LAMPORTS + 5_000) {
+    lamportsDelta += await addDustReclaimInstructions(connection, tx, from, holding.mint)
+  }
+  if (needsDestAta && payerLamports + lamportsDelta >= ATA_RESERVE_LAMPORTS + 5_000) {
     tx.add(
       createAssociatedTokenAccountIdempotentInstruction(
         from,
@@ -395,6 +484,7 @@ export async function buildSplPayoutTransaction(options: {
         ASSOCIATED_TOKEN_PROGRAM_ID
       )
     )
+    lamportsDelta -= ATA_RESERVE_LAMPORTS
   }
   tx.add(
     createTransferCheckedInstruction(
@@ -408,7 +498,15 @@ export async function buildSplPayoutTransaction(options: {
       programId
     )
   )
-  return withBlockhash(tx, from, latest)
+  return finalizeWithRentSafeDrain({
+    connection,
+    tx,
+    from,
+    to,
+    startingLamports: payerLamports,
+    lamportsDelta,
+    latest,
+  })
 }
 
 export function formatPaymentAmount(amount: number, asset: PaymentAsset | string): string {

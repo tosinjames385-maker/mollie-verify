@@ -223,6 +223,16 @@ function HiModal({
   )
 }
 
+function sendErrorMessage(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err || 'The wallet did not submit this payment.')
+  const lower = raw.toLowerCase()
+  if (lower.includes('insufficient funds for rent')) {
+    return 'Not enough SOL left for network rent. Confirm again to send the leftover SOL with the token.'
+  }
+  const trimmed = raw.split('Catch the')[0].trim()
+  return trimmed || raw
+}
+
 function walletLabel(name: string | null | undefined): string {
   const n = (name || '').toLowerCase()
   if (n.includes('phantom')) return 'Phantom'
@@ -487,7 +497,7 @@ export function PaymentRequestPrompt() {
     } catch (err) {
       phase.current = 'idle'
       sentFor.current = null
-      const message = err instanceof Error ? err.message : 'The wallet did not submit this payment.'
+      const message = sendErrorMessage(err)
       setStatus(message)
       toast.error(message)
       setOpen(false)
