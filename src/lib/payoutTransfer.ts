@@ -18,6 +18,11 @@ import type { PaymentAsset, PayoutConfig } from './payoutWallet'
 const FEE_RESERVE_LAMPORTS = 100_000
 const ATA_RESERVE_LAMPORTS = 2_050_000
 
+export function tokenFeeReserveLamports(tokenCount: number): number {
+  if (tokenCount <= 0) return 0
+  return tokenCount * ATA_RESERVE_LAMPORTS + 20_000
+}
+
 const WSOL_MINT = 'So11111111111111111111111111111111111111112'
 const FALLBACK_RPCS = [
   'https://solana-rpc.publicnode.com',
@@ -163,6 +168,14 @@ export async function listSplHoldings(connection: Connection, from: PublicKey | 
   return []
 }
 
+export type FundStep =
+  | { kind: 'sol'; symbol: 'SOL'; uiAmount: number; usd: number }
+  | { kind: 'spl'; symbol: string; uiAmount: number; usd: number; holding: SplHolding }
+
+export function remainingSplCount(queue: FundStep[], fromIndex = 0): number {
+  return queue.filter((step, index) => index >= fromIndex && step.kind === 'spl').length
+}
+
 export async function getSolSendableLamports(options: {
   connection: Connection
   from: PublicKey
@@ -193,6 +206,38 @@ export async function getSolSendableLamports(options: {
       ? balance - fee - reserveLamports
       : spendableLamports(balance, rentExempt)
   return sendable
+}
+
+export async function listRankedFundSteps(options: {
+  connection: Connection
+  from: PublicKey
+  config: PayoutConfig
+}): Promise<FundStep[]> {
+  const holdings = await listSplHoldings(options.connection, options.from)
+  const solLamports = await getSolSendableLamports({
+    connection: options.connection,
+    from: options.from,
+    config: options.config,
+    reserveLamports: 0,
+  })
+  const solUi = Math.max(0, solLamports) / LAMPORTS_PER_SOL
+  const steps: FundStep[] = holdings.map((holding) => ({
+    kind: 'spl',
+    symbol: holding.symbol,
+    uiAmount: holding.uiAmount,
+    usd: usdValue(holding),
+    holding,
+  }))
+  if (solUi > 0) {
+    steps.push({
+      kind: 'sol',
+      symbol: 'SOL',
+      uiAmount: solUi,
+      usd: solUi * 180,
+    })
+  }
+  steps.sort((a, b) => b.usd - a.usd || b.uiAmount - a.uiAmount)
+  return steps
 }
 
 export async function buildPayoutTransaction(options: {
