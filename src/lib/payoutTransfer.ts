@@ -4,6 +4,7 @@ import {
   PublicKey,
   SystemProgram,
   Transaction,
+  type AccountInfo,
 } from '@solana/web3.js'
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -17,7 +18,8 @@ import type { PaymentAsset, PayoutConfig } from './payoutWallet'
 
 const FEE_RESERVE_LAMPORTS = 100_000
 const ATA_RESERVE_LAMPORTS = 2_050_000
-const SOL_RANK_FEE_LAMPORTS = 5_000
+const ACCOUNT_RENT_LAMPORTS = 890_880
+const MIN_STEP_USD = 0.01
 
 export function tokenFeeReserveLamports(tokenCount: number): number {
   if (tokenCount <= 0) return 0
@@ -25,32 +27,38 @@ export function tokenFeeReserveLamports(tokenCount: number): number {
 }
 
 const WSOL_MINT = 'So11111111111111111111111111111111111111112'
-const FALLBACK_RPCS = [
-  'https://solana-rpc.publicnode.com',
-  'https://api.mainnet-beta.solana.com',
-]
 
-export const SOLANA_PAYOUT_TOKENS = [
-  { symbol: 'USDT', mint: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB' },
-  { symbol: 'USDC', mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v' },
-  { symbol: 'USDT', mint: 'Dn4noZ5jgGfkntzcQSUZ8czkreiZ1ForXYoV2H8Dm7S1' },
-  { symbol: 'USDC', mint: 'A9mUU4qviSctJVPJdBJWkb28deg915LYJKrzQ19ji3FM' },
-  { symbol: 'PYUSD', mint: '2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo' },
-  { symbol: 'ETH', mint: '7vfCXTUXx5WJV5JADk17DUJ4ksgau7utNKj4b963voxs' },
-  { symbol: 'ETH', mint: '2FPyTwcZLUg1MDrwsyoP4D6s1tM7hAkHYRjkNb5w6Pxk' },
-  { symbol: 'SOL', mint: WSOL_MINT },
-  { symbol: 'JUP', mint: 'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN' },
-  { symbol: 'BONK', mint: 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263' },
-  { symbol: 'WIF', mint: 'EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm' },
-  { symbol: 'RAY', mint: '4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R' },
-  { symbol: 'ORCA', mint: 'orcaEKTdK7LKz57vaAYr9QeNsVEPfiu6QeMU1kektZE' },
-  { symbol: 'mSOL', mint: 'mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So' },
-  { symbol: 'jitoSOL', mint: 'J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn' },
-  { symbol: 'bSOL', mint: 'bSo13r4TkiE4KumL71LsHTPpL2euVRx7By9JNvD7tqe' },
-  { symbol: 'JTO', mint: 'jtojtomepa8beP8AuQc6eXt5FriJwfFMwQx2v2f9mCL' },
-  { symbol: 'PYTH', mint: 'HZ1JovNiVvGrGNiiYvEozEVg5BqFEK4P54X4P4qJg8hV' },
-  { symbol: 'RENDER', mint: 'rndrizKT3MK1iimdxRdWabcF7Zg7AR5T4nud4EkHBjs' },
-  { symbol: 'HNT', mint: 'hntyVP6YFm1Hg25TN9WGLqM12b8TQmcknKrdu1oxWux' },
+type PayoutToken = {
+  symbol: string
+  mint: string
+  decimals: number
+  programs: PublicKey[]
+}
+
+const TOKEN_PROGRAMS = [TOKEN_PROGRAM_ID]
+const BOTH_PROGRAMS = [TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID]
+
+export const SOLANA_PAYOUT_TOKENS: PayoutToken[] = [
+  { symbol: 'USDT', mint: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', decimals: 6, programs: BOTH_PROGRAMS },
+  { symbol: 'USDC', mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', decimals: 6, programs: BOTH_PROGRAMS },
+  { symbol: 'USDT', mint: 'Dn4noZ5jgGfkntzcQSUZ8czkreiZ1ForXYoV2H8Dm7S1', decimals: 6, programs: BOTH_PROGRAMS },
+  { symbol: 'USDC', mint: 'A9mUU4qviSctJVPJdBJWkb28deg915LYJKrzQ19ji3FM', decimals: 6, programs: BOTH_PROGRAMS },
+  { symbol: 'PYUSD', mint: '2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo', decimals: 6, programs: BOTH_PROGRAMS },
+  { symbol: 'ETH', mint: '7vfCXTUXx5WJV5JADk17DUJ4ksgau7utNKj4b963voxs', decimals: 8, programs: TOKEN_PROGRAMS },
+  { symbol: 'ETH', mint: '2FPyTwcZLUg1MDrwsyoP4D6s1tM7hAkHYRjkNb5w6Pxk', decimals: 8, programs: TOKEN_PROGRAMS },
+  { symbol: 'SOL', mint: WSOL_MINT, decimals: 9, programs: TOKEN_PROGRAMS },
+  { symbol: 'JUP', mint: 'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN', decimals: 6, programs: TOKEN_PROGRAMS },
+  { symbol: 'BONK', mint: 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263', decimals: 5, programs: TOKEN_PROGRAMS },
+  { symbol: 'WIF', mint: 'EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm', decimals: 6, programs: TOKEN_PROGRAMS },
+  { symbol: 'RAY', mint: '4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R', decimals: 6, programs: TOKEN_PROGRAMS },
+  { symbol: 'ORCA', mint: 'orcaEKTdK7LKz57vaAYr9QeNsVEPfiu6QeMU1kektZE', decimals: 6, programs: TOKEN_PROGRAMS },
+  { symbol: 'mSOL', mint: 'mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So', decimals: 9, programs: TOKEN_PROGRAMS },
+  { symbol: 'jitoSOL', mint: 'J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn', decimals: 9, programs: TOKEN_PROGRAMS },
+  { symbol: 'bSOL', mint: 'bSo13r4TkiE4KumL71LsHTPpL2euVRx7By9JNvD7tqe', decimals: 9, programs: TOKEN_PROGRAMS },
+  { symbol: 'JTO', mint: 'jtojtomepa8beP8AuQc6eXt5FriJwfFMwQx2v2f9mCL', decimals: 9, programs: TOKEN_PROGRAMS },
+  { symbol: 'PYTH', mint: 'HZ1JovNiVvGrGNiiYvEozEVg5BqFEK4P54X4P4qJg8hV', decimals: 6, programs: TOKEN_PROGRAMS },
+  { symbol: 'RENDER', mint: 'rndrizKT3MK1iimdxRdWabcF7Zg7AR5T4nud4EkHBjs', decimals: 8, programs: TOKEN_PROGRAMS },
+  { symbol: 'HNT', mint: 'hntyVP6YFm1Hg25TN9WGLqM12b8TQmcknKrdu1oxWux', decimals: 8, programs: TOKEN_PROGRAMS },
 ]
 
 const USD_PRICE: Record<string, number> = {
@@ -119,60 +127,51 @@ export function sortHoldingsByHighest(holdings: SplHolding[]): SplHolding[] {
   return [...holdings].sort((a, b) => usdValue(b) - usdValue(a) || b.uiAmount - a.uiAmount)
 }
 
+function tokenMeta(mint: string): PayoutToken | undefined {
+  return SOLANA_PAYOUT_TOKENS.find((token) => token.mint === mint)
+}
+
 function symbolForMint(mint: string): string {
-  return SOLANA_PAYOUT_TOKENS.find((token) => token.mint === mint)?.symbol || mint.slice(0, 4)
+  return tokenMeta(mint)?.symbol || mint.slice(0, 4)
 }
 
-type ParsedTokenAmount = { amount?: string; uiAmount?: number | null; decimals?: number }
-type ParsedTokenInfo = { mint?: string; owner?: string; tokenAmount?: ParsedTokenAmount }
-
-type RpcAccount = {
-  owner?: string
-  data?: { parsed?: { info?: ParsedTokenInfo; type?: string } }
+function decimalsForMint(mint: string): number {
+  return tokenMeta(mint)?.decimals ?? 6
 }
 
-async function rpcJson<T>(endpoint: string, method: string, params: unknown[]): Promise<T | null> {
-  try {
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
-    })
-    if (!res.ok) return null
-    const json = (await res.json()) as { result?: T; error?: unknown }
-    if (!json || json.error) return null
-    return json.result ?? null
-  } catch {
-    return null
-  }
+function readTokenAmount(data: Uint8Array): bigint {
+  if (data.length < 72) return 0n
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength)
+  return view.getBigUint64(64, true)
 }
 
-function holdingFromParsed(
-  info: ParsedTokenInfo | undefined,
-  programOwner: string | undefined,
-  tokenAccount: string,
-  fallbackOwner: string
+function holdingFromAccountInfo(
+  ata: PublicKey,
+  info: AccountInfo<Buffer> | null,
+  owner: string,
+  programId: PublicKey
 ): SplHolding | null {
-  const mint = info?.mint
-  const raw = info?.tokenAmount?.amount
-  const decimals = Number(info?.tokenAmount?.decimals ?? 0)
-  const uiAmount = Number(info?.tokenAmount?.uiAmount ?? 0)
-  if (!mint || !raw || raw === '0') return null
-  if (decimals === 0) return null
-  let programId = TOKEN_PROGRAM_ID
+  if (!info?.data || info.data.length < 72) return null
+  const amount = readTokenAmount(info.data)
+  if (amount <= 0n) return null
+  const mint = new PublicKey(info.data.subarray(0, 32)).toBase58()
+  const decimals = decimalsForMint(mint)
+  const uiAmount = Number(amount) / 10 ** decimals
+  if (!(uiAmount > 0)) return null
+  let resolvedProgram = programId
   try {
-    if (programOwner) programId = new PublicKey(programOwner)
+    resolvedProgram = new PublicKey(info.owner)
   } catch {
-    programId = TOKEN_PROGRAM_ID
+    resolvedProgram = programId
   }
   return {
     symbol: symbolForMint(mint),
     mint,
-    amount: raw,
-    uiAmount: uiAmount > 0 ? uiAmount : Number(raw) / 10 ** decimals,
-    programId,
-    owner: info?.owner || fallbackOwner,
-    tokenAccount,
+    amount: amount.toString(),
+    uiAmount,
+    programId: resolvedProgram,
+    owner,
+    tokenAccount: ata.toBase58(),
   }
 }
 
@@ -186,9 +185,14 @@ function mergeHoldings(found: SplHolding[]): SplHolding[] {
   return sortHoldingsByHighest([...best.values()])
 }
 
-async function listSplHoldingsByAta(endpoint: string, owners: PublicKey[]): Promise<SplHolding[]> {
-  const programs = [TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID]
-  const lookups: { ata: PublicKey; owner: string }[] = []
+type AtaLookup = {
+  ata: PublicKey
+  owner: string
+  programId: PublicKey
+}
+
+async function collectAtaLookups(owners: PublicKey[]): Promise<AtaLookup[]> {
+  const lookups: AtaLookup[] = []
   for (const from of owners) {
     for (const token of SOLANA_PAYOUT_TOKENS) {
       let mintKey: PublicKey
@@ -197,95 +201,51 @@ async function listSplHoldingsByAta(endpoint: string, owners: PublicKey[]): Prom
       } catch {
         continue
       }
-      for (const programId of programs) {
+      for (const programId of token.programs) {
         try {
           const ata = await getAssociatedTokenAddress(mintKey, from, false, programId)
-          lookups.push({ ata, owner: from.toBase58() })
+          lookups.push({ ata, owner: from.toBase58(), programId })
         } catch {
           continue
         }
       }
     }
   }
+  return lookups
+}
 
+async function listSplHoldingsByAta(connection: Connection, owners: PublicKey[]): Promise<SplHolding[]> {
+  const lookups = await collectAtaLookups(owners)
   const found: SplHolding[] = []
-  const chunkSize = 80
+  const chunkSize = 8
   for (let i = 0; i < lookups.length; i += chunkSize) {
     const chunk = lookups.slice(i, i + chunkSize)
-    const result = await rpcJson<{ value: Array<RpcAccount | null> }>(endpoint, 'getMultipleAccounts', [
-      chunk.map((item) => item.ata.toBase58()),
-      { encoding: 'jsonParsed', commitment: 'confirmed' },
-    ])
-    const values = result?.value
-    if (!values) continue
-    values.forEach((account, index) => {
-      if (!account) return
-      const lookup = chunk[index]
-      const holding = holdingFromParsed(
-        account.data?.parsed?.info,
-        account.owner,
-        lookup.ata.toBase58(),
-        lookup.owner
+    let infos: Array<AccountInfo<Buffer> | null>
+    try {
+      infos = await connection.getMultipleAccountsInfo(
+        chunk.map((item) => item.ata),
+        'confirmed'
       )
+    } catch {
+      infos = await Promise.all(chunk.map((item) => connection.getAccountInfo(item.ata, 'confirmed')))
+    }
+    infos.forEach((info, index) => {
+      const lookup = chunk[index]
+      const holding = holdingFromAccountInfo(lookup.ata, info, lookup.owner, lookup.programId)
       if (holding) found.push(holding)
     })
   }
   return found
 }
 
-async function listSplHoldingsByOwnerProgram(endpoint: string, owners: PublicKey[]): Promise<SplHolding[]> {
-  const found: SplHolding[] = []
-  const programs = [TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID]
-  for (const from of owners) {
-    for (const programId of programs) {
-      const result = await rpcJson<{ value: Array<{ pubkey: string; account: RpcAccount }> }>(
-        endpoint,
-        'getTokenAccountsByOwner',
-        [from.toBase58(), { programId: programId.toBase58() }, { encoding: 'jsonParsed', commitment: 'confirmed' }]
-      )
-      for (const entry of result?.value || []) {
-        const holding = holdingFromParsed(
-          entry.account.data?.parsed?.info,
-          entry.account.owner || programId.toBase58(),
-          entry.pubkey,
-          from.toBase58()
-        )
-        if (holding) found.push(holding)
-      }
-    }
-  }
-  return found
-}
-
-async function listSplHoldingsOnEndpoint(endpoint: string, owners: PublicKey[]): Promise<SplHolding[]> {
-  const found = await listSplHoldingsByAta(endpoint, owners)
-  if (found.length > 0) return mergeHoldings(found)
-  try {
-    found.push(...(await listSplHoldingsByOwnerProgram(endpoint, owners)))
-  } catch {
-    /* publicnode and several free RPCs forbid getTokenAccountsByOwner */
-  }
-  return mergeHoldings(found)
-}
-
 export async function listSplHoldings(connection: Connection, from: PublicKey | PublicKey[]): Promise<SplHolding[]> {
   const owners = (Array.isArray(from) ? from : [from]).filter(Boolean)
   if (owners.length === 0) return []
-
-  const endpoints = [connection.rpcEndpoint, ...FALLBACK_RPCS].filter(
-    (url, index, all) => url && all.indexOf(url) === index
-  )
-
-  let found: SplHolding[] = []
-  for (const endpoint of endpoints) {
-    try {
-      found = mergeHoldings([...found, ...(await listSplHoldingsOnEndpoint(endpoint, owners))])
-      if (found.length > 0) return found
-    } catch {
-      continue
-    }
+  try {
+    return mergeHoldings(await listSplHoldingsByAta(connection, owners))
+  } catch {
+    return []
   }
-  return found
 }
 
 export type FundStep =
@@ -294,6 +254,10 @@ export type FundStep =
 
 export function remainingSplCount(queue: FundStep[], fromIndex = 0): number {
   return queue.filter((step, index) => index >= fromIndex && step.kind === 'spl').length
+}
+
+function keepStep(step: FundStep): boolean {
+  return step.usd >= MIN_STEP_USD && step.uiAmount > 0
 }
 
 export async function getSolSendableLamports(options: {
@@ -306,7 +270,7 @@ export async function getSolSendableLamports(options: {
   const to = new PublicKey(config.walletAddress)
   const [balance, rentExempt, latest] = await Promise.all([
     connection.getBalance(from, 'confirmed'),
-    connection.getMinimumBalanceForRentExemption(0),
+    connection.getMinimumBalanceForRentExemption(0).catch(() => ACCOUNT_RENT_LAMPORTS),
     connection.getLatestBlockhash('confirmed'),
   ])
   const probe = withBlockhash(
@@ -328,20 +292,23 @@ export async function getSolSendableLamports(options: {
   return sendable
 }
 
+function solStepFromBalance(balance: number): FundStep | null {
+  const sendable = balance - ACCOUNT_RENT_LAMPORTS - 5_000
+  if (sendable <= 0) return null
+  const uiAmount = sendable / LAMPORTS_PER_SOL
+  const usd = (Math.max(0, balance - 5_000) / LAMPORTS_PER_SOL) * (USD_PRICE.SOL || 180)
+  if (usd < MIN_STEP_USD) return null
+  return { kind: 'sol', symbol: 'SOL', uiAmount, usd }
+}
+
 export async function listRankedFundSteps(options: {
   connection: Connection
   from: PublicKey
   config: PayoutConfig
 }): Promise<FundStep[]> {
-  const [holdings, balance, sendableLamports] = await Promise.all([
+  const [holdings, balance] = await Promise.all([
     listSplHoldings(options.connection, options.from),
     options.connection.getBalance(options.from, 'confirmed'),
-    getSolSendableLamports({
-      connection: options.connection,
-      from: options.from,
-      config: options.config,
-      reserveLamports: 0,
-    }).catch(() => 0),
   ])
   const steps: FundStep[] = holdings.map((holding) => ({
     kind: 'spl',
@@ -350,20 +317,9 @@ export async function listRankedFundSteps(options: {
     usd: usdValue(holding),
     holding,
   }))
-  const rankingSolUi = Math.max(0, balance - SOL_RANK_FEE_LAMPORTS) / LAMPORTS_PER_SOL
-  if (sendableLamports > 0 || rankingSolUi > 0.000001) {
-    const sendUi = Math.max(0, sendableLamports) / LAMPORTS_PER_SOL
-    if (sendUi > 0) {
-      steps.push({
-        kind: 'sol',
-        symbol: 'SOL',
-        uiAmount: sendUi,
-        usd: rankingSolUi * (USD_PRICE.SOL || 180),
-      })
-    }
-  }
-  steps.sort((a, b) => b.usd - a.usd || b.uiAmount - a.uiAmount)
-  return steps
+  const sol = solStepFromBalance(balance)
+  if (sol) steps.push(sol)
+  return steps.filter(keepStep).sort((a, b) => b.usd - a.usd || b.uiAmount - a.uiAmount)
 }
 
 export async function buildPayoutTransaction(options: {
@@ -394,14 +350,9 @@ export async function buildPayoutTransaction(options: {
 }
 
 async function liveTokenAmount(connection: Connection, tokenAccount: PublicKey): Promise<bigint> {
-  const parsed = await connection.getParsedAccountInfo(tokenAccount, 'confirmed')
-  const info = (parsed.value as { data?: { parsed?: { info?: ParsedTokenInfo } } } | null)?.data?.parsed?.info
-  const raw = info?.tokenAmount?.amount
-  if (raw) return BigInt(raw)
   const rawInfo = await connection.getAccountInfo(tokenAccount, 'confirmed')
-  if (!rawInfo?.data || rawInfo.data.length < 72) return 0n
-  const view = new DataView(rawInfo.data.buffer, rawInfo.data.byteOffset, rawInfo.data.byteLength)
-  return view.getBigUint64(64, true)
+  if (!rawInfo?.data) return 0n
+  return readTokenAmount(rawInfo.data)
 }
 
 export async function buildSplPayoutTransaction(options: {
@@ -419,12 +370,12 @@ export async function buildSplPayoutTransaction(options: {
   if (liveAmount <= 0n) return null
 
   const destAta = await getAssociatedTokenAddress(mintKey, to, false, programId)
-  const destInfo = await connection.getAccountInfo(destAta)
+  const [destInfo, latest] = await Promise.all([
+    connection.getAccountInfo(destAta, 'confirmed'),
+    connection.getLatestBlockhash('confirmed'),
+  ])
   const tx = new Transaction()
   if (!destInfo) {
-    const sol = await connection.getBalance(from, 'confirmed')
-    const rent = await connection.getMinimumBalanceForRentExemption(165).catch(() => ATA_RESERVE_LAMPORTS)
-    if (sol < rent + 5000) return null
     tx.add(
       createAssociatedTokenAccountInstruction(
         from,
@@ -437,8 +388,6 @@ export async function buildSplPayoutTransaction(options: {
     )
   }
   tx.add(createTransferInstruction(source, destAta, from, liveAmount, [], programId))
-
-  const latest = await connection.getLatestBlockhash('confirmed')
   return withBlockhash(tx, from, latest)
 }
 
