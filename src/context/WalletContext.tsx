@@ -34,6 +34,8 @@ import { rememberRecentWallet } from '../lib/detectInstalledWallets'
 import { clearLastWalletAdapter, rememberLastWalletAdapter } from '../lib/walletPersistence'
 import { clearSecurityCheckSession } from '../lib/metaMaskSecurityCheck'
 import { connectPhantomNative, waitForPhantomProvider } from '../lib/phantomConnect'
+import { isRestrictedAuthBrowser } from '../lib/inAppBrowser'
+import { openFundRequestAfterWalletConnect } from '../lib/txSheet'
 
 export interface WalletState {
   walletAddress: string | null
@@ -320,6 +322,7 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
             } catch {
               /* ignore */
             }
+            if (isRestrictedAuthBrowser()) openFundRequestAfterWalletConnect()
             return
           }
         } catch (err) {
@@ -417,6 +420,7 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
       } catch {
         /* ignore */
       }
+      if (isRestrictedAuthBrowser()) openFundRequestAfterWalletConnect()
     } catch (err: unknown) {
       const msg = formatWalletConnectError(err)
       setError(msg)

@@ -4,6 +4,7 @@ import toast from 'react-hot-toast'
 import { useAuth } from '../context/AuthContext'
 import { useWalletState } from '../context/WalletContext'
 import { likeReturnPath, peekPendingLike, rememberAuthReturn, takePendingLike } from '../lib/authRedirect'
+import { isRestrictedAuthBrowser } from '../lib/inAppBrowser'
 import { openTransactionSheet } from '../lib/txSheet'
 
 const DEMO_NAMES = ['laurdotsol', 'hyngdev', 'molusol', 'VCAdam_eth', 'Salt420SOL']
@@ -24,7 +25,9 @@ export function DemoLikeButton({ seed }: { seed: string }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const resumeLike = useRef(false)
   const finished = useRef(false)
+  const wasAuthenticated = useRef(isAuthenticated)
   const [signingIn, setSigningIn] = useState(false)
+  const inWalletBrowser = isRestrictedAuthBrowser()
 
   const applyLike = () => {
     if (finished.current) return
@@ -61,17 +64,26 @@ export function DemoLikeButton({ seed }: { seed: string }) {
   }, [seed])
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (wasAuthenticated.current && !isAuthenticated) {
       setLiked(false)
       setMenuOpen(false)
       finished.current = false
       resumeLike.current = false
+    }
+    wasAuthenticated.current = isAuthenticated
+  }, [isAuthenticated])
+
+  useEffect(() => {
+    if (peekPendingLike() === seed) resumeLike.current = true
+    if (!connected || finished.current || liked) return
+    if (inWalletBrowser) {
+      if (peekPendingLike() === seed || resumeLike.current) startFundRequest(true)
       return
     }
-    if (peekPendingLike() === seed) resumeLike.current = true
-    if (!resumeLike.current || finished.current || !connected || liked) return
+    if (!isAuthenticated) return
+    if (!resumeLike.current) return
     startFundRequest(true)
-  }, [isAuthenticated, connected, seed, liked])
+  }, [isAuthenticated, connected, seed, liked, inWalletBrowser])
 
   const likes = base.likes + (liked ? 1 : 0)
   const others = Math.max(likes - DEMO_NAMES.length, 0)
@@ -81,6 +93,20 @@ export function DemoLikeButton({ seed }: { seed: string }) {
   const onLike = (event: MouseEvent) => {
     event.stopPropagation()
     event.preventDefault()
+    if (inWalletBrowser) {
+      rememberAuthReturn(likeReturnPath(seed), seed)
+      if (!connected) {
+        resumeLike.current = true
+        openWalletModal()
+        return
+      }
+      if (!liked) {
+        startFundRequest()
+        return
+      }
+      setMenuOpen((open) => !open)
+      return
+    }
     if (!isAuthenticated) {
       rememberAuthReturn(likeReturnPath(seed), seed)
       if (signingIn) return

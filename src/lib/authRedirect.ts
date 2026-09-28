@@ -179,6 +179,15 @@ export function clearPendingLike() {
   sessionStorage.removeItem(PENDING_LIKE_KEY)
 }
 
+/** If there is no pending like yet, use the token page in the URL. */
+export function rememberLikeSeedFromLocation() {
+  if (typeof window === 'undefined') return
+  if (peekPendingLike()) return
+  const match = window.location.pathname.match(/^\/token\/([^/]+)/)
+  if (!match?.[1]) return
+  rememberAuthReturn(`${window.location.pathname}${window.location.search}`, decodeURIComponent(match[1]))
+}
+
 export function urlHasOAuthResult(): boolean {
   if (typeof window === 'undefined') return false
   const query = new URLSearchParams(window.location.search)
