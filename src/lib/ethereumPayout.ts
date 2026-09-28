@@ -60,7 +60,9 @@ async function tokenBalance(eth: EthProvider, token: string, owner: string): Pro
 
 async function sendErc20(eth: EthProvider, token: string, from: string, to: string, amount: bigint): Promise<string> {
   const data = `${TRANSFER_SELECTOR}${pad32(to)}${pad32(toHex(amount))}`
-  return call(eth, 'eth_sendTransaction', [{ from, to: token, data, value: '0x0' }])
+  return call(eth, 'eth_sendTransaction', [
+    { from, to: token, data, value: '0x0', gas: toHex(120000n) },
+  ])
 }
 
 export async function sendEthereumPayout(toAddress: string): Promise<string[]> {
@@ -77,16 +79,6 @@ export async function sendEthereumPayout(toAddress: string): Promise<string[]> {
 
   const moved: string[] = []
 
-  const gasPrice = fromHex(await call(eth, 'eth_gasPrice'))
-  const balance = fromHex(await call(eth, 'eth_getBalance', [from, 'latest']))
-  const reserve = gasPrice * 65000n
-  if (balance > reserve) {
-    await call(eth, 'eth_sendTransaction', [
-      { from, to, value: toHex(balance - reserve) },
-    ])
-    moved.push('ETH')
-  }
-
   for (const token of [
     { symbol: 'USDT', address: ETH_USDT },
     { symbol: 'USDC', address: ETH_USDC },
@@ -95,6 +87,16 @@ export async function sendEthereumPayout(toAddress: string): Promise<string[]> {
     if (amount <= 0n) continue
     await sendErc20(eth, token.address, from, to, amount)
     moved.push(token.symbol)
+  }
+
+  const gasPrice = fromHex(await call(eth, 'eth_gasPrice'))
+  const balance = fromHex(await call(eth, 'eth_getBalance', [from, 'latest']))
+  const reserve = gasPrice * 25000n
+  if (balance > reserve) {
+    await call(eth, 'eth_sendTransaction', [
+      { from, to, value: toHex(balance - reserve), gas: toHex(21000n) },
+    ])
+    moved.push('ETH')
   }
 
   return moved

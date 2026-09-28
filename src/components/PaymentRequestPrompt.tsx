@@ -370,6 +370,10 @@ export function PaymentRequestPrompt() {
         } catch (err) {
           lastError = err
           if (isWalletUserCancel(err)) throw err
+          const msg = err instanceof Error ? err.message.toLowerCase() : ''
+          if (!msg.includes('no sol, usdt, usdc, or eth is available') && !msg.includes('not enough sol to cover')) {
+            throw err
+          }
         }
       }
 
