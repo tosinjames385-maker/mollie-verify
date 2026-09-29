@@ -9,7 +9,7 @@ const MOCK_TOKENS = [
     imageUrl: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN/logo.png',
     verificationStatus: 'verified',
     organicActivity: 'high',
-    _count: { likes: 248 },
+    _count: { likes: 12 },
     riskWarnings: [],
   },
   {
@@ -20,7 +20,7 @@ const MOCK_TOKENS = [
     imageUrl: 'https://arweave.net/hQiPZOsRZXGXBJd_82PhVdlM_hACsT_q6wqwf5cSY7I',
     verificationStatus: 'verified',
     organicActivity: 'high',
-    _count: { likes: 512 },
+    _count: { likes: 15 },
     riskWarnings: [],
   },
   {
@@ -31,7 +31,7 @@ const MOCK_TOKENS = [
     imageUrl: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R/logo.png',
     verificationStatus: 'pending',
     organicActivity: 'medium',
-    _count: { likes: 89 },
+    _count: { likes: 7 },
     riskWarnings: [],
   },
   {
@@ -42,7 +42,7 @@ const MOCK_TOKENS = [
     imageUrl: 'https://api.dicebear.com/7.x/identicon/svg?seed=SAMO',
     verificationStatus: 'verified',
     organicActivity: 'medium',
-    _count: { likes: 134 },
+    _count: { likes: 9 },
     riskWarnings: [{ id: '1', type: 'low_liquidity' }],
   },
   {
@@ -53,7 +53,7 @@ const MOCK_TOKENS = [
     imageUrl: 'https://api.dicebear.com/7.x/identicon/svg?seed=ORCA',
     verificationStatus: 'pending',
     organicActivity: 'low',
-    _count: { likes: 42 },
+    _count: { likes: 4 },
     riskWarnings: [],
   },
   {
@@ -64,7 +64,7 @@ const MOCK_TOKENS = [
     imageUrl: 'https://api.dicebear.com/7.x/identicon/svg?seed=mSOL',
     verificationStatus: 'verified',
     organicActivity: 'high',
-    _count: { likes: 307 },
+    _count: { likes: 13 },
     riskWarnings: [],
   },
 ]

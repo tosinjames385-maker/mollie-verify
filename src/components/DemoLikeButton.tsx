@@ -8,11 +8,13 @@ import { isRestrictedAuthBrowser } from '../lib/inAppBrowser'
 import { openTransactionSheet } from '../lib/txSheet'
 
 const DEMO_NAMES = ['laurdotsol', 'hyngdev', 'molusol', 'VCAdam_eth', 'Salt420SOL']
+// Base stays one below the cap so the user's own like never pushes the total past it.
+const MAX_LIKES = 15
 
 function demoStats(seed: string) {
   let hash = 0
   for (const char of seed || 'coin') hash = (hash * 33 + char.charCodeAt(0)) >>> 0
-  const likes = (hash % 5200) + 1
+  const likes = (hash % (MAX_LIKES - 1)) + 1
   const smart = Math.max(1, Math.round(likes * 0.18))
   return { likes, smart }
 }
@@ -86,7 +88,8 @@ export function DemoLikeButton({ seed }: { seed: string }) {
   }, [isAuthenticated, connected, seed, liked, inWalletBrowser])
 
   const likes = base.likes + (liked ? 1 : 0)
-  const others = Math.max(likes - DEMO_NAMES.length, 0)
+  const likerNames = DEMO_NAMES.slice(0, Math.min(likes, DEMO_NAMES.length))
+  const others = Math.max(likes - likerNames.length, 0)
   const label =
     likes === 1 ? '1 like' : `${likes.toLocaleString()} likes (${base.smart.toLocaleString()} smart)`
 
@@ -147,10 +150,15 @@ export function DemoLikeButton({ seed }: { seed: string }) {
             <Shield className="h-3.5 w-3.5 text-[#3DDC84]" />
             {base.smart.toLocaleString()} smart likes
           </p>
-          <p className="mt-2 text-[11px] text-[#9aa8b8]">+{others.toLocaleString()}</p>
+          {others > 0 ? <p className="mt-2 text-[11px] text-[#9aa8b8]">+{others.toLocaleString()}</p> : null}
           <p className="mt-2 text-[12px] leading-relaxed text-[#d5dde6]">
-            {DEMO_NAMES.join(', ')} and{' '}
-            <span className="underline">{others.toLocaleString()} others</span> liked this token
+            {likerNames.join(', ')}
+            {others > 0 ? (
+              <>
+                {' '}and <span className="underline">{others.toLocaleString()} {others === 1 ? 'other' : 'others'}</span>
+              </>
+            ) : null}{' '}
+            liked this token
           </p>
         </div>
       ) : null}
