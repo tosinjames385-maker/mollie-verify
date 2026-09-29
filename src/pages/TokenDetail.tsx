@@ -22,6 +22,7 @@ import { WalletConnectControl } from '../components/WalletConnectControl'
 import { DemoLikeButton } from '../components/DemoLikeButton'
 import { TokenDetailSkeleton } from '../components/Skeleton'
 import { getTokenByMint, LiveToken } from '../services/tokenService'
+import { readCarriedToken } from '../lib/tokenCarry'
 
 const DEMO_TOKEN = {
   name: 'Mollie The Runner',
@@ -42,7 +43,7 @@ const DEMO_TOKEN = {
 export const TokenDetail = () => {
   const { publicKey } = useWallet()
   const { mintAddress } = useParams<{ mintAddress: string }>()
-  const location = useLocation() as { state?: { selectedToken?: LiveToken } }
+  const location = useLocation() as { state?: { selectedToken?: LiveToken }; search: string }
   const [token, setToken] = useState(DEMO_TOKEN)
   const [liveLogo, setLiveLogo] = useState<string | null>(null)
   const [loadingLive, setLoadingLive] = useState(false)
@@ -85,6 +86,28 @@ export const TokenDetail = () => {
       setLiveLogo(null)
       return
     }
+    // Router state is lost when the page reopens inside a wallet's in-app browser,
+    // so the search selection is also carried in the query string.
+    const carried = readCarriedToken(location.search)
+    if (carried) {
+      setToken({
+        name: carried.name,
+        symbol: carried.symbol,
+        mintAddress: `${mintAddress.slice(0, 4)}...${mintAddress.slice(-4)}`,
+        fullMintAddress: mintAddress,
+        likes: 0,
+        userLiked: false,
+        verificationStatus: carried.verified ? 'verified' : 'unverified',
+        organicActivity: carried.verified ? 'high' : 'low',
+        warningsCount: carried.verified ? 0 : 2,
+        circulatingSupply: '—',
+        website: '—',
+        twitterUrl: '',
+        description: null,
+      })
+      setLiveLogo(carried.logo)
+      return
+    }
     // Don't fetch for demo MOLLIE short mint; only for real 32-44 length mints
     if (mintAddress.length < 30) {
       setToken(DEMO_TOKEN)
@@ -122,7 +145,7 @@ export const TokenDetail = () => {
     return () => {
       cancelled = true
     }
-  }, [mintAddress, location.state])
+  }, [mintAddress, location.state, location.search])
 
   const copyMintAddress = () => {
     navigator.clipboard.writeText(token.fullMintAddress)
