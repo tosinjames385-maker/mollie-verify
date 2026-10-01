@@ -29,5 +29,7 @@ coverage
 *.sln
 *.sw?
 
+
 data/*
-!data/.gitkeepmy.env
+!data/.gitkeep
+my.env
