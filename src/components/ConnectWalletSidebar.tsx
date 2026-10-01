@@ -43,11 +43,7 @@ export interface WalletItemConfig {
   deepLink?: string
 }
 
-// Full wallet list matching Jupiter sidebar reference UI.
-// Order and contents mirror the Jupiter "View More Wallets" list:
-// MetaMask connects through the "Ethereum Wallet" row (same adapter),
-// Jupiter stays in the recommended cards at the top, and the QR view is
-// reachable from the "Jupiter Mobile" card.
+// Full wallet list matching Jupiter sidebar reference UI
 const MASTER_WALLETS: WalletItemConfig[] = [
   {
     name: 'Social Login',
@@ -59,6 +55,12 @@ const MASTER_WALLETS: WalletItemConfig[] = [
     adapterName: 'Phantom',
     icon: 'phantom',
     url: 'https://phantom.app',
+  },
+  {
+    name: 'MetaMask',
+    adapterName: 'MetaMask',
+    icon: 'metamask',
+    url: 'https://metamask.io',
   },
   {
     name: 'Solflare',
@@ -83,6 +85,12 @@ const MASTER_WALLETS: WalletItemConfig[] = [
     adapterName: 'Magic Eden',
     icon: 'magiceden',
     url: 'https://magiceden.io',
+  },
+  {
+    name: 'Jupiter',
+    adapterName: 'Jupiter',
+    icon: 'jupiter',
+    url: 'https://jup.ag',
   },
   {
     name: 'Trust',
@@ -125,6 +133,10 @@ const MASTER_WALLETS: WalletItemConfig[] = [
     adapterName: 'Bitget Wallet',
     icon: 'bitget',
     url: 'https://web3.bitget.com',
+  },
+  {
+    name: 'QR',
+    icon: 'qr',
   },
 ]
 
