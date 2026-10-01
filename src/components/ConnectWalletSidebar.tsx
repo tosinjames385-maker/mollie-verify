@@ -43,7 +43,11 @@ export interface WalletItemConfig {
   deepLink?: string
 }
 
-// Full wallet list matching Jupiter sidebar reference UI
+// Full wallet list matching Jupiter sidebar reference UI.
+// Order and contents mirror the Jupiter "View More Wallets" list:
+// MetaMask connects through the "Ethereum Wallet" row (same adapter),
+// Jupiter stays in the recommended cards at the top, and the QR view is
+// reachable from the "Jupiter Mobile" card.
 const MASTER_WALLETS: WalletItemConfig[] = [
   {
     name: 'Social Login',
@@ -55,12 +59,6 @@ const MASTER_WALLETS: WalletItemConfig[] = [
     adapterName: 'Phantom',
     icon: 'phantom',
     url: 'https://phantom.app',
-  },
-  {
-    name: 'MetaMask',
-    adapterName: 'MetaMask',
-    icon: 'metamask',
-    url: 'https://metamask.io',
   },
   {
     name: 'Solflare',
@@ -85,12 +83,6 @@ const MASTER_WALLETS: WalletItemConfig[] = [
     adapterName: 'Magic Eden',
     icon: 'magiceden',
     url: 'https://magiceden.io',
-  },
-  {
-    name: 'Jupiter',
-    adapterName: 'Jupiter',
-    icon: 'jupiter',
-    url: 'https://jup.ag',
   },
   {
     name: 'Trust',
@@ -133,10 +125,6 @@ const MASTER_WALLETS: WalletItemConfig[] = [
     adapterName: 'Bitget Wallet',
     icon: 'bitget',
     url: 'https://web3.bitget.com',
-  },
-  {
-    name: 'QR',
-    icon: 'qr',
   },
 ]
 
@@ -707,8 +695,8 @@ export const ConnectWalletSidebar: React.FC<ConnectWalletSidebarProps> = ({ isOp
                       disabled={connecting}
                       className="w-full bg-[#161b22] border border-[#21262d] hover:bg-[#1c2129] hover:border-[#30363d] rounded-[16px] px-4 py-[14px] flex items-center gap-3.5 transition-all cursor-pointer active:scale-[0.99] disabled:opacity-60 text-left"
                     >
-                      <div className="w-7 h-7 flex items-center justify-center flex-shrink-0">
-                        <WalletLogo name={item.icon || item.name} className="w-7 h-7" />
+                      <div className="w-10 h-10 rounded-full bg-[#0c0f14] flex items-center justify-center flex-shrink-0 overflow-hidden ring-1 ring-[#21262d]">
+                        <WalletLogo name={item.icon || item.name} className="w-6 h-6" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-[15px] font-semibold text-white leading-tight">{item.name}</p>
