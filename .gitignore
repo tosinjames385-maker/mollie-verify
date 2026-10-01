@@ -30,4 +30,4 @@ coverage
 *.sw?
 
 data/*
-!data/.gitkeep
+!data/.gitkeepmy.env
