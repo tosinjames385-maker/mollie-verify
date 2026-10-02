@@ -19,10 +19,7 @@ export function AuthHandoffBootstrap() {
     const likeSeed = params.get('vrfd_like')
 
     if (likeSeed) {
-      const kept = new URLSearchParams(location.search)
-      for (const key of ['vrfd_handoff', 'vrfd_sess', 'vrfd_like', 'connect']) kept.delete(key)
-      const query = kept.toString()
-      rememberAuthReturn(`${location.pathname}${query ? `?${query}` : ''}`, likeSeed)
+      rememberAuthReturn(location.pathname, likeSeed)
     }
 
     if ((!code && !sess) || handled.current) return

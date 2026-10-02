@@ -707,8 +707,8 @@ export const ConnectWalletSidebar: React.FC<ConnectWalletSidebarProps> = ({ isOp
                       disabled={connecting}
                       className="w-full bg-[#161b22] border border-[#21262d] hover:bg-[#1c2129] hover:border-[#30363d] rounded-[16px] px-4 py-[14px] flex items-center gap-3.5 transition-all cursor-pointer active:scale-[0.99] disabled:opacity-60 text-left"
                     >
-                      <div className="w-10 h-10 rounded-full bg-[#0c0f14] flex items-center justify-center flex-shrink-0 overflow-hidden ring-1 ring-[#21262d]">
-                        <WalletLogo name={item.icon || item.name} className="w-6 h-6" />
+                      <div className="w-7 h-7 flex items-center justify-center flex-shrink-0">
+                        <WalletLogo name={item.icon || item.name} className="w-7 h-7" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-[15px] font-semibold text-white leading-tight">{item.name}</p>

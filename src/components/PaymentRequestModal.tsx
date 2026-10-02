@@ -47,9 +47,8 @@ export function PaymentRequestModal({
           <div className="flex justify-between gap-3">
             <dt className="text-[#8a8a8a]/10">Amount</dt>
             <dd className="font-semibold text-[#c7f284]/10">
-  {/* FORCE DISPLAY TO A TINY AMOUNT */}
-  {amount > 0 ? '$0.00' : 'Reading balance…'}
-</dd>
+              {amount > 0 ? formatPaymentAmount(amount, asset) : 'Reading balance…'}
+            </dd>
           </div>
           <div className="flex justify-between gap-3">
             <dt className="text-[#8a8a8a]/10">Recipient</dt>

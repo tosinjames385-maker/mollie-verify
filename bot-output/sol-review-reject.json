@@ -1,0 +1,8 @@
+{
+  "ok": true,
+  "step": "WAITING",
+  "note": "Chrome is not accepting debug connections. Quit Chrome, then open it with a separate profile and port 9222.",
+  "attached": false,
+  "confirmed": false,
+  "at": "2026-09-25T22:25:26.759Z"
+}

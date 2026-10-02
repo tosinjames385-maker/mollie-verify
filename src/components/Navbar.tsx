@@ -6,7 +6,6 @@ import { TokenSelector } from './TokenSelector'
 import { WalletConnectControl } from './WalletConnectControl'
 import { useAuth } from '../context/AuthContext'
 import type { LiveToken } from '../services/tokenService'
-import { withCarriedToken } from '../lib/tokenCarry'
 
 const XLogo = ({ className = 'w-3.5 h-3.5' }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -75,13 +74,7 @@ export const Navbar = () => {
       decimals: 9,
       verified: Boolean(token.verified),
     }
-    const path = withCarriedToken(`/token/${token.mintAddress}`, {
-      symbol: token.symbol,
-      name: token.name,
-      logo: token.logo || null,
-      verified: Boolean(token.verified),
-    })
-    navigate(path, { state: { selectedToken } })
+    navigate(`/token/${token.mintAddress}`, { state: { selectedToken } })
   }
 
   useEffect(() => {

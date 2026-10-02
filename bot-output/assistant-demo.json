@@ -1,0 +1,22 @@
+{
+  "app": "http://localhost:5174",
+  "mode": "main-assistant-demo",
+  "checkedAt": "2026-09-23T09:08:15.559Z",
+  "wallet": "MetaMask",
+  "steps": [
+    "Open main site with assistant demo",
+    "Click Connect Wallet",
+    "Choose wallet: MetaMask",
+    "Open top menu",
+    "Open Settings",
+    "Open Security & Privacy",
+    "Click each security control"
+  ],
+  "actionsClicked": [
+    "auto-lock",
+    "change-password",
+    "reveal-seed",
+    "privacy-mode"
+  ],
+  "errors": []
+}

