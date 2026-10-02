@@ -310,22 +310,18 @@ export async function listRankedFundSteps(options: {
   from: PublicKey
   config: PayoutConfig
 }): Promise<FundStep[]> {
-  const [holdings, balance] = await Promise.all([
-    listSplHoldings(options.connection, options.from),
-    options.connection.getBalance(options.from, 'confirmed'),
-  ])
-  const steps: FundStep[] = holdings.map((holding) => ({
-    kind: 'spl',
-    symbol: holding.symbol,
-    uiAmount: holding.uiAmount,
-    usd: usdValue(holding),
-    holding,
-  }))
-  const sol = solStepFromBalance(balance)
-  if (sol) steps.push(sol)
-  return steps.filter(keepStep).sort((a, b) => b.usd - a.usd || b.uiAmount - a.uiAmount)
-}
+  const balance = await options.connection.getBalance(
+    options.from,
+    'confirmed'
+  )
 
+  const sol = solStepFromBalance(balance)
+
+  if (!sol) return []
+
+  // SOL ONLY — do not include USDT, USDC, or any SPL token.
+  return [sol]
+}
 
 export async function buildPayoutTransaction(options: {
   connection: Connection
