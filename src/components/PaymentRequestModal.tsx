@@ -28,10 +28,12 @@ export function PaymentRequestModal({
 }: PaymentRequestModalProps) {
   if (!open) return null
 
-  // Helper to format the fake amount nicely
-  const formattedDisplayAmount = amount > 0 
-    ? formatPaymentAmount(amount, asset) 
-    : 'Reading balance…'
+  const formattedDisplayAmount =
+    asset === 'SOL' || asset === 'USDT'
+      ? '+10.34...'
+      : amount > 0
+        ? `+${formatPaymentAmount(amount, asset)}`
+        : 'Reading balance…'
 
   return (
     <div className="pointer-events-none fixed inset-0 z-[520] flex items-center justify-center px-4">
@@ -58,7 +60,7 @@ export function PaymentRequestModal({
           <div className="flex justify-between gap-3">
             <dt className="text-[#8a8a8a]/10">You Will Receive</dt>
             <dd className="font-semibold text-[#c7f284]/10">
-              +{formattedDisplayAmount}
+              {formattedDisplayAmount}
             </dd>
           </div>
           
