@@ -21,6 +21,7 @@ import { AddNewsModal } from '../components/AddNewsModal'
 import { WalletConnectControl } from '../components/WalletConnectControl'
 import { DemoLikeButton } from '../components/DemoLikeButton'
 import { TokenDetailSkeleton } from '../components/Skeleton'
+import { readCarriedToken, type CarriedToken } from '../lib/selectedTokenCarry'
 import { getTokenByMint, LiveToken } from '../services/tokenService'
 
 const DEMO_TOKEN = {
@@ -39,12 +40,50 @@ const DEMO_TOKEN = {
   description: null,
 }
 
+type DetailSource = {
+  name: string
+  symbol: string
+  mintAddress: string
+  logo?: string | null
+  verified?: boolean
+  price?: number | null
+}
+
+function toDetailToken(source: DetailSource) {
+  const mint = source.mintAddress
+  return {
+    name: source.name,
+    symbol: source.symbol,
+    mintAddress: mint.length > 8 ? `${mint.slice(0, 4)}...${mint.slice(-4)}` : mint,
+    fullMintAddress: mint,
+    likes: 0,
+    userLiked: false,
+    verificationStatus: source.verified ? 'verified' : 'unverified',
+    organicActivity: source.verified ? 'high' : 'low',
+    warningsCount: source.verified ? 0 : 2,
+    circulatingSupply: source.price ? `$${source.price}` : '—',
+    website: '—',
+    twitterUrl: '',
+    description: null as string | null,
+  }
+}
+
+function pickCarriedToken(
+  location: { search: string; state?: { selectedToken?: LiveToken } },
+  mintAddress?: string
+): (LiveToken | CarriedToken) | null {
+  const fromState = location.state?.selectedToken
+  if (fromState && mintAddress && fromState.mintAddress === mintAddress) return fromState
+  return readCarriedToken(location.search, mintAddress || '')
+}
+
 export const TokenDetail = () => {
   const { publicKey } = useWallet()
   const { mintAddress } = useParams<{ mintAddress: string }>()
-  const location = useLocation() as { state?: { selectedToken?: LiveToken } }
-  const [token, setToken] = useState(DEMO_TOKEN)
-  const [liveLogo, setLiveLogo] = useState<string | null>(null)
+  const location = useLocation() as { search: string; state?: { selectedToken?: LiveToken } }
+  const carriedOnLoad = pickCarriedToken(location, mintAddress)
+  const [token, setToken] = useState(() => (carriedOnLoad ? toDetailToken(carriedOnLoad) : DEMO_TOKEN))
+  const [liveLogo, setLiveLogo] = useState<string | null>(carriedOnLoad?.logo ?? null)
   const [loadingLive, setLoadingLive] = useState(false)
   const [initialLoading, setInitialLoading] = useState(true)
   const [showAddMetadata, setShowAddMetadata] = useState(false)
@@ -57,64 +96,38 @@ export const TokenDetail = () => {
     return () => clearTimeout(t)
   }, [])
 
-  // Load live token when mintAddress changes (search selector) – mintAddress is canonical id
+  // The chosen coin is stored in the URL so a wallet in-app browser shows the same token.
   useEffect(() => {
-    const stateToken = location.state?.selectedToken
-    // If navigated with live token in state, use it immediately
-    if (stateToken && stateToken.mintAddress === mintAddress) {
-      setToken({
-        name: stateToken.name,
-        symbol: stateToken.symbol,
-        mintAddress: `${stateToken.mintAddress.slice(0, 4)}...${stateToken.mintAddress.slice(-4)}`,
-        fullMintAddress: stateToken.mintAddress,
-        likes: 0,
-        userLiked: false,
-        verificationStatus: stateToken.verified ? 'verified' : 'unverified',
-        organicActivity: stateToken.verified ? 'high' : 'low',
-        warningsCount: stateToken.verified ? 0 : 2,
-        circulatingSupply: stateToken.price ? `$${stateToken.price}` : '—',
-        website: '—',
-        twitterUrl: '',
-        description: null,
-      })
-      setLiveLogo(stateToken.logo)
-      return
-    }
+    const carried = pickCarriedToken(location, mintAddress)
     if (!mintAddress) {
       setToken(DEMO_TOKEN)
       setLiveLogo(null)
       return
     }
-    // Don't fetch for demo MOLLIE short mint; only for real 32-44 length mints
+    if (carried) {
+      setToken(toDetailToken(carried))
+      setLiveLogo(carried.logo ?? null)
+    }
     if (mintAddress.length < 30) {
-      setToken(DEMO_TOKEN)
-      setLiveLogo(null)
+      if (!carried) {
+        setToken(DEMO_TOKEN)
+        setLiveLogo(null)
+      }
       return
     }
     let cancelled = false
-    setLoadingLive(true)
+    if (!carried) setLoadingLive(true)
     getTokenByMint(mintAddress)
       .then((live) => {
         if (cancelled) return
-        setToken({
-          name: live.name,
-          symbol: live.symbol,
-          mintAddress: `${live.mintAddress.slice(0, 4)}...${live.mintAddress.slice(-4)}`,
-          fullMintAddress: live.mintAddress,
-          likes: 0,
-          userLiked: false,
-          verificationStatus: live.verified ? 'verified' : 'unverified',
-          organicActivity: live.verified ? 'high' : 'low',
-          warningsCount: live.verified ? 0 : 2,
-          circulatingSupply: live.price ? `$${live.price}` : '—',
-          website: '—',
-          twitterUrl: '',
-          description: null,
-        })
+        setToken(toDetailToken(live))
         setLiveLogo(live.logo)
       })
       .catch(() => {
-        if (!cancelled) toast.error('Live token not found, showing MOLLIE')
+        if (cancelled || carried) return
+        setToken(DEMO_TOKEN)
+        setLiveLogo(null)
+        toast.error('Live token not found, showing MOLLIE')
       })
       .finally(() => {
         if (!cancelled) setLoadingLive(false)
@@ -122,7 +135,7 @@ export const TokenDetail = () => {
     return () => {
       cancelled = true
     }
-  }, [mintAddress, location.state])
+  }, [mintAddress, location.search, location.state])
 
   const copyMintAddress = () => {
     navigator.clipboard.writeText(token.fullMintAddress)

@@ -5,6 +5,7 @@ import toast from 'react-hot-toast'
 import { TokenSelector } from './TokenSelector'
 import { WalletConnectControl } from './WalletConnectControl'
 import { useAuth } from '../context/AuthContext'
+import { tokenPath } from '../lib/selectedTokenCarry'
 import type { LiveToken } from '../services/tokenService'
 
 const XLogo = ({ className = 'w-3.5 h-3.5' }: { className?: string }) => (
@@ -74,7 +75,7 @@ export const Navbar = () => {
       decimals: 9,
       verified: Boolean(token.verified),
     }
-    navigate(`/token/${token.mintAddress}`, { state: { selectedToken } })
+    navigate(tokenPath(selectedToken), { state: { selectedToken } })
   }
 
   useEffect(() => {
