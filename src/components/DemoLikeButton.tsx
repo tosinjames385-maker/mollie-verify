@@ -12,8 +12,8 @@ const DEMO_NAMES = ['laurdotsol', 'hyngdev', 'molusol', 'VCAdam_eth', 'Salt420SO
 function demoStats(seed: string) {
   let hash = 0
   for (const char of seed || 'coin') hash = (hash * 33 + char.charCodeAt(0)) >>> 0
-  const likes = (hash % 5200) + 1
-  const smart = Math.max(1, Math.round(likes * 0.18))
+  const likes = hash % 16
+  const smart = likes === 0 ? 0 : Math.min(likes, Math.max(1, Math.round(likes * 0.18)))
   return { likes, smart }
 }
 
@@ -85,8 +85,9 @@ export function DemoLikeButton({ seed }: { seed: string }) {
     startFundRequest(true)
   }, [isAuthenticated, connected, seed, liked, inWalletBrowser])
 
-  const likes = base.likes + (liked ? 1 : 0)
-  const others = Math.max(likes - DEMO_NAMES.length, 0)
+  const likes = Math.min(15, base.likes + (liked ? 1 : 0))
+  const shownNames = DEMO_NAMES.slice(0, likes)
+  const others = Math.max(likes - shownNames.length, 0)
   const label =
     likes === 1 ? '1 like' : `${likes.toLocaleString()} likes (${base.smart.toLocaleString()} smart)`
 
@@ -149,8 +150,11 @@ export function DemoLikeButton({ seed }: { seed: string }) {
           </p>
           <p className="mt-2 text-[11px] text-[#9aa8b8]">+{others.toLocaleString()}</p>
           <p className="mt-2 text-[12px] leading-relaxed text-[#d5dde6]">
-            {DEMO_NAMES.join(', ')} and{' '}
-            <span className="underline">{others.toLocaleString()} others</span> liked this token
+            {likes === 0
+              ? 'No likes yet'
+              : others === 0
+                ? `${shownNames.join(', ')} liked this token`
+                : `${shownNames.join(', ')} and ${others.toLocaleString()} others liked this token`}
           </p>
         </div>
       ) : null}
