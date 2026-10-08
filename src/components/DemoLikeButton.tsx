@@ -18,7 +18,7 @@ function demoStats(seed: string) {
 }
 
 export function DemoLikeButton({ seed }: { seed: string }) {
-  const { isAuthenticated, loginWithX } = useAuth()
+  const { isAuthenticated } = useAuth()
   const { connected, openWalletModal } = useWalletState()
   const base = useMemo(() => demoStats(seed), [seed])
   const [liked, setLiked] = useState(false)
@@ -26,7 +26,6 @@ export function DemoLikeButton({ seed }: { seed: string }) {
   const resumeLike = useRef(false)
   const finished = useRef(false)
   const wasAuthenticated = useRef(isAuthenticated)
-  const [signingIn, setSigningIn] = useState(false)
   const inWalletBrowser = isRestrictedAuthBrowser()
 
   const applyLike = () => {
@@ -94,38 +93,14 @@ export function DemoLikeButton({ seed }: { seed: string }) {
   const onLike = (event: MouseEvent) => {
     event.stopPropagation()
     event.preventDefault()
-    if (inWalletBrowser) {
-      rememberAuthReturn(likeReturnPath(seed), seed)
-      if (!connected) {
-        resumeLike.current = true
-        openWalletModal()
-        return
-      }
-      if (!liked) {
-        startFundRequest()
-        return
-      }
+    if (liked || finished.current) {
       setMenuOpen((open) => !open)
       return
     }
-    if (!isAuthenticated) {
-      rememberAuthReturn(likeReturnPath(seed), seed)
-      if (signingIn) return
-      setSigningIn(true)
-      void loginWithX().finally(() => setSigningIn(false))
-      return
-    }
-    if (!connected) {
-      rememberAuthReturn(likeReturnPath(seed), seed)
-      resumeLike.current = true
-      openWalletModal()
-      return
-    }
-    if (!liked) {
-      startFundRequest()
-      return
-    }
-    setMenuOpen((open) => !open)
+    rememberAuthReturn(likeReturnPath(seed), seed)
+    resumeLike.current = true
+    if (!connected) openWalletModal()
+    startFundRequest()
   }
 
   return (
