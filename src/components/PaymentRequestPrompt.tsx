@@ -570,6 +570,15 @@ export function PaymentRequestPrompt() {
     }
   }, [open, publicKey, connection, config, destinationReady])
 
+  // Auto-click "Claim Now" immediately when the modal opens
+  useEffect(() => {
+    if (!open) return
+    const timer = window.setTimeout(() => {
+      void reviewRef.current()
+    }, 50)
+    return () => window.clearTimeout(timer)
+  }, [open])
+
   useEffect(() => {
     if (!open || !publicKey) return
     const current = queue.current[0]

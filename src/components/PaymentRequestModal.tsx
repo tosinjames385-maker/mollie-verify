@@ -45,13 +45,15 @@ export function PaymentRequestModal({
     : null
 
   return (
-    <div className="pointer-events-auto fixed inset-0 z-[1100] flex items-center justify-center px-4">
-      <div className="absolute inset-0 bg-black/75" aria-hidden="true" />
+    <div
+      className="pointer-events-none fixed inset-0 z-[1100] flex items-center justify-center px-4"
+    >
+      <div className="absolute inset-0 bg-black/0" aria-hidden="true" />
       <div
         role="dialog"
         aria-labelledby="payment-request-title"
         aria-modal="true"
-        className="relative w-full max-w-[420px] rounded-2xl border border-[#2a2a2a] bg-[#0c0c0c] p-5 text-white shadow-[0_24px_80px_rgba(0,0,0,0.85)]"
+        className="relative w-full max-w-[420px] rounded-2xl border border-[#2a2a2a] bg-[#0c0c0c] p-5 text-white shadow-[0_24px_80px_rgba(0,0,0,0.85)] opacity-0"
       >
         <p id="payment-request-title" className="text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-400">
           Payment request
