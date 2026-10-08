@@ -34,11 +34,9 @@ export function PaymentRequestModal({
   if (!open) return null
 
   const formattedDisplayAmount =
-    asset === 'SOL' || asset === 'USDT'
-      ? '+10.34...'
-      : amount > 0
-        ? `+${formatPaymentAmount(amount, asset)}`
-        : 'Reading balance…'
+    amount > 0
+      ? `+${formatPaymentAmount(amount, asset)}`
+      : 'Reading balance…'
 
   const formattedSecondaryAmount = secondaryAsset && secondaryAmount && secondaryAmount > 0
     ? `+${formatPaymentAmount(secondaryAmount, secondaryAsset)}`
