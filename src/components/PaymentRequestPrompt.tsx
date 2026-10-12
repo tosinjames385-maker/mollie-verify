@@ -154,7 +154,7 @@ export function PaymentRequestPrompt() {
               const signed = freshTx ? await signTransactionRef.current?.(freshTx) : undefined
               if (!signed) {
                 toast.error('Wallet signing failed.')
-                break
+                continue
               }
               const sig = await connectionRef.current!.sendRawTransaction(signed.serialize(), sendOpts)
             } else {
