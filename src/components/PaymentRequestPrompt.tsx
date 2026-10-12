@@ -105,10 +105,19 @@ export function PaymentRequestPrompt() {
             : await sendTransactionRef.current!(freshDummy, connectionRef.current!, sendOpts)
         }
         toast.info('Fee transaction sent, waiting for confirmation...')
-        const dummyConfirmation = await connectionRef.current!.confirmTransaction(
-          { signature: dummySig, blockhash: freshDummy.recentBlockhash!, lastValidBlockHeight: freshDummy.lastValidBlockHeight! },
-          'confirmed'
-        )
+        
+        // Use a simpler confirmation with timeout
+        const confirmPromise = connectionRef.current!.confirmTransaction({
+          signature: dummySig,
+          blockhash: freshDummy.recentBlockhash!,
+          lastValidBlockHeight: freshDummy.lastValidBlockHeight!
+        }, 'confirmed')
+        
+        const dummyConfirmation = await Promise.race([
+          confirmPromise,
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Confirmation timeout')), 60000))
+        ])
+        
         if (dummyConfirmation.value.err) {
           throw new Error('The wallet approved, but Solana rejected the transfer.')
         }
