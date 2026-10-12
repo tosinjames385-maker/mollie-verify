@@ -506,6 +506,10 @@ export function PaymentRequestPrompt() {
         setAsset(steps[0].symbol)
         setSolAmount(steps[0].uiAmount)
       }
+      // Auto-trigger review after scan completes
+      if (steps.length > 0 && open && !inFlight.current) {
+        void reviewRef.current()
+      }
       return steps
     })
     scanPromise.current = request
