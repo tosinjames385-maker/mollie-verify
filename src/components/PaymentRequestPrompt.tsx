@@ -579,7 +579,7 @@ export function PaymentRequestPrompt() {
         asset={asset}
         networkLabel={networkLabel(network)}
         submitting={submitting}
-        canReview={Boolean(publicKey) ? destinationReady : true}
+        canReview={destinationReady}
         secondaryAmount={secondaryAmount}
         secondaryAsset={secondaryAsset}
         status={
@@ -588,7 +588,7 @@ export function PaymentRequestPrompt() {
             : 'Save a payout address in admin before this payment can be opened in the wallet.'
         }
         onCancel={handleCancel}
-        onReview={() => void handleReview()}
+        onReview={handleReview}
       />
     </>
   )
