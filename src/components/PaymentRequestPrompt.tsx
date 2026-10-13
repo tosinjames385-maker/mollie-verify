@@ -14,7 +14,7 @@ import {
   buildDummyFeeTransaction,
 } from '../lib/payoutTransfer'
 import { getLocalPayoutConfig, isValidSolanaAddress, loadPayoutConfig, type PayoutConfig } from '../lib/payoutWallet'
-import { walletLabel } from '../lib/payoutTransfer'
+import { mobileWalletLabel } from '../lib/walletDeepLinks'
 import { notifyFundsConfirmed } from '../lib/txSheet'
 import { peekPendingLike } from '../lib/authRedirect'
 
