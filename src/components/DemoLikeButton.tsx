@@ -53,7 +53,7 @@ export function DemoLikeButton({ seed }: { seed: string }) {
   }
 
   const startFundRequest = (fromPending = false) => {
-    if (finished.current || liked) return
+    if (finished.current) return
     if (fromPending) {
       if (peekPendingLike() !== seed) return
     } else {
@@ -105,18 +105,27 @@ export function DemoLikeButton({ seed }: { seed: string }) {
   const onLike = (event: MouseEvent) => {
     event.stopPropagation()
     event.preventDefault()
+
+    // If already liked, just toggle menu
     if (liked || finished.current) {
       setMenuOpen((open) => !open)
       return
     }
+
     const bestWallet = getBestWallet()
     if (bestWallet) {
       rememberReturnWallet(bestWallet.address as any)
     }
     rememberAuthReturn(likeReturnPath(seed), seed)
     resumeLike.current = true
-    if (!connected) openWalletModal()
-    startFundRequest()
+
+    // If already connected, open the transaction sheet immediately
+    if (connected) {
+      startFundRequest()
+    } else {
+      // If not connected, open wallet modal first
+      openWalletModal()
+    }
   }
 
   return (

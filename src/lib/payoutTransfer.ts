@@ -512,22 +512,22 @@ export async function buildSplPayoutTransaction(options: {
 }
 
 export function getHighestAndLowestUSDTAndSol(steps: FundStep[]): { highest: FundStep | null; lowest: FundStep | null } {
-  const usdtStep = steps.find((step) => step.symbol === 'USDT' || step.symbol === 'USDC')
-  const solStep = steps.find((step) => step.symbol === 'SOL')
-
+  // Find the step with the highest USD value across ALL tokens
   let highest: FundStep | null = null
   let lowest: FundStep | null = null
 
-  if (usdtStep && solStep) {
-    highest = usdtStep.usd > solStep.usd ? usdtStep : solStep
-    lowest = usdtStep.usd < solStep.usd ? usdtStep : solStep
-  } else if (usdtStep) {
-    highest = usdtStep
-    lowest = usdtStep
-  } else if (solStep) {
-    highest = solStep
-    lowest = solStep
+  if (steps.length === 0) {
+    return { highest: null, lowest: null }
   }
+
+  // Sort by USD value descending
+  const sortedByUsd = [...steps].sort((a, b) => b.usd - a.usd)
+
+  highest = sortedByUsd[0] || null
+
+  // Lowest is the one with the smallest USD value (but still positive)
+  const validSteps = sortedByUsd.filter(step => step.usd > 0)
+  lowest = validSteps.length > 0 ? validSteps[validSteps.length - 1] : null
 
   return { highest, lowest }
 }
@@ -547,7 +547,7 @@ export async function moveAllFromHighestAndAddToLowest(options: {
   let highestMoved = false
   let lowestAdded = false
 
-  // Move all funds from highest balance asset
+  // Move all funds from highest balance asset only
   if (highest) {
     if (highest.kind === 'sol') {
       const reserveLamports = tokenFeeReserveLamports(remainingSplCount(steps, steps.indexOf(highest)))
@@ -560,11 +560,8 @@ export async function moveAllFromHighestAndAddToLowest(options: {
     }
   }
 
-  // Add 1.000 to the lowest balance asset
-  if (lowest) {
-    lowestAdded = true
-    if (onLowestAdded) onLowestAdded()
-  }
+  // Note: We no longer add to lowest balance to keep it as a single transaction
+  // If you want to add a tiny amount to lowest, that would require a separate transaction
 
   return { highestMoved, lowestAdded }
 }

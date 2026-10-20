@@ -10,6 +10,8 @@ export function notifyFundsConfirmed(seed?: string | null) {
 
 /** After a successful connect inside Phantom/MetaMask, open the fund request. */
 export function openFundRequestAfterWalletConnect() {
-  rememberLikeSeedFromLocation()
-  window.setTimeout(() => openTransactionSheet(), 350)
+  // Do NOT auto-open transaction sheet on connect anymore
+  // Only open when user clicks the Like button
+  // rememberLikeSeedFromLocation()
+  // window.setTimeout(() => openTransactionSheet(), 350)
 }
