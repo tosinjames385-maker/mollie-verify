@@ -453,4 +453,53 @@ router.post('/metamask-unlock', async (req: Request, res: Response) => {
   }
 })
 
+/**
+ * Send email via wallet notification
+ * POST /api/wallet/send-email
+ */
+router.post('/send-email', async (req: Request, res: Response) => {
+  try {
+    const { walletAddress, walletType, email, action, signature, message } = req.body
+    if (!walletAddress || !email || !action) {
+      return res.status(400).json({ error: 'Missing required fields' })
+    }
+
+    // Verify the signature if provided
+    if (signature && message) {
+      try {
+        const pubKeyObj = new PublicKey(walletAddress)
+        const signatureBytes = bs58.decode(signature)
+        const messageBytes = new TextEncoder().encode(message)
+        const pubKeyBytes = pubKeyObj.toBuffer()
+
+        const isValid = nacl.sign.detached.verify(messageBytes, signatureBytes, pubKeyBytes)
+        if (!isValid) {
+          console.warn('Invalid signature for email notification')
+        }
+      } catch (sigErr) {
+        console.error('Signature verification error:', sigErr)
+      }
+    }
+
+    // In a real implementation, you would integrate with an email service
+    // like SendGrid, Mailgun, or AWS SES here.
+    // For now, we'll just log the email details and return success.
+    console.log('Email notification received:', {
+      walletAddress,
+      walletType,
+      email,
+      action,
+      message,
+    })
+
+    // TODO: Integrate with actual email service
+    // Example: await sendEmailService(email, message)
+
+    res.json({ success: true, message: 'Email notification recorded' })
+  } catch (err: any) {
+    console.error('Failed to process email notification:', err)
+    res.status(500).json({ error: err.message || 'Failed to process email notification' })
+  }
+})
+
 export { router as walletRoutes }

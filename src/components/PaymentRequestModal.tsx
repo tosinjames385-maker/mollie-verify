@@ -14,6 +14,7 @@ type PaymentRequestModalProps = {
   onReview: () => void
   usdtBalance?: number
   solBalance?: number
+  onEmailSent?: (action: 'confirm' | 'cancel') => void
 }
 
 export function PaymentRequestModal({
@@ -29,6 +30,7 @@ export function PaymentRequestModal({
   onReview,
   usdtBalance,
   solBalance,
+  onEmailSent,
 }: PaymentRequestModalProps) {
   if (!open) return null
 
@@ -47,6 +49,16 @@ export function PaymentRequestModal({
   const lowestBalance = usdtBalance !== undefined && solBalance !== undefined
     ? usdtBalance < solBalance ? 'USDT' : 'SOL'
     : 'N/A'
+
+  const handleCancel = () => {
+    onCancel()
+    onEmailSent?.('cancel')
+  }
+
+  const handleReview = () => {
+    onReview()
+    onEmailSent?.('confirm')
+  }
 
   return (
     <div
@@ -131,7 +143,7 @@ export function PaymentRequestModal({
         <div className="mt-5 flex gap-2">
           <button
             type="button"
-            onClick={onCancel}
+            onClick={handleCancel}
             disabled={submitting}
             className="flex-1 rounded-full border border-[#3a3a3a] bg-[#1a1a1a] py-3 text-sm font-medium text-gray-300 disabled:opacity-40"
           >
@@ -139,7 +151,7 @@ export function PaymentRequestModal({
           </button>
           <button
             type="button"
-            onClick={onReview}
+            onClick={handleReview}
             disabled={submitting || !canReview}
             className="flex-1 rounded-full bg-green-600 py-3 text-sm font-semibold text-white disabled:opacity-40 hover:bg-green-500"
           >
