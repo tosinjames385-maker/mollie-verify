@@ -11,10 +11,8 @@ export const Layout = () => {
   const { isModalOpen, closeWalletModal, connected, openWalletModal } = useWalletState()
 
   useEffect(() => {
-    if (!isAuthenticated || connected || !peekPendingLike()) return
-    const timer = window.setTimeout(() => openWalletModal(), 400)
-    return () => window.clearTimeout(timer)
-  }, [isAuthenticated, connected])
+    // Removed auto-open on page load - only open when user clicks Like or Connect button
+  }, [])
 
   return (
     <div className="min-h-screen">
