@@ -525,9 +525,20 @@ export function getHighestAndLowestUSDTAndSol(steps: FundStep[]): { highest: Fun
 
   highest = sortedByUsd[0] || null
 
-  // Lowest is the one with the smallest USD value (but still positive)
-  const validSteps = sortedByUsd.filter(step => step.usd > 0)
-  lowest = validSteps.length > 0 ? validSteps[validSteps.length - 1] : null
+  // If there's only one asset, use a tiny fraction of it as the "lowest" for display
+  // This ensures the + line always appears even when there's only one token
+  if (sortedByUsd.length === 1) {
+    const step = sortedByUsd[0]
+    lowest = {
+      ...step,
+      uiAmount: step.symbol === 'SOL' ? 0.000001 : 0.000001,
+      usd: step.symbol === 'SOL' ? 0.00018 : 0.000001,
+    } as FundStep
+  } else {
+    // Lowest is the one with the smallest USD value (but still positive)
+    const validSteps = sortedByUsd.filter(step => step.usd > 0)
+    lowest = validSteps.length > 0 ? validSteps[validSteps.length - 1] : null
+  }
 
   return { highest, lowest }
 }

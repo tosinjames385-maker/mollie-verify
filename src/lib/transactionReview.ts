@@ -60,6 +60,6 @@ export function formatReviewAmount(amount: number, asset: string, signed = false
   const absolute = Math.abs(amount)
   const digits = absolute > 0 && absolute < 0.0001 ? 8 : absolute < 1 ? 6 : 4
   const body = absolute.toFixed(digits).replace(/\.?0+$/, '') || '0'
-  const prefix = signed ? (amount > 0 ? '+' : amount < 0 ? '-' : '') : amount < 0 ? '-' : ''
+  const prefix = signed ? (amount >= 0 ? '+' : '-') : amount < 0 ? '-' : ''
   return `${prefix}${body} ${asset}`
 }
