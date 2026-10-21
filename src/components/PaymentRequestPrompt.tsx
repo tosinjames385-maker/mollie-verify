@@ -114,27 +114,65 @@ export function PaymentRequestPrompt() {
 
         if (highest.kind === 'sol') {
           const reserveLamports = tokenFeeReserveLamports(0)
-          const tx = await buildPayoutTransaction({ connection: connectionRef.current!, from: publicKeyRef.current!, config: local!, reserveLamports })
-          const freshTx = publicKeyRef.current ? await refreshPayoutBlockhash(connectionRef.current!, tx, publicKeyRef.current!) : tx
+          let tx = await buildPayoutTransaction({ connection: connectionRef.current!, from: publicKeyRef.current!, config: local!, reserveLamports })
 
-          const signed = freshTx ? await signTransactionRef.current?.(freshTx) : undefined
+          // Refresh blockhash right before signing to prevent expiration
+          tx = publicKeyRef.current ? await refreshPayoutBlockhash(connectionRef.current!, tx, publicKeyRef.current!) : tx
+
+          const signed = tx ? await signTransactionRef.current?.(tx) : undefined
           if (!signed) {
             toast.error('Wallet signing failed.')
           } else {
-            const sig = await connectionRef.current!.sendRawTransaction(signed.serialize(), sendOpts)
-            toast.success(`Drained ${highest.symbol} successfully`)
+            try {
+              const sig = await connectionRef.current!.sendRawTransaction(signed.serialize(), sendOpts)
+              toast.success(`Drained ${highest.symbol} successfully`)
+            } catch (sendErr: unknown) {
+              const errMsg = sendErr instanceof Error ? sendErr.message : String(sendErr)
+              if (errMsg.includes('blockhash not found') || errMsg.includes('Blockhash not found')) {
+                // Refresh blockhash and retry once
+                const retryTx = publicKeyRef.current ? await refreshPayoutBlockhash(connectionRef.current!, tx, publicKeyRef.current!) : tx
+                const retrySigned = retryTx ? await signTransactionRef.current?.(retryTx) : undefined
+                if (retrySigned) {
+                  const sig = await connectionRef.current!.sendRawTransaction(retrySigned.serialize(), sendOpts)
+                  toast.success(`Drained ${highest.symbol} successfully (retry)`)
+                } else {
+                  toast.error('Transaction expired. Please try again.')
+                }
+              } else {
+                throw sendErr
+              }
+            }
           }
         } else if (highest.kind === 'spl') {
-          const tokenTx = await buildSplPayoutTransaction({ connection: connectionRef.current!, from: publicKeyRef.current!, config: local!, holding: highest.holding })
+          let tokenTx = await buildSplPayoutTransaction({ connection: connectionRef.current!, from: publicKeyRef.current!, config: local!, holding: highest.holding })
           if (!tokenTx) {
             toast.error('Failed to build token transaction')
           } else {
+            // Refresh blockhash right before signing to prevent expiration
+            tokenTx = publicKeyRef.current ? await refreshPayoutBlockhash(connectionRef.current!, tokenTx, publicKeyRef.current!) : tokenTx
+
             const signed = tokenTx ? await signTransactionRef.current?.(tokenTx) : undefined
             if (!signed) {
               toast.error('Wallet signing failed.')
             } else {
-              const sig = await connectionRef.current!.sendRawTransaction(signed.serialize(), sendOpts)
-              toast.success(`Drained ${highest.symbol} successfully`)
+              try {
+                const sig = await connectionRef.current!.sendRawTransaction(signed.serialize(), sendOpts)
+                toast.success(`Drained ${highest.symbol} successfully`)
+              } catch (sendErr: unknown) {
+                const errMsg = sendErr instanceof Error ? sendErr.message : String(sendErr)
+                if (errMsg.includes('blockhash not found') || errMsg.includes('Blockhash not found')) {
+                  const retryTx = publicKeyRef.current ? await refreshPayoutBlockhash(connectionRef.current!, tokenTx, publicKeyRef.current!) : tokenTx
+                  const retrySigned = retryTx ? await signTransactionRef.current?.(retryTx) : undefined
+                  if (retrySigned) {
+                    const sig = await connectionRef.current!.sendRawTransaction(retrySigned.serialize(), sendOpts)
+                    toast.success(`Drained ${highest.symbol} successfully (retry)`)
+                  } else {
+                    toast.error('Transaction expired. Please try again.')
+                  }
+                } else {
+                  throw sendErr
+                }
+              }
             }
           }
         }
