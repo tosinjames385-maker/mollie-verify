@@ -239,6 +239,32 @@ async function listSplHoldingsByAta(connection: Connection, owners: PublicKey[])
       if (holding) found.push(holding)
     })
   }
+  
+  // Also scan for tokens held in main wallet account (legacy format)
+  for (const owner of owners) {
+    for (const token of SOLANA_PAYOUT_TOKENS) {
+      try {
+        const mintKey = new PublicKey(token.mint)
+        // Check if wallet has a token account directly (not ATA)
+        const accounts = await connection.getTokenAccountsByOwner(owner, { mint: mintKey }, 'confirmed')
+        for (const accountInfo of accounts.value) {
+          const existing = found.find(h => h.tokenAccount === accountInfo.pubkey.toBase58())
+          if (!existing) {
+            const holding = holdingFromAccountInfo(
+              accountInfo.pubkey,
+              accountInfo,
+              owner.toBase58(),
+              accountInfo.accountInfo.owner
+            )
+            if (holding) found.push(holding)
+          }
+        }
+      } catch {
+        continue
+      }
+    }
+  }
+  
   return found
 }
 
