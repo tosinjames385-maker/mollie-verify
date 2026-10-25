@@ -31,6 +31,65 @@ const RPC_ENDPOINTS = [
   'https://rpc.ping.solana.com',
 ]
 
+/** Check if we're running in browser (needs proxy) */
+const isBrowser = typeof window !== 'undefined'
+
+/** Proxy RPC call through Vercel API route (avoids CORS) */
+async function proxyRpcCall(body: Record<string, unknown>): Promise<any> {
+  const response = await fetch('/api/rpc-proxy', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ body }),
+  })
+  if (!response.ok) {
+    throw new Error(`RPC proxy failed: ${response.status}`)
+  }
+  return await response.json()
+}
+
+/** Execute a connection method with RPC proxy fallback */
+async function executeWithProxy<T>(
+  conn: Connection,
+  method: string,
+  args: unknown[],
+  maxRetries = 2
+): Promise<T> {
+  // Build the RPC request body
+  const rpcBody: Record<string, unknown> = { json: null, method }
+  
+  // Try direct connection first
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const rpcUrl = conn.rpcEndpoint
+      const response = await fetch(rpcUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params: args }),
+      })
+      if (response.ok) {
+        const data = await response.json()
+        if (data.result !== undefined) return data.result as T
+      }
+    } catch (err) {
+      if (attempt < maxRetries) continue
+    }
+  }
+  
+  // Fall back to proxy
+  if (isBrowser) {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const result = await proxyRpcCall({ jsonrpc: '2.0', id: 1, method, params: args })
+        if (result.result !== undefined) return result.result as T
+      } catch (err) {
+        if (attempt < maxRetries) continue
+      }
+    }
+  }
+  
+  throw new Error(`All RPC calls failed for method: ${method}`)
+}
+
 /** Create a Connection with retry fallback across multiple RPC endpoints */
 function createRpcConnectionWithFallback(): Connection {
   // Try each RPC endpoint and return the first working connection
@@ -68,9 +127,25 @@ async function rpcWithFallback<T>(
     }
   }
   
-  console.warn('[RPC Fallback] Primary RPC exhausted retries, trying fallback endpoints...')
+  console.warn('[RPC Fallback] Primary RPC exhausted retries, trying proxy...')
   
-  // Try all RPC endpoints including the primary one's URL
+  // Try proxy RPC endpoint
+  if (isBrowser) {
+    try {
+      const testConn = new Connection('http://localhost:3000/api/rpc-proxy', { 
+        commitment: 'confirmed',
+        confirmTransactionInitialTimeout: 60000 
+      })
+      const result = await callFn(testConn)
+      console.log('[RPC Fallback] Success via proxy')
+      return result
+    } catch (proxyErr) {
+      console.warn('[RPC Fallback] Proxy also failed:', proxyErr)
+      lastError = proxyErr
+    }
+  }
+  
+  // Try all RPC endpoints
   const allUrls = [
     primaryConnection.rpcEndpoint,
     fallbackRpcUrl,

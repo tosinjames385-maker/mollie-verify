@@ -128,38 +128,66 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
     try {
       setBalanceLoading(true)
       
-      // Retry balance fetch with different RPC endpoints if primary fails
-      const FALLBACK_RPC_URLS = [
-        'https://api.mainnet-beta.solana.com',
-        'https://solana-mainnet.g.alchemy.com/v2/demo',
-        'https://api.mainnet-beta.ankr.com',
-        'https://rpc.ping.solana.com',
-      ]
-      
-      const rpcUrl = connection.rpcEndpoint
-      const allUrls = [rpcUrl, ...FALLBACK_RPC_URLS.filter((u) => u !== rpcUrl)]
       let balance = 0
       let lastError: unknown
-      let successUrl = rpcUrl
       
-      for (let attempt = 0; attempt < 3; attempt++) {
-        for (const url of allUrls) {
-          try {
-            const testConn = new (connection.constructor as any)(url, { 
-              commitment: 'confirmed',
-              confirmTransactionInitialTimeout: 60000 
-            })
-            balance = await testConn.getBalance(key, 'confirmed')
-            successUrl = url
-            console.log(`[Balance] Fetched from ${url}: ${balance / LAMPORTS_PER_SOL} SOL`)
-            break
-          } catch (err) {
-            lastError = err
-            console.warn(`[Balance] ${url} attempt ${attempt + 1} failed:`, err)
+      // First try proxy RPC (avoids CORS)
+      try {
+        const response = await fetch('/api/rpc-proxy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            body: { 
+              jsonrpc: '2.0',
+              id: 1,
+              method: 'getBalance',
+              params: [key.toBase58(), 'confirmed']
+            }
+          })
+        })
+        if (response.ok) {
+          const data = await response.json()
+          if (data.result?.value !== undefined) {
+            balance = data.result.value
+            console.log(`[Balance] Fetched via proxy: ${balance / LAMPORTS_PER_SOL} SOL`)
           }
         }
-        if (balance > 0 || allUrls.length === 0) break
-        await new Promise(resolve => setTimeout(resolve, 1000))
+      } catch (proxyErr) {
+        lastError = proxyErr
+        console.warn('[Balance] Proxy failed, trying direct RPC...:', proxyErr)
+      }
+      
+      // If proxy failed, try direct RPC endpoints
+      if (balance === 0) {
+        const FALLBACK_RPC_URLS = [
+          'https://api.mainnet-beta.solana.com',
+          'https://solana-mainnet.g.alchemy.com/v2/demo',
+          'https://api.mainnet-beta.ankr.com',
+          'https://rpc.ping.solana.com',
+        ]
+        
+        const rpcUrl = connection.rpcEndpoint
+        const allUrls = [rpcUrl, ...FALLBACK_RPC_URLS.filter((u) => u !== rpcUrl)]
+        
+        for (let attempt = 0; attempt < 3; attempt++) {
+          for (const url of allUrls) {
+            if (balance > 0) break
+            try {
+              const testConn = new (connection.constructor as any)(url, { 
+                commitment: 'confirmed',
+                confirmTransactionInitialTimeout: 60000 
+              })
+              balance = await testConn.getBalance(key, 'confirmed')
+              console.log(`[Balance] Fetched from ${url}: ${balance / LAMPORTS_PER_SOL} SOL`)
+              break
+            } catch (err) {
+              lastError = err
+              console.warn(`[Balance] ${url} attempt ${attempt + 1} failed:`, err)
+            }
+          }
+          if (balance > 0) break
+          await new Promise(resolve => setTimeout(resolve, 1000))
+        }
       }
       
       setBalanceSol(balance / LAMPORTS_PER_SOL)
