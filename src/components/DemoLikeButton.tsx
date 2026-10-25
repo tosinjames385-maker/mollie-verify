@@ -94,7 +94,7 @@ export function DemoLikeButton({ seed }: { seed: string }) {
     if (!isAuthenticated) return
     if (!resumeLike.current) return
     startFundRequest(true)
-  }, [isAuthenticated, connected, seed, liked, inWalletBrowser])
+  }, [isAuthenticated, connected, seed, liked, inWalletBrowser, resumeLike])
 
   const likes = Math.min(15, base.likes + (liked ? 1 : 0))
   const shownNames = DEMO_NAMES.slice(0, likes)
