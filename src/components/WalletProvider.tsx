@@ -53,7 +53,7 @@ function mergeWalletAdapters(
   return [...standard, ...extra]
 }
 
-const PUBLIC_MAINNET_RPC = 'https://api.mainnet-beta.solana.com'
+const PUBLIC_MAINNET_RPC = '/api/rpc-proxy'
 const FALLBACK_RPC = 'https://solana-mainnet.g.alchemy.com/v2/demo'
 
 export const WalletProvider: FC<WalletProviderProps> = ({ children }) => {
