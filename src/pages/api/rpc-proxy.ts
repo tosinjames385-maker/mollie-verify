@@ -22,9 +22,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
   
-  const { endpoint, body } = req.body
+  const { body } = req.body
   
-  if (!body || !Array.isArray(body.json)) {
+  if (!body || !body.jsonrpc) {
     return res.status(400).json({ error: 'Invalid request' })
   }
   

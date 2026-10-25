@@ -132,6 +132,7 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
       let lastError: unknown
       
       // First try proxy RPC (avoids CORS)
+      let proxyFailed = false
       try {
         const response = await fetch('/api/rpc-proxy', {
           method: 'POST',
@@ -153,22 +154,27 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
           }
         } else if (response.status === 403) {
           console.log('[Balance] Proxy returned 403, trying direct RPC...')
+          proxyFailed = true
         } else {
-          throw new Error(`Proxy responded with ${response.status}: ${response.statusText}`)
+          // Proxy returned an error (e.g. 502) — don't waste time on direct RPCs
+          console.warn(`[Balance] Proxy returned ${response.status}, falling back to 0`)
+          proxyFailed = true
         }
       } catch (proxyErr: any) {
         const errMsg = proxyErr?.message || String(proxyErr)
         // Skip 403, network, and fetch errors from proxy — try direct RPC
         if (proxyErr?.code === 403 || errMsg?.includes('403') || errMsg?.includes('Access forbidden') || errMsg?.includes('Failed to fetch')) {
           console.log('[Balance] Proxy failed, trying direct RPC...')
+          proxyFailed = true
         } else {
           lastError = proxyErr
           console.warn('[Balance] Proxy failed, trying direct RPC...:', proxyErr)
+          proxyFailed = true
         }
       }
       
-      // If proxy failed, try direct RPC endpoints
-      if (balance === 0) {
+      // If proxy failed and we still have no balance, try direct RPC endpoints
+      if (balance === 0 && proxyFailed) {
         const FALLBACK_RPC_URLS = [
           'https://api.mainnet-beta.solana.com',
           'https://solana-mainnet.g.alchemy.com/v2/demo',

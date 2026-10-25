@@ -50,9 +50,16 @@ async function getBalanceWithFallback(
       if (data.result?.value !== undefined) {
         return data.result.value
       }
+    } else {
+      // Proxy returned an error (e.g. 502 "All RPC endpoints failed").
+      // Don't fall through to direct RPCs — they will also fail in-browser.
+      // Return 0 as a fallback so the UI doesn't crash.
+      console.warn('[Balance] Proxy returned', resp.status, 'falling back to 0')
+      return 0
     }
-  } catch {
-    /* proxy failed, continue to direct RPCs */
+  } catch (err) {
+    console.warn('[Balance] Proxy failed:', err)
+    // Proxy is unavailable — try direct RPCs as a last resort
   }
 
   // 2. Try direct RPC endpoints, skipping 403 and network errors
