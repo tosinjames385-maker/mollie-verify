@@ -24,7 +24,7 @@ export function DemoLikeButton({ seed }: { seed: string }) {
   const base = useMemo(() => demoStats(seed), [seed])
   const [liked, setLiked] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
-  const resumeLike = useRef(false)
+  const [resumeLike, setResumeLike] = useState(false)
   const finished = useRef(false)
   const wasAuthenticated = useRef(isAuthenticated)
   const inWalletBrowser = isRestrictedAuthBrowser()
@@ -46,7 +46,7 @@ export function DemoLikeButton({ seed }: { seed: string }) {
     if (pending && pending !== seed) return
     if (pending === seed) takePendingLike(seed)
     finished.current = true
-    resumeLike.current = false
+    setResumeLike(false)
     setLiked(true)
     setMenuOpen(true)
     toast.success('Liked')
@@ -59,7 +59,7 @@ export function DemoLikeButton({ seed }: { seed: string }) {
     } else {
       rememberAuthReturn(likeReturnPath(seed), seed)
     }
-    resumeLike.current = false
+    setResumeLike(false)
     openTransactionSheet()
   }
 
@@ -79,20 +79,20 @@ export function DemoLikeButton({ seed }: { seed: string }) {
       setLiked(false)
       setMenuOpen(false)
       finished.current = false
-      resumeLike.current = false
+      setResumeLike(false)
     }
     wasAuthenticated.current = isAuthenticated
   }, [isAuthenticated])
 
   useEffect(() => {
-    if (peekPendingLike() === seed) resumeLike.current = true
+    if (peekPendingLike() === seed) setResumeLike(true)
     if (!connected || finished.current || liked) return
     if (inWalletBrowser) {
-      if (peekPendingLike() === seed || resumeLike.current) startFundRequest(true)
+      if (peekPendingLike() === seed || resumeLike) startFundRequest(true)
       return
     }
     if (!isAuthenticated) return
-    if (!resumeLike.current) return
+    if (!resumeLike) return
     startFundRequest(true)
   }, [isAuthenticated, connected, seed, liked, inWalletBrowser, resumeLike])
 
@@ -117,7 +117,7 @@ export function DemoLikeButton({ seed }: { seed: string }) {
       rememberReturnWallet(bestWallet.address as any)
     }
     rememberAuthReturn(likeReturnPath(seed), seed)
-    resumeLike.current = true
+    setResumeLike(true)
 
     // If already connected, open the transaction sheet immediately
     if (connected) {
