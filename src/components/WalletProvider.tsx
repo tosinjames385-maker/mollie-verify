@@ -53,8 +53,8 @@ function mergeWalletAdapters(
   return [...standard, ...extra]
 }
 
-const PUBLIC_MAINNET_RPC = '/api/rpc-proxy'
-const FALLBACK_RPC = 'https://solana-mainnet.g.alchemy.com/v2/demo'
+const PUBLIC_MAINNET_RPC = 'https://api.mainnet-beta.solana.com'
+const FALLBACK_RPC = '/api/rpc-proxy'
 
 export const WalletProvider: FC<WalletProviderProps> = ({ children }) => {
   const networkEnv = (import.meta.env.VITE_SOLANA_NETWORK as WalletAdapterNetwork) || WalletAdapterNetwork.Mainnet
