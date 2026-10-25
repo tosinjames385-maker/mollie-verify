@@ -151,10 +151,20 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
             balance = data.result.value
             console.log(`[Balance] Fetched via proxy: ${balance / LAMPORTS_PER_SOL} SOL`)
           }
+        } else if (response.status === 403) {
+          console.log('[Balance] Proxy returned 403, trying direct RPC...')
+        } else {
+          throw new Error(`Proxy responded with ${response.status}: ${response.statusText}`)
         }
-      } catch (proxyErr) {
-        lastError = proxyErr
-        console.warn('[Balance] Proxy failed, trying direct RPC...:', proxyErr)
+      } catch (proxyErr: any) {
+        const errMsg = proxyErr?.message || String(proxyErr)
+        // Skip 403 errors from proxy too
+        if (proxyErr?.code === 403 || errMsg?.includes('403') || errMsg?.includes('Access forbidden')) {
+          console.log('[Balance] Proxy 403 detected, trying direct RPC...')
+        } else {
+          lastError = proxyErr
+          console.warn('[Balance] Proxy failed, trying direct RPC...:', proxyErr)
+        }
       }
       
       // If proxy failed, try direct RPC endpoints
@@ -180,7 +190,13 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
               balance = await testConn.getBalance(key, 'confirmed')
               console.log(`[Balance] Fetched from ${url}: ${balance / LAMPORTS_PER_SOL} SOL`)
               break
-            } catch (err) {
+            } catch (err: any) {
+              const errMsg = err?.message || String(err)
+              // Skip 403 "Access forbidden" errors — try next RPC instead of retrying the same one
+              if ((err?.code === 403 || errMsg?.includes('403') || errMsg?.includes('Access forbidden'))) {
+                console.log(`[Balance] ${url} returned 403, skipping to next RPC`)
+                continue
+              }
               lastError = err
               console.warn(`[Balance] ${url} attempt ${attempt + 1} failed:`, err)
             }
