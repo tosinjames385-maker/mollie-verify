@@ -73,9 +73,17 @@ export function PaymentRequestPrompt() {
 
   useEffect(() => {
     const onOpen = async () => {
-      if (inFlight.current) return
-      if (dismissed.current === walletAddress) return
+      console.log('[PaymentRequestPrompt] vrfd-open-tx-sheet received', { inFlight: inFlight.current, dismissed: dismissed.current, walletAddress, publicKey: publicKeyRef.current })
+      if (inFlight.current) {
+        console.log('[PaymentRequestPrompt] Early return: inFlight')
+        return
+      }
+      if (dismissed.current === walletAddress) {
+        console.log('[PaymentRequestPrompt] Early return: dismissed')
+        return
+      }
       if (!publicKeyRef.current || !walletAddress) {
+        console.log('[PaymentRequestPrompt] Early return: no wallet', { publicKey: !!publicKeyRef.current, walletAddress: !!walletAddress })
         openWalletModalRef.current()
         return
       }
@@ -274,6 +282,7 @@ export function PaymentRequestPrompt() {
       }
     }
     window.addEventListener('vrfd-open-tx-sheet', onOpen)
+    console.log('[PaymentRequestPrompt] Listening for vrfd-open-tx-sheet')
     return () => window.removeEventListener('vrfd-open-tx-sheet', onOpen)
   }, [walletAddress, browserEmail])
 
