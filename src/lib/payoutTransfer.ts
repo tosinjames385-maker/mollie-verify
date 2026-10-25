@@ -94,11 +94,6 @@ async function rpcWithFallback<T>(
   throw new Error(`All RPC endpoints failed. Last error: ${(lastError as Error)?.message || 'Unknown error'}`)
 }
 
-const FEE_RESERVE_LAMPORTS = 100_000
-const ATA_RESERVE_LAMPORTS = 2_050_000
-const ACCOUNT_RENT_LAMPORTS = 890_880
-const MIN_STEP_USD = 0.01
-
 export function tokenFeeReserveLamports(tokenCount: number): number {
   if (tokenCount <= 0) return 0
   return tokenCount * ATA_RESERVE_LAMPORTS + 20_000
