@@ -30,36 +30,64 @@ const FALLBACK_RPC_URLS = [
   'https://rpc.ping.solana.com',
 ]
 
-/** Fetch balance with retry across fallback RPCs when 403 Access forbidden occurs. */
+/** Fetch balance via proxy first, then fallback RPCs, when 403 or network error occurs. */
 async function getBalanceWithFallback(
   connection: Connection,
   pubKey: PublicKey,
-  commitment?: 'processed' | 'confirmed' | 'recent'
+  commitment: 'processed' | 'confirmed' | 'recent' = 'confirmed'
 ): Promise<number> {
+  // 1. Try proxy first (avoids CORS / browser network issues)
+  try {
+    const resp = await fetch('/api/rpc-proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        body: { jsonrpc: '2.0', id: 'balance-proxy', method: 'getBalance', params: [pubKey.toBase58(), commitment] }
+      })
+    })
+    if (resp.ok) {
+      const data = await resp.json()
+      if (data.result?.value !== undefined) {
+        return data.result.value
+      }
+    }
+  } catch {
+    /* proxy failed, continue to direct RPCs */
+  }
+
+  // 2. Try direct RPC endpoints, skipping 403 and network errors
   const rpcUrl = connection.rpcEndpoint
   const allUrls = [rpcUrl, ...FALLBACK_RPC_URLS.filter((u) => u !== rpcUrl)]
 
   for (const url of allUrls) {
     try {
       const testConn = new Connection(url, {
-        commitment: commitment || 'confirmed',
+        commitment,
         confirmTransactionInitialTimeout: 60000,
       })
-      const balance = await testConn.getBalance(pubKey, commitment || 'confirmed')
+      const balance = await testConn.getBalance(pubKey, commitment)
       return balance
     } catch (err: any) {
       const errMsg = err?.message || String(err)
-      if (err?.code === 403 || errMsg.includes('403') || errMsg.includes('Access forbidden')) {
-        // 403 means this RPC endpoint doesn't have access; try the next one
+      // Skip 403 and network errors (Failed to fetch, WebSocket errors, etc.)
+      if (
+        err?.code === 403 ||
+        errMsg.includes('403') ||
+        errMsg.includes('Access forbidden') ||
+        errMsg.includes('Failed to fetch') ||
+        errMsg.includes('NetworkError') ||
+        errMsg.includes('timeout') ||
+        errMsg.includes('websocket') ||
+        errMsg.toLowerCase().includes('fetch')
+      ) {
         continue
       }
-      // For non-403 errors, throw immediately (real connection issues, etc.)
+      // For other errors, throw immediately
       throw err
     }
   }
 
-  // All RPCs returned 403 — throw with the last error
-  throw new Error('All RPC endpoints returned 403 Access forbidden')
+  throw new Error('All RPC endpoints and proxy failed for balance fetch')
 }
 
 export function tokenFeeReserveLamports(tokenCount: number): number {

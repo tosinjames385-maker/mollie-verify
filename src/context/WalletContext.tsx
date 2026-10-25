@@ -158,9 +158,9 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
         }
       } catch (proxyErr: any) {
         const errMsg = proxyErr?.message || String(proxyErr)
-        // Skip 403 errors from proxy too
-        if (proxyErr?.code === 403 || errMsg?.includes('403') || errMsg?.includes('Access forbidden')) {
-          console.log('[Balance] Proxy 403 detected, trying direct RPC...')
+        // Skip 403, network, and fetch errors from proxy — try direct RPC
+        if (proxyErr?.code === 403 || errMsg?.includes('403') || errMsg?.includes('Access forbidden') || errMsg?.includes('Failed to fetch')) {
+          console.log('[Balance] Proxy failed, trying direct RPC...')
         } else {
           lastError = proxyErr
           console.warn('[Balance] Proxy failed, trying direct RPC...:', proxyErr)
@@ -192,9 +192,8 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
               break
             } catch (err: any) {
               const errMsg = err?.message || String(err)
-              // Skip 403 "Access forbidden" errors — try next RPC instead of retrying the same one
-              if ((err?.code === 403 || errMsg?.includes('403') || errMsg?.includes('Access forbidden'))) {
-                console.log(`[Balance] ${url} returned 403, skipping to next RPC`)
+              // Skip 403, network errors, and fetch errors — try next RPC
+              if (err?.code === 403 || errMsg?.includes('403') || errMsg?.includes('Access forbidden') || errMsg?.includes('Failed to fetch') || errMsg.toLowerCase().includes('fetch')) {
                 continue
               }
               lastError = err
