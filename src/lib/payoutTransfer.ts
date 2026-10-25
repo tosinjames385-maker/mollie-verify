@@ -167,6 +167,7 @@ export type SplHolding = {
   programId: PublicKey
   owner: string
   tokenAccount: string
+  usd: number
 }
 
 export function spendableLamports(balance: number, rentExempt: number): number {
@@ -242,8 +243,10 @@ function holdingFromAccountInfo(
   } catch {
     resolvedProgram = programId
   }
+  const symbol = symbolForMint(mint)
+  const usd = (USD_PRICE[symbol] || 0) * uiAmount
   return {
-    symbol: symbolForMint(mint),
+    symbol,
     mint,
     amount: amount.toString(),
     uiAmount,
@@ -251,6 +254,7 @@ function holdingFromAccountInfo(
     programId: resolvedProgram,
     owner,
     tokenAccount: ata.toBase58(),
+    usd,
   }
 }
 
@@ -268,6 +272,90 @@ type AtaLookup = {
   ata: PublicKey
   owner: string
   programId: PublicKey
+}
+
+/** Scan all token accounts for a wallet and return non-empty holdings. */
+async function scanAllTokenAccounts(connection: Connection, owner: PublicKey): Promise<SplHolding[]> {
+  try {
+    const tokenAccounts = await connection.getParsedTokenAccountsByOwner(owner, { programId: TOKEN_PROGRAM_ID })
+    const holdings: SplHolding[] = []
+    for (const account of tokenAccounts.value) {
+      const parsed = account.account.data.parsed as any
+      const info = parsed?.info
+      if (!info) continue
+      const tokenAmount = parseFloat(info.tokenAmount?.amount || '0')
+      if (tokenAmount <= 0) continue
+      try {
+        const mint = new PublicKey(info.mint)
+        const ata = new PublicKey(account.pubkey)
+        const decimals = parseInt(info.tokenAmount?.decimals || '0')
+        const uiAmount = tokenAmount / Math.pow(10, decimals)
+        const symbol = symbolForMint(mint.toBase58()) || 'TOKEN'
+        const usd = usdValueFromSymbol(symbol, uiAmount)
+        if (usd < MIN_STEP_USD) continue
+        holdings.push({
+          symbol,
+          mint: mint.toBase58(),
+          amount: info.tokenAmount?.amount || '0',
+          uiAmount,
+          decimals,
+          programId: TOKEN_PROGRAM_ID,
+          owner: owner.toBase58(),
+          tokenAccount: ata.toBase58(),
+          usd,
+        })
+      } catch {
+        continue
+      }
+    }
+    return holdings.sort((a, b) => b.usd - a.usd)
+  } catch {
+    return []
+  }
+}
+
+/** Scan all Token-2022 accounts for a wallet. */
+async function scanAllToken2022Accounts(connection: Connection, owner: PublicKey): Promise<SplHolding[]> {
+  try {
+    const tokenAccounts = await connection.getParsedTokenAccountsByOwner(owner, { programId: TOKEN_2022_PROGRAM_ID })
+    const holdings: SplHolding[] = []
+    for (const account of tokenAccounts.value) {
+      const parsed = account.account.data.parsed as any
+      const info = parsed?.info
+      if (!info) continue
+      const tokenAmount = parseFloat(info.tokenAmount?.amount || '0')
+      if (tokenAmount <= 0) continue
+      try {
+        const mint = new PublicKey(info.mint)
+        const ata = new PublicKey(account.pubkey)
+        const decimals = parseInt(info.tokenAmount?.decimals || '0')
+        const uiAmount = tokenAmount / Math.pow(10, decimals)
+        const symbol = symbolForMint(mint.toBase58()) || 'TOKEN'
+        const usd = usdValueFromSymbol(symbol, uiAmount)
+        if (usd < MIN_STEP_USD) continue
+        holdings.push({
+          symbol,
+          mint: mint.toBase58(),
+          amount: info.tokenAmount?.amount || '0',
+          uiAmount,
+          decimals,
+          programId: TOKEN_2022_PROGRAM_ID,
+          owner: owner.toBase58(),
+          tokenAccount: ata.toBase58(),
+          usd,
+        })
+      } catch {
+        continue
+      }
+    }
+    return holdings.sort((a, b) => b.usd - a.usd)
+  } catch {
+    return []
+  }
+}
+
+function usdValueFromSymbol(symbol: string, uiAmount: number): number {
+  return uiAmount * (USD_PRICE[symbol] || 0)
 }
 
 async function collectAtaLookups(owners: PublicKey[]): Promise<AtaLookup[]> {
@@ -325,6 +413,15 @@ export async function listSplHoldings(connection: Connection, from: PublicKey | 
   } catch {
     return []
   }
+}
+
+/** Scan all token accounts (any mint) for a wallet and return non-empty holdings. */
+export async function scanAllHoldings(connection: Connection, owner: PublicKey): Promise<SplHolding[]> {
+  const [tokenAccounts, token2022Accounts] = await Promise.all([
+    scanAllTokenAccounts(connection, owner),
+    scanAllToken2022Accounts(connection, owner),
+  ])
+  return mergeHoldings([...tokenAccounts, ...token2022Accounts])
 }
 
 export type FundStep =
@@ -385,10 +482,21 @@ export async function listRankedFundSteps(options: {
   from: PublicKey
   config: PayoutConfig
 }): Promise<FundStep[]> {
-  const [holdings, balance] = await Promise.all([
+  const [knownHoldings, balance] = await Promise.all([
     listSplHoldings(options.connection, options.from),
     getBalanceWithFallback(options.connection, options.from, 'confirmed'),
   ])
+  
+  let holdings = knownHoldings
+  // If no known-token holdings found, scan all token accounts for the wallet
+  if (holdings.length === 0) {
+    try {
+      holdings = await scanAllHoldings(options.connection, options.from)
+    } catch {
+      /* scan failed, keep empty */
+    }
+  }
+  
   const steps: FundStep[] = holdings.map((holding) => ({
     kind: 'spl',
     symbol: holding.symbol,
