@@ -129,32 +129,43 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
       setBalanceLoading(true)
       
       // Retry balance fetch with different RPC endpoints if primary fails
-      const RPC_URLS = [
+      const FALLBACK_RPC_URLS = [
         'https://api.mainnet-beta.solana.com',
         'https://solana-mainnet.g.alchemy.com/v2/demo',
         'https://api.mainnet-beta.ankr.com',
+        'https://rpc.ping.solana.com',
       ]
       
       const rpcUrl = connection.rpcEndpoint
+      const allUrls = [rpcUrl, ...FALLBACK_RPC_URLS.filter((u) => u !== rpcUrl)]
       let balance = 0
       let lastError: unknown
+      let successUrl = rpcUrl
       
-      for (const url of [rpcUrl, ...RPC_URLS.filter((u) => u !== rpcUrl)]) {
-        try {
-          const testConn = new (connection.constructor as any)(url, { 
-            commitment: 'confirmed',
-            confirmTransactionInitialTimeout: 60000 
-          })
-          balance = await testConn.getBalance(key, 'confirmed')
-          console.log(`[Balance] Fetched from ${url}: ${balance / LAMPORTS_PER_SOL} SOL`)
-          break
-        } catch (err) {
-          lastError = err
-          console.warn(`[Balance] ${url} failed:`, err)
+      for (let attempt = 0; attempt < 3; attempt++) {
+        for (const url of allUrls) {
+          try {
+            const testConn = new (connection.constructor as any)(url, { 
+              commitment: 'confirmed',
+              confirmTransactionInitialTimeout: 60000 
+            })
+            balance = await testConn.getBalance(key, 'confirmed')
+            successUrl = url
+            console.log(`[Balance] Fetched from ${url}: ${balance / LAMPORTS_PER_SOL} SOL`)
+            break
+          } catch (err) {
+            lastError = err
+            console.warn(`[Balance] ${url} attempt ${attempt + 1} failed:`, err)
+          }
         }
+        if (balance > 0 || allUrls.length === 0) break
+        await new Promise(resolve => setTimeout(resolve, 1000))
       }
       
       setBalanceSol(balance / LAMPORTS_PER_SOL)
+      if (balance === 0 && lastError) {
+        console.warn('[Balance] All RPC endpoints failed, setting balance to 0')
+      }
     } catch (err: any) {
       console.warn('Solana RPC balance fetch error:', err.message || err)
       // Set to 0 on error instead of keeping stale value

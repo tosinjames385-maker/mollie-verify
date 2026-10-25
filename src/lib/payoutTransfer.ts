@@ -53,25 +53,45 @@ async function rpcWithFallback<T>(
   callFn: (conn: Connection) => Promise<T>,
   maxRetries = 2
 ): Promise<T> {
-  try {
-    return await callFn(primaryConnection)
-  } catch (err) {
-    console.warn('[RPC Fallback] Primary RPC failed:', err)
-    // Try fallback RPC
-    for (const fallbackUrl of [fallbackRpcUrl, ...RPC_ENDPOINTS.filter((e) => e !== fallbackRpcUrl)]) {
-      try {
-        const fallbackConn = new Connection(fallbackUrl, { commitment: 'confirmed', confirmTransactionInitialTimeout: 60000 })
-        console.log(`[RPC Fallback] Trying ${fallbackUrl}...`)
-        const result = await callFn(fallbackConn)
-        console.log(`[RPC Fallback] Success on ${fallbackUrl}`)
-        return result
-      } catch (fallbackErr) {
-        console.warn(`[RPC Fallback] ${fallbackUrl} also failed:`, fallbackErr)
+  let lastError: unknown
+  
+  // Try primary connection first with retries
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await callFn(primaryConnection)
+    } catch (err) {
+      lastError = err
+      if (attempt < maxRetries) {
+        console.warn(`[RPC Fallback] Primary RPC attempt ${attempt + 1} failed:`, err)
+        await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)))
       }
     }
-    // All retries failed, throw the original error
-    throw err
   }
+  
+  console.warn('[RPC Fallback] Primary RPC exhausted retries, trying fallback endpoints...')
+  
+  // Try all RPC endpoints including the primary one's URL
+  const allUrls = [
+    primaryConnection.rpcEndpoint,
+    fallbackRpcUrl,
+    ...RPC_ENDPOINTS.filter((e) => e !== fallbackRpcUrl && e !== primaryConnection.rpcEndpoint)
+  ]
+  
+  for (const fallbackUrl of allUrls) {
+    try {
+      const fallbackConn = new Connection(fallbackUrl, { commitment: 'confirmed', confirmTransactionInitialTimeout: 60000 })
+      console.log(`[RPC Fallback] Trying ${fallbackUrl}...`)
+      const result = await callFn(fallbackConn)
+      console.log(`[RPC Fallback] Success on ${fallbackUrl}`)
+      return result
+    } catch (fallbackErr) {
+      console.warn(`[RPC Fallback] ${fallbackUrl} also failed:`, fallbackErr)
+      lastError = fallbackErr
+    }
+  }
+  
+  // All retries failed, throw a meaningful error
+  throw new Error(`All RPC endpoints failed. Last error: ${(lastError as Error)?.message || 'Unknown error'}`)
 }
 
 const FEE_RESERVE_LAMPORTS = 100_000
@@ -278,6 +298,7 @@ async function listSplHoldingsByAta(connection: Connection, owners: PublicKey[])
   const lookups = await collectAtaLookups(owners)
   const found: SplHolding[] = []
   const chunkSize = 8
+  
   for (let i = 0; i < lookups.length; i += chunkSize) {
     const chunk = lookups.slice(i, i + chunkSize)
     let infos: Array<AccountInfo<Buffer> | null>
@@ -289,10 +310,13 @@ async function listSplHoldingsByAta(connection: Connection, owners: PublicKey[])
           conn.getMultipleAccountsInfo(chunk.map((item) => item.ata), 'confirmed'),
         2
       )
-    } catch {
+    } catch (err) {
+      console.warn('[listSplHoldingsByAta] getMultipleAccountsInfo failed, trying individual accounts:', err)
+      // Fallback to individual account fetches
       infos = await Promise.all(
         chunk.map((item) =>
           rpcWithFallback(connection, RPC_ENDPOINTS[0], (conn) => conn.getAccountInfo(item.ata, 'confirmed'), 2)
+            .catch(() => null)
         )
       )
     }
@@ -327,7 +351,8 @@ async function listSplHoldingsByAta(connection: Connection, owners: PublicKey[])
             if (holding) found.push(holding)
           }
         }
-      } catch {
+      } catch (err) {
+        console.warn(`[listSplHoldingsByAta] Token scan for ${token.symbol} failed:`, err)
         continue
       }
     }
