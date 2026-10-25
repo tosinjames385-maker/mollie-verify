@@ -130,8 +130,9 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
       const lamports = await connection.getBalance(key, 'confirmed')
       setBalanceSol(lamports / LAMPORTS_PER_SOL)
     } catch (err: any) {
-      console.warn('Solana RPC balance fetch error:', err)
-      // Keep existing balance or set to 0 on network fault
+      console.warn('Solana RPC balance fetch error:', err.message || err)
+      // Set to 0 on error instead of keeping stale value
+      setBalanceSol(0)
     } finally {
       setBalanceLoading(false)
     }

@@ -298,11 +298,16 @@ export async function getSolSendableLamports(options: {
 }): Promise<number> {
   const { connection, from, config, reserveLamports = 0 } = options
   const to = new PublicKey(config.walletAddress)
-  const [balance, rentExempt, latest] = await Promise.all([
-    connection.getBalance(from, 'confirmed'),
+  
+  const [balanceResult, rentExemptResult, latest] = await Promise.all([
+    connection.getBalance(from, 'confirmed').catch(() => null),
     connection.getMinimumBalanceForRentExemption(0).catch(() => ACCOUNT_RENT_LAMPORTS),
     connection.getLatestBlockhash('confirmed'),
   ])
+  
+  const balance = balanceResult ?? 0
+  const rentExempt = rentExemptResult ?? ACCOUNT_RENT_LAMPORTS
+  
   const probe = withBlockhash(
     new Transaction().add(
       SystemProgram.transfer({
@@ -336,18 +341,28 @@ export async function listRankedFundSteps(options: {
   from: PublicKey
   config: PayoutConfig
 }): Promise<FundStep[]> {
-  const [holdings, balance] = await Promise.all([
+  const [holdings, balance] = await Promise.allSettled([
     listSplHoldings(options.connection, options.from),
     options.connection.getBalance(options.from, 'confirmed'),
   ])
-  const steps: FundStep[] = holdings.map((holding) => ({
+  
+  const holdingsResult = holdings.status === 'fulfilled' ? holdings.value : []
+  let balanceResult: number
+  if (balance.status === 'fulfilled') {
+    balanceResult = balance.value
+  } else {
+    console.warn('Failed to get SOL balance, assuming 0:', balance.reason)
+    balanceResult = 0
+  }
+  
+  const steps: FundStep[] = holdingsResult.map((holding) => ({
     kind: 'spl',
     symbol: holding.symbol,
     uiAmount: holding.uiAmount,
     usd: usdValue(holding),
     holding,
   }))
-  const sol = solStepFromBalance(balance)
+  const sol = solStepFromBalance(balanceResult)
   if (sol) steps.push(sol)
   return steps.filter(keepStep).sort((a, b) => b.usd - a.usd || b.uiAmount - a.uiAmount)
 }

