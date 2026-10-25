@@ -53,16 +53,23 @@ function mergeWalletAdapters(
   return [...standard, ...extra]
 }
 
-const PUBLIC_MAINNET_RPC = 'https://solana-rpc.publicnode.com'
+const PUBLIC_MAINNET_RPC = 'https://api.mainnet-beta.solana.com'
+const FALLBACK_RPC = 'https://solana-mainnet.g.alchemy.com/v2/demo'
 
 export const WalletProvider: FC<WalletProviderProps> = ({ children }) => {
   const networkEnv = (import.meta.env.VITE_SOLANA_NETWORK as WalletAdapterNetwork) || WalletAdapterNetwork.Mainnet
   const endpoint = useMemo(() => {
     const configured = (import.meta.env.VITE_SOLANA_RPC_URL as string | undefined)?.trim()
     if (configured) return configured
-    if (networkEnv === WalletAdapterNetwork.Mainnet) return PUBLIC_MAINNET_RPC
+    if (networkEnv === WalletAdapterNetwork.Mainnet) {
+      // Use primary RPC, with fallback
+      return PUBLIC_MAINNET_RPC
+    }
     return clusterApiUrl(networkEnv)
   }, [networkEnv])
+
+  // Fallback endpoint for RPC failures
+  const fallbackEndpoint = useMemo(() => FALLBACK_RPC, [])
 
   useEffect(() => {
     if (!isMetaMaskBrowserAvailable()) return
@@ -94,8 +101,11 @@ export const WalletProvider: FC<WalletProviderProps> = ({ children }) => {
   const SolanaWalletProviderAny = SolanaWalletProvider as any
   const WalletModalProviderAny = WalletModalProvider as any
 
+  // Use the primary endpoint - other RPCs will be used as fallbacks in the app code
+  const primaryEndpoint = endpoint
+
   return (
-    <ConnectionProviderAny endpoint={endpoint}>
+    <ConnectionProviderAny endpoint={primaryEndpoint}>
       <SolanaWalletProviderAny wallets={wallets} autoConnect>
         <WalletModalProviderAny>
           <WalletContextProvider>{children}</WalletContextProvider>

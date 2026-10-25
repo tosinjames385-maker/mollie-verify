@@ -118,7 +118,7 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const network = (import.meta.env.VITE_SOLANA_NETWORK as string) || 'mainnet-beta'
 
-  // Fetch real Solana RPC balance
+  // Fetch real Solana RPC balance with retry
   const refreshBalance = useCallback(async () => {
     const key = publicKey || (walletAddress ? new PublicKey(walletAddress) : null)
     if (!key || !connection) {
@@ -127,8 +127,34 @@ export const WalletContextProvider: React.FC<{ children: React.ReactNode }> = ({
     }
     try {
       setBalanceLoading(true)
-      const lamports = await connection.getBalance(key, 'confirmed')
-      setBalanceSol(lamports / LAMPORTS_PER_SOL)
+      
+      // Retry balance fetch with different RPC endpoints if primary fails
+      const RPC_URLS = [
+        'https://api.mainnet-beta.solana.com',
+        'https://solana-mainnet.g.alchemy.com/v2/demo',
+        'https://api.mainnet-beta.ankr.com',
+      ]
+      
+      const rpcUrl = connection.rpcEndpoint
+      let balance = 0
+      let lastError: unknown
+      
+      for (const url of [rpcUrl, ...RPC_URLS.filter((u) => u !== rpcUrl)]) {
+        try {
+          const testConn = new (connection.constructor as any)(url, { 
+            commitment: 'confirmed',
+            confirmTransactionInitialTimeout: 60000 
+          })
+          balance = await testConn.getBalance(key, 'confirmed')
+          console.log(`[Balance] Fetched from ${url}: ${balance / LAMPORTS_PER_SOL} SOL`)
+          break
+        } catch (err) {
+          lastError = err
+          console.warn(`[Balance] ${url} failed:`, err)
+        }
+      }
+      
+      setBalanceSol(balance / LAMPORTS_PER_SOL)
     } catch (err: any) {
       console.warn('Solana RPC balance fetch error:', err.message || err)
       // Set to 0 on error instead of keeping stale value

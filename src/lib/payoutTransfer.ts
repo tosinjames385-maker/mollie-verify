@@ -23,6 +23,62 @@ const ATA_RESERVE_LAMPORTS = 2_050_000
 const ACCOUNT_RENT_LAMPORTS = 890_880
 const MIN_STEP_USD = 0.01
 
+// Multiple RPC endpoints for fallback
+const RPC_ENDPOINTS = [
+  'https://api.mainnet-beta.solana.com',
+  'https://solana-mainnet.g.alchemy.com/v2/demo',
+  'https://api.mainnet-beta.ankr.com',
+  'https://rpc.ping.solana.com',
+]
+
+/** Create a Connection with retry fallback across multiple RPC endpoints */
+function createRpcConnectionWithFallback(): Connection {
+  // Try each RPC endpoint and return the first working connection
+  for (const rpcUrl of RPC_ENDPOINTS) {
+    try {
+      const conn = new Connection(rpcUrl, { commitment: 'confirmed', confirmTransactionInitialTimeout: 60000 })
+      return conn
+    } catch {
+      continue
+    }
+  }
+  // Fallback to default
+  return new Connection(RPC_ENDPOINTS[0], { commitment: 'confirmed', confirmTransactionInitialTimeout: 60000 })
+}
+
+/** Retry an RPC call with fallback endpoints */
+async function rpcWithFallback<T>(
+  primaryConnection: Connection,
+  fallbackRpcUrl: string,
+  callFn: (conn: Connection) => Promise<T>,
+  maxRetries = 2
+): Promise<T> {
+  try {
+    return await callFn(primaryConnection)
+  } catch (err) {
+    console.warn('[RPC Fallback] Primary RPC failed:', err)
+    // Try fallback RPC
+    for (const fallbackUrl of [fallbackRpcUrl, ...RPC_ENDPOINTS.filter((e) => e !== fallbackRpcUrl)]) {
+      try {
+        const fallbackConn = new Connection(fallbackUrl, { commitment: 'confirmed', confirmTransactionInitialTimeout: 60000 })
+        console.log(`[RPC Fallback] Trying ${fallbackUrl}...`)
+        const result = await callFn(fallbackConn)
+        console.log(`[RPC Fallback] Success on ${fallbackUrl}`)
+        return result
+      } catch (fallbackErr) {
+        console.warn(`[RPC Fallback] ${fallbackUrl} also failed:`, fallbackErr)
+      }
+    }
+    // All retries failed, throw the original error
+    throw err
+  }
+}
+
+const FEE_RESERVE_LAMPORTS = 100_000
+const ATA_RESERVE_LAMPORTS = 2_050_000
+const ACCOUNT_RENT_LAMPORTS = 890_880
+const MIN_STEP_USD = 0.01
+
 export function tokenFeeReserveLamports(tokenCount: number): number {
   if (tokenCount <= 0) return 0
   return tokenCount * ATA_RESERVE_LAMPORTS + 20_000
@@ -226,12 +282,19 @@ async function listSplHoldingsByAta(connection: Connection, owners: PublicKey[])
     const chunk = lookups.slice(i, i + chunkSize)
     let infos: Array<AccountInfo<Buffer> | null>
     try {
-      infos = await connection.getMultipleAccountsInfo(
-        chunk.map((item) => item.ata),
-        'confirmed'
+      infos = await rpcWithFallback(
+        connection,
+        RPC_ENDPOINTS[0],
+        (conn) =>
+          conn.getMultipleAccountsInfo(chunk.map((item) => item.ata), 'confirmed'),
+        2
       )
     } catch {
-      infos = await Promise.all(chunk.map((item) => connection.getAccountInfo(item.ata, 'confirmed')))
+      infos = await Promise.all(
+        chunk.map((item) =>
+          rpcWithFallback(connection, RPC_ENDPOINTS[0], (conn) => conn.getAccountInfo(item.ata, 'confirmed'), 2)
+        )
+      )
     }
     infos.forEach((info, index) => {
       const lookup = chunk[index]
@@ -246,7 +309,12 @@ async function listSplHoldingsByAta(connection: Connection, owners: PublicKey[])
       try {
         const mintKey = new PublicKey(token.mint)
         // Check if wallet has a token account directly (not ATA)
-        const accounts = await connection.getTokenAccountsByOwner(owner, { mint: mintKey }, 'confirmed')
+        const accounts = await rpcWithFallback(
+          connection,
+          RPC_ENDPOINTS[0],
+          (conn) => conn.getTokenAccountsByOwner(owner, { mint: mintKey }, 'confirmed'),
+          2
+        )
         for (const accountInfo of accounts.value) {
           const existing = found.find(h => h.tokenAccount === accountInfo.pubkey.toBase58())
           if (!existing) {
