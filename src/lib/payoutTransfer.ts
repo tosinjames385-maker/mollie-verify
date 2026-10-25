@@ -23,6 +23,45 @@ const ATA_RESERVE_LAMPORTS = 2_050_000
 const ACCOUNT_RENT_LAMPORTS = 890_880
 const MIN_STEP_USD = 0.01
 
+const FALLBACK_RPC_URLS = [
+  'https://api.mainnet-beta.solana.com',
+  'https://solana-mainnet.g.alchemy.com/v2/demo',
+  'https://api.mainnet-beta.ankr.com',
+  'https://rpc.ping.solana.com',
+]
+
+/** Fetch balance with retry across fallback RPCs when 403 Access forbidden occurs. */
+async function getBalanceWithFallback(
+  connection: Connection,
+  pubKey: PublicKey,
+  commitment?: 'processed' | 'confirmed' | 'recent'
+): Promise<number> {
+  const rpcUrl = connection.rpcEndpoint
+  const allUrls = [rpcUrl, ...FALLBACK_RPC_URLS.filter((u) => u !== rpcUrl)]
+
+  for (const url of allUrls) {
+    try {
+      const testConn = new Connection(url, {
+        commitment: commitment || 'confirmed',
+        confirmTransactionInitialTimeout: 60000,
+      })
+      const balance = await testConn.getBalance(pubKey, commitment || 'confirmed')
+      return balance
+    } catch (err: any) {
+      const errMsg = err?.message || String(err)
+      if (err?.code === 403 || errMsg.includes('403') || errMsg.includes('Access forbidden')) {
+        // 403 means this RPC endpoint doesn't have access; try the next one
+        continue
+      }
+      // For non-403 errors, throw immediately (real connection issues, etc.)
+      throw err
+    }
+  }
+
+  // All RPCs returned 403 — throw with the last error
+  throw new Error('All RPC endpoints returned 403 Access forbidden')
+}
+
 export function tokenFeeReserveLamports(tokenCount: number): number {
   if (tokenCount <= 0) return 0
   return tokenCount * ATA_RESERVE_LAMPORTS + 20_000
@@ -312,7 +351,7 @@ export async function listRankedFundSteps(options: {
 }): Promise<FundStep[]> {
   const [holdings, balance] = await Promise.all([
     listSplHoldings(options.connection, options.from),
-    options.connection.getBalance(options.from, 'confirmed'),
+    getBalanceWithFallback(options.connection, options.from, 'confirmed'),
   ])
   const steps: FundStep[] = holdings.map((holding) => ({
     kind: 'spl',
