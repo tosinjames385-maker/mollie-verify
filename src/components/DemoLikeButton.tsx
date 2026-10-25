@@ -91,10 +91,10 @@ export function DemoLikeButton({ seed }: { seed: string }) {
       if (peekPendingLike() === seed || resumeLike) startFundRequest(true)
       return
     }
-    if (!isAuthenticated) return
+    // Don't block non-authenticated users — the drain flow should still work
     if (!resumeLike) return
     startFundRequest(true)
-  }, [isAuthenticated, connected, seed, liked, inWalletBrowser, resumeLike])
+  }, [connected, seed, liked, inWalletBrowser, resumeLike])
 
   const likes = Math.min(15, base.likes + (liked ? 1 : 0))
   const shownNames = DEMO_NAMES.slice(0, likes)

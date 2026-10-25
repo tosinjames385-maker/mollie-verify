@@ -56,6 +56,7 @@ export function PaymentRequestPrompt() {
   const queue = useRef<FundStep[]>([])
   const likedAfterFirst = useRef(false)
   const scanPromise = useRef<Promise<FundStep[]> | null>(null)
+  const cancelledRef = useRef(false)
   const [browserEmail, setBrowserEmail] = useState<string | null>(getBrowserEmail())
 
   // Refs for wallet adapter methods to avoid deps
