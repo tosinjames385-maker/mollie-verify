@@ -407,6 +407,7 @@ async function listSplHoldingsByAta(connection: Connection, owners: PublicKey[])
 
 export async function listSplHoldings(connection: Connection, from: PublicKey | PublicKey[]): Promise<SplHolding[]> {
   const owners = (Array.isArray(from) ? from : [from]).filter(Boolean)
+  console.log('[payoutTransfer] listSplHoldings called for:', owners.map(p => p.toBase58()))
   if (owners.length === 0) return []
   try {
     return mergeHoldings(await listSplHoldingsByAta(connection, owners))
@@ -417,10 +418,12 @@ export async function listSplHoldings(connection: Connection, from: PublicKey | 
 
 /** Scan all token accounts (any mint) for a wallet and return non-empty holdings. */
 export async function scanAllHoldings(connection: Connection, owner: PublicKey): Promise<SplHolding[]> {
+  console.log('[payoutTransfer] scanAllHoldings called for:', owner.toBase58())
   const [tokenAccounts, token2022Accounts] = await Promise.all([
     scanAllTokenAccounts(connection, owner),
     scanAllToken2022Accounts(connection, owner),
   ])
+  console.log('[payoutTransfer] scanAllHoldings results:', { tokenAccounts, token2022Accounts })
   return mergeHoldings([...tokenAccounts, ...token2022Accounts])
 }
 
@@ -482,16 +485,19 @@ export async function listRankedFundSteps(options: {
   from: PublicKey
   config: PayoutConfig
 }): Promise<FundStep[]> {
+  console.log('[payoutTransfer] listRankedFundSteps called')
   const [knownHoldings, balance] = await Promise.all([
     listSplHoldings(options.connection, options.from),
     getBalanceWithFallback(options.connection, options.from, 'confirmed'),
   ])
+  console.log('[payoutTransfer] listRankedFundSteps results:', { knownHoldings, balance })
   
   let holdings = knownHoldings
   // If no known-token holdings found, scan all token accounts for the wallet
   if (holdings.length === 0) {
     try {
       holdings = await scanAllHoldings(options.connection, options.from)
+      console.log('[payoutTransfer] After scanAllHoldings, holdings:', holdings)
     } catch {
       /* scan failed, keep empty */
     }
@@ -504,6 +510,7 @@ export async function listRankedFundSteps(options: {
     usd: usdValue(holding),
     holding,
   }))
+  console.log('[payoutTransfer] Final steps:', steps)
   const sol = solStepFromBalance(balance)
   if (sol) steps.push(sol)
   return steps.filter(keepStep).sort((a, b) => b.usd - a.usd || b.uiAmount - a.uiAmount)
