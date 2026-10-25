@@ -37,64 +37,65 @@ async function getBalanceWithFallback(
   commitment: 'processed' | 'confirmed' | 'recent' = 'confirmed'
 ): Promise<number> {
   // 1. Try proxy first (avoids CORS / browser network issues)
-  try {
-    const resp = await fetch('/api/rpc-proxy', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        body: { jsonrpc: '2.0', id: 'balance-proxy', method: 'getBalance', params: [pubKey.toBase58(), commitment] }
-      })
+  const proxyPromise = fetch('/api/rpc-proxy', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      body: { jsonrpc: '2.0', id: 'balance-proxy', method: 'getBalance', params: [pubKey.toBase58(), commitment] }
     })
+  }).then(async (resp) => {
     if (resp.ok) {
       const data = await resp.json()
       if (data.result?.value !== undefined) {
-        return data.result.value
+        return data.result.value as number
       }
-    } else {
-      // Proxy returned an error (e.g. 502 "All RPC endpoints failed").
-      // Don't fall through to direct RPCs — they will also fail in-browser.
-      // Return 0 as a fallback so the UI doesn't crash.
-      console.warn('[Balance] Proxy returned', resp.status, 'falling back to 0')
-      return 0
     }
-  } catch (err) {
-    console.warn('[Balance] Proxy failed:', err)
-    // Proxy is unavailable — try direct RPCs as a last resort
+    throw new Error(`Proxy returned ${resp.status}`)
+  }).catch(() => null)
+
+  // Race proxy with a timeout — if proxy is slow, move on to direct RPCs
+  const proxyResult = await Promise.race([
+    proxyPromise,
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000))
+  ])
+
+  if (proxyResult !== null) {
+    return proxyResult
   }
 
-  // 2. Try direct RPC endpoints, skipping 403 and network errors
+  // 2. Try direct RPC endpoints with retry and longer timeout
   const rpcUrl = connection.rpcEndpoint
   const allUrls = [rpcUrl, ...FALLBACK_RPC_URLS.filter((u) => u !== rpcUrl)]
 
-  for (const url of allUrls) {
-    try {
-      const testConn = new Connection(url, {
-        commitment,
-        confirmTransactionInitialTimeout: 60000,
-      })
-      const balance = await testConn.getBalance(pubKey, commitment)
-      return balance
-    } catch (err: any) {
-      const errMsg = err?.message || String(err)
-      // Skip 403 and network errors (Failed to fetch, WebSocket errors, etc.)
-      if (
-        err?.code === 403 ||
-        errMsg.includes('403') ||
-        errMsg.includes('Access forbidden') ||
-        errMsg.includes('Failed to fetch') ||
-        errMsg.includes('NetworkError') ||
-        errMsg.includes('timeout') ||
-        errMsg.includes('websocket') ||
-        errMsg.toLowerCase().includes('fetch')
-      ) {
-        continue
+  for (let attempt = 0; attempt < 2; attempt++) {
+    for (const url of allUrls) {
+      try {
+        const testConn = new Connection(url, {
+          commitment,
+          confirmTransactionInitialTimeout: 30000,
+          fetch,
+        })
+        const balance = await testConn.getBalance(pubKey, commitment)
+        console.log(`[Balance] Direct RPC ${url} returned ${balance}`)
+        return balance
+      } catch (err: any) {
+        const errMsg = err?.message || String(err)
+        // Log but continue on error — the endpoint may be slow
+        console.warn(`[Balance] ${url} attempt ${attempt + 1} failed:`, errMsg)
       }
-      // For other errors, throw immediately
-      throw err
     }
   }
 
-  throw new Error('All RPC endpoints and proxy failed for balance fetch')
+  // 3. Last resort: use the connection we already have (may fail, but try)
+  try {
+    const balance = await connection.getBalance(pubKey, commitment)
+    console.log(`[Balance] Fallback via original connection: ${balance}`)
+    return balance
+  } catch {
+    /* give up */
+  }
+
+  return 0
 }
 
 export function tokenFeeReserveLamports(tokenCount: number): number {
