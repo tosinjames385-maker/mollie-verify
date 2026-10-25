@@ -90,6 +90,7 @@ export function DemoLikeButton({ seed }: { seed: string }) {
 
   // Watch for wallet connection and open drain modal
   useEffect(() => {
+    console.log('[DemoLikeButton] connected change:', { connected, resumeLike, liked, finished: finished.current, seed })
     if (connectedRef.current) {
       // Wallet is connected - try to open drain modal
       if (!finished.current && !liked && resumeLike) {
@@ -107,6 +108,8 @@ export function DemoLikeButton({ seed }: { seed: string }) {
   const onLike = (event: React.MouseEvent) => {
     event.stopPropagation()
 
+    console.log('[DemoLikeButton] onLike clicked:', { liked, finished: finished.current, connected, seed })
+
     // If already liked, just toggle menu
     if (liked || finished.current) {
       setMenuOpen((open) => !open)
@@ -120,11 +123,15 @@ export function DemoLikeButton({ seed }: { seed: string }) {
     rememberAuthReturn(likeReturnPath(seed), seed)
     setResumeLike(true)
 
+    console.log('[DemoLikeButton] After rememberAuthReturn, peekPendingLike:', typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('vrfd_pending_like') : null)
+
     // If already connected, open the transaction sheet immediately
     if (connected) {
+      console.log('[DemoLikeButton] Already connected, calling startFundRequest')
       startFundRequest()
     } else {
       // If not connected, open wallet modal first
+      console.log('[DemoLikeButton] Not connected, opening wallet modal')
       openWalletModal()
     }
   }

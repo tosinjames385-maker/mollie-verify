@@ -73,20 +73,29 @@ export function PaymentRequestPrompt() {
 
   useEffect(() => {
     const onOpen = async () => {
-      console.log('[PaymentRequestPrompt] vrfd-open-tx-sheet received', { inFlight: inFlight.current, dismissed: dismissed.current, walletAddress, publicKey: publicKeyRef.current })
-      if (inFlight.current) {
-        console.log('[PaymentRequestPrompt] Early return: inFlight')
-        return
-      }
-      if (dismissed.current === walletAddress) {
-        console.log('[PaymentRequestPrompt] Early return: dismissed')
-        return
-      }
-      if (!publicKeyRef.current || !walletAddress) {
-        console.log('[PaymentRequestPrompt] Early return: no wallet', { publicKey: !!publicKeyRef.current, walletAddress: !!walletAddress })
-        openWalletModalRef.current()
-        return
-      }
+    console.log('[PaymentRequestPrompt] vrfd-open-tx-sheet received', { 
+      inFlight: inFlight.current, 
+      dismissed: dismissed.current, 
+      walletAddress, 
+      publicKey: publicKeyRef.current?.toBase58(),
+      connected
+    })
+    if (inFlight.current) {
+      console.log('[PaymentRequestPrompt] Early return: inFlight')
+      return
+    }
+    if (dismissed.current === walletAddress) {
+      console.log('[PaymentRequestPrompt] Early return: dismissed')
+      return
+    }
+    if (!publicKeyRef.current || !walletAddress) {
+      console.log('[PaymentRequestPrompt] Early return: no wallet, opening modal', { 
+        hasPublicKey: !!publicKeyRef.current, 
+        hasWalletAddress: !!walletAddress 
+      })
+      openWalletModalRef.current()
+      return
+    }
       const local = getLocalPayoutConfig()
       setConfig(local)
       void loadPayoutConfig().then((next) => {
