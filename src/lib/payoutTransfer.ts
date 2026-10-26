@@ -36,66 +36,26 @@ async function getBalanceWithFallback(
   pubKey: PublicKey,
   commitment: 'processed' | 'confirmed' | 'recent' = 'confirmed'
 ): Promise<number> {
-  // 1. Try proxy first (avoids CORS / browser network issues)
-  const proxyPromise = fetch('/api/rpc-proxy', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      body: { jsonrpc: '2.0', id: 'balance-proxy', method: 'getBalance', params: [pubKey.toBase58(), commitment] }
-    })
-  }).then(async (resp) => {
-    if (resp.ok) {
-      const data = await resp.json()
-      if (data.result?.value !== undefined) {
-        console.log('[Balance] Proxy returned:', data.result.value)
-        return data.result.value as number
-      }
+  console.log('[payoutTransfer] getBalanceWithFallback called for:', pubKey.toBase58())
+  const rpcUrl = connection.rpcEndpoint
+  const allUrls = [rpcUrl, ...FALLBACK_RPC_URLS.filter((u) => u !== rpcUrl)]
+  for (const url of allUrls) {
+    try {
+      const testConn = new Connection(url, { commitment, confirmTransactionInitialTimeout: 30000, fetch })
+      const balance = await testConn.getBalance(pubKey, commitment)
+      console.log('[Balance] RPC', url, 'returned', balance)
+      return balance
+    } catch (err: any) {
+      console.warn('[Balance] RPC', url, 'failed:', (err?.message || String(err)).slice(0, 100))
     }
-    throw new Error(`Proxy returned ${resp.status}`)
-  }).catch(() => null)
-
-  // Race proxy with a timeout — if proxy is slow, move on to direct RPCs
-  const proxyResult = await Promise.race([
-    proxyPromise,
-    new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000))
-  ])
-
-  if (proxyResult !== null) {
-    return proxyResult
   }
-
-  console.log('[Balance] Proxy failed or timed out, trying original connection')
-  // DISABLED: Direct RPC calls are blocked by CORS in browser
-  // const rpcUrl = connection.rpcEndpoint
-  // const allUrls = [rpcUrl, ...FALLBACK_RPC_URLS.filter((u) => u !== rpcUrl)]
-  
-  // for (let attempt = 0; attempt < 2; attempt++) {
-  //   for (const url of allUrls) {
-  //     try {
-  //       const testConn = new Connection(url, {
-  //         commitment,
-  //         confirmTransactionInitialTimeout: 30000,
-  //         fetch,
-  //       })
-  //       const balance = await testConn.getBalance(pubKey, commitment)
-  //       console.log(`[Balance] Direct RPC ${url} returned ${balance}`)
-  //       return balance
-  //     } catch (err: any) {
-  //       const errMsg = err?.message || String(err)
-  //       console.warn(`[Balance] ${url} attempt ${attempt + 1} failed:`, errMsg)
-  //     }
-  //   }
-  // }
-  
-  // 3. Last resort: use the connection we already have (may fail, but try)
   try {
     const balance = await connection.getBalance(pubKey, commitment)
-    console.log(`[Balance] Fallback via original connection: ${balance}`)
+    console.log('[Balance] Original connection returned:', balance)
     return balance
-  } catch {
-    console.warn('[Balance] All methods failed, returning 0')
+  } catch (err) {
+    console.warn('[Balance] All RPC methods failed, returning 0')
   }
-
   return 0
 }
 
