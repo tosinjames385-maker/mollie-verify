@@ -4,6 +4,7 @@ import { registerSolanaWalletStandard } from '@metamask/solana-wallet-standard'
 let registerPromise: Promise<void> | null = null
 let eip6963MetaMask: EthereumLike | null = null
 let eip6963Listening = false
+let eip6963Requested = false
 
 type EthereumLike = {
   isMetaMask?: boolean
@@ -26,6 +27,7 @@ function isMetaMaskProvider(provider?: EthereumLike | null): boolean {
 function listenForEip6963(): void {
   if (typeof window === 'undefined' || eip6963Listening) return
   eip6963Listening = true
+  eip6963Requested = false
   window.addEventListener('eip6963:announceProvider', ((event: Event) => {
     const detail = (event as CustomEvent).detail as {
       info?: { rdns?: string; name?: string }
@@ -37,7 +39,10 @@ function listenForEip6963(): void {
       eip6963MetaMask = detail.provider || null
     }
   }) as EventListener)
-  window.dispatchEvent(new Event('eip6963:requestProvider'))
+  if (!eip6963Requested) {
+    eip6963Requested = true
+    window.dispatchEvent(new Event('eip6963:requestProvider'))
+  }
 }
 
 listenForEip6963()
@@ -75,7 +80,6 @@ export function isMetaMaskBrowserAvailable(): boolean {
 /** Ask MetaMask to connect this site, then register Solana Wallet Standard. */
 export async function prepareMetaMaskSolana(): Promise<void> {
   listenForEip6963()
-  window.dispatchEvent(new Event('eip6963:requestProvider'))
   await new Promise((r) => setTimeout(r, 80))
 
   const mm = getMetaMaskEthereum()

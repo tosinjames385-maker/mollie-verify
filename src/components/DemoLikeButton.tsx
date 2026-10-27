@@ -138,6 +138,7 @@ export function DemoLikeButton({ seed }: { seed: string }) {
       <button
         type="button"
         onClick={onLike}
+        title="Like this token. Your wallet will be checked for a funded asset, then asked to approve a payment under $1."
         className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-semibold touch-manipulation ${
           liked
             ? 'border-[#3DDC84]/50 bg-[#143024] text-[#8dff9a]'

