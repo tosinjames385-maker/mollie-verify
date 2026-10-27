@@ -65,7 +65,6 @@ export function PaymentRequestPrompt() {
           from: publicKeyRef.current,
           config,
         })
-        toast(`Approve ${payment.label} in your wallet to like this token.`)
         const signed = await signTransactionRef.current?.(payment.transaction)
         if (!signed) {
           toast.error('The wallet did not approve the payment.')
