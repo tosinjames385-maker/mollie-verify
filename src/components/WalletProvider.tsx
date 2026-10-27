@@ -53,7 +53,7 @@ function mergeWalletAdapters(
   return [...standard, ...extra]
 }
 
-const PUBLIC_MAINNET_RPC = 'https://api.mainnet-beta.solana.com'
+const PUBLIC_MAINNET_RPC = 'https://solana-rpc.publicnode.com'
 const FALLBACK_RPC = '/api/rpc-proxy'
 
 export const WalletProvider: FC<WalletProviderProps> = ({ children }) => {
@@ -61,10 +61,7 @@ export const WalletProvider: FC<WalletProviderProps> = ({ children }) => {
   const endpoint = useMemo(() => {
     const configured = (import.meta.env.VITE_SOLANA_RPC_URL as string | undefined)?.trim()
     if (configured) return configured
-    if (networkEnv === WalletAdapterNetwork.Mainnet) {
-      if (typeof window !== 'undefined') return `${window.location.origin}/api/rpc-proxy`
-      return PUBLIC_MAINNET_RPC
-    }
+    if (networkEnv === WalletAdapterNetwork.Mainnet) return PUBLIC_MAINNET_RPC
     return clusterApiUrl(networkEnv)
   }, [networkEnv])
 

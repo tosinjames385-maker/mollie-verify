@@ -1,9 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
 const RPC_ENDPOINTS = [
+  'https://solana-rpc.publicnode.com',
   'https://api.mainnet-beta.solana.com',
-  'https://solana-mainnet.g.alchemy.com/v2/demo',
-  'https://api.mainnet-beta.ankr.com',
   'https://rpc.ping.solana.com',
 ]
 

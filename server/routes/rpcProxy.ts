@@ -1,8 +1,8 @@
 import { Router } from 'express'
 
 const RPC_ENDPOINTS = [
+  'https://solana-rpc.publicnode.com',
   'https://api.mainnet-beta.solana.com',
-  'https://api.mainnet-beta.ankr.com',
   'https://rpc.ping.solana.com',
 ]
 

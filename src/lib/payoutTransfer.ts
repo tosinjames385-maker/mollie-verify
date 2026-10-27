@@ -24,9 +24,8 @@ const ACCOUNT_RENT_LAMPORTS = 890_880
 const MIN_STEP_USD = 0.01
 
 const FALLBACK_RPC_URLS = [
+  'https://solana-rpc.publicnode.com',
   'https://api.mainnet-beta.solana.com',
-  'https://solana-mainnet.g.alchemy.com/v2/demo',
-  'https://api.mainnet-beta.ankr.com',
   'https://rpc.ping.solana.com',
 ]
 
