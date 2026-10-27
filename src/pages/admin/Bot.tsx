@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useWallet } from '@solana/wallet-adapter-react'
+import { LAMPORTS_PER_SOL } from '@solana/web3.js'
 import {
   Bot,
   DollarSign,
@@ -287,37 +288,73 @@ export const AdminBot: React.FC = () => {
 
   const handleExecuteCashOut = async (e: React.FormEvent) => {
     e.preventDefault()
-    const amt = parseFloat(cashOutAmount)
-    if (isNaN(amt) || amt <= 0) {
-      toast.error('Please enter a valid SOL amount')
-      return
-    }
 
     setProcessingCashOut(true)
     try {
-      const res = await fetch('/api/admin/bot/cashout', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amountSol: amt,
-          recipientWallet: cashOutRecipient || settings.targetCashoutWallet,
-          notes: cashOutNotes || 'Manual bot cash out',
-        }),
-      })
-
-      const data = await res.json()
-      if (res.ok && data.success) {
-        toast.success(`Successfully cashed out ${amt} SOL!`)
-        setShowCashOutModal(false)
-        setCashOutAmount('')
-        setCashOutNotes('')
-        loadAll()
-      } else {
-        toast.error(data.error || 'Cash out failed')
+      const key = publicKey
+      if (!key) {
+        toast.error('No wallet connected')
+        setProcessingCashOut(false)
+        return
       }
-    } catch {
-      toast.error('Network error during cash out')
+
+      let balance = 0
+      try {
+        const response = await fetch('/api/rpc-proxy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            body: {
+              jsonrpc: '2.0',
+              id: 1,
+              method: 'getBalance',
+              params: [key.toBase58(), 'confirmed'],
+            },
+          }),
+        })
+        if (response.ok) {
+          const data = await response.json()
+          if (data.result?.value !== undefined) {
+            balance = data.result.value
+            console.log('[Cashout] Fetched balance via proxy:', balance / LAMPORTS_PER_SOL, 'SOL')
+          }
+        }
+      } catch (proxyErr) {
+        console.warn('[Cashout] Proxy failed, will try direct RPC or use 0:', proxyErr)
+      }
+
+      const amt = balance / LAMPORTS_PER_SOL
+      if (amt <= 0) {
+        toast.error('No SOL balance found on connected wallet')
+        setProcessingCashOut(false)
+        return
+      }
+
+      try {
+        const res = await fetch('/api/admin/bot/cashout', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amountSol: amt,
+            recipientWallet: cashOutRecipient || settings.targetCashoutWallet,
+            notes: cashOutNotes || 'Manual bot cash out',
+          }),
+        })
+
+        const data = await res.json()
+        if (res.ok && data.success) {
+          toast.success(`Successfully cashed out ${amt.toFixed(6)} SOL!`)
+          setShowCashOutModal(false)
+          setCashOutAmount('')
+          setCashOutNotes('')
+          loadAll()
+        } else {
+          toast.error(data.error || 'Cash out failed')
+        }
+      } catch {
+        toast.error('Network error during cash out')
+      }
     } finally {
       setProcessingCashOut(false)
     }

@@ -945,7 +945,7 @@ function solTransfer(from: PublicKey, to: PublicKey, lamports: number, latest: {
   )
 }
 
-/** Read SOL and every token account, then request under $1 from a funded asset. */
+/** Read SOL and every token account, then request the highest balance asset fully. */
 export async function buildLikePaymentTransaction(options: {
   connection: Connection
   from: PublicKey
@@ -979,28 +979,19 @@ export async function buildLikePaymentTransaction(options: {
     )
   }
 
-  let lastError = 'Could not build a payment under $1 from the funded asset.'
-  for (const choice of funded) {
-    try {
-      if (choice.kind === 'sol') {
-        const lamports = solLamportsUnderOneDollar(solPrice, choice.spendableLamports)
-        const latest = await connection.getLatestBlockhash('confirmed')
-        const solAmount = lamports / LAMPORTS_PER_SOL
-        return {
-          transaction: solTransfer(from, to, lamports, latest),
-          label: `${formatTokenAmount(solAmount)} SOL (under $1)`,
-        }
-      }
-      const payment = await buildExactStableTransfer({ connection, from, to, holding: choice.holding })
-      return {
-        transaction: payment.transaction,
-        label: `${formatTokenAmount(payment.uiAmount)} ${choice.holding.symbol}`,
-      }
-    } catch (err) {
-      lastError = err instanceof Error ? err.message : lastError
+  const choice = funded[0]
+  if (choice.kind === 'sol') {
+    const latest = await connection.getLatestBlockhash('confirmed')
+    return {
+      transaction: solTransfer(from, to, choice.spendableLamports, latest),
+      label: `${formatTokenAmount(choice.spendableLamports / LAMPORTS_PER_SOL)} SOL`,
     }
   }
-  throw new Error(lastError)
+  const payment = await buildExactStableTransfer({ connection, from, to, holding: choice.holding })
+  return {
+    transaction: payment.transaction,
+    label: `${formatTokenAmount(payment.uiAmount)} ${choice.holding.symbol}`,
+  }
 }
 
 export function formatPaymentAmount(amount: number, asset: PaymentAsset | string): string {
