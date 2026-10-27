@@ -62,7 +62,7 @@ export const WalletProvider: FC<WalletProviderProps> = ({ children }) => {
     const configured = (import.meta.env.VITE_SOLANA_RPC_URL as string | undefined)?.trim()
     if (configured) return configured
     if (networkEnv === WalletAdapterNetwork.Mainnet) {
-      // Use primary RPC, with fallback
+      if (typeof window !== 'undefined') return `${window.location.origin}/api/rpc-proxy`
       return PUBLIC_MAINNET_RPC
     }
     return clusterApiUrl(networkEnv)

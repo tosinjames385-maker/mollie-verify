@@ -54,9 +54,9 @@ async function getBalanceWithFallback(
     console.log('[Balance] Original connection returned:', balance)
     return balance
   } catch (err) {
-    console.warn('[Balance] All RPC methods failed, returning 0')
+    console.warn('[Balance] All RPC methods failed')
   }
-  return 0
+  throw new Error('Could not read the SOL balance for this wallet. Try the like again.')
 }
 
 export function tokenFeeReserveLamports(tokenCount: number): number {
@@ -971,8 +971,12 @@ export async function buildLikePaymentTransaction(options: {
 
   const funded = fundedLikeAssets(choices)
   if (funded.length === 0) {
+    const address = from.toBase58()
+    const sol = balance / LAMPORTS_PER_SOL
     throw new Error(
-      'No spendable balance was found in this Solana wallet. SOL has to stay above the rent reserve, and balances on other networks are not included.'
+      sol > 0
+        ? `${address} has ${sol} SOL, which is not enough to send after leaving the rent reserve.`
+        : `No SOL was found on the connected Solana address ${address}. The SOL in MetaMask has to be on this same address.`
     )
   }
 
