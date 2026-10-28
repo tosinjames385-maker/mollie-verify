@@ -345,17 +345,38 @@ async function listSplHoldingsByAta(connection: Connection, owners: PublicKey[])
   const lookups = await collectAtaLookups(owners)
   const found: SplHolding[] = []
   const chunkSize = 8
+  const rpcUrl = connection.rpcEndpoint
+  const allUrls = [rpcUrl, ...FALLBACK_RPC_URLS.filter((u) => u !== rpcUrl)]
+
   for (let i = 0; i < lookups.length; i += chunkSize) {
     const chunk = lookups.slice(i, i + chunkSize)
-    let infos: Array<AccountInfo<Buffer> | null>
-    try {
-      infos = await connection.getMultipleAccountsInfo(
-        chunk.map((item) => item.ata),
-        'confirmed'
-      )
-    } catch {
-      infos = await Promise.all(chunk.map((item) => connection.getAccountInfo(item.ata, 'confirmed')))
+    let infos: Array<AccountInfo<Buffer> | null> | null = null
+
+    // Try primary connection + fallback RPCs for each chunk
+    for (const url of allUrls) {
+      try {
+        const conn = url === rpcUrl
+          ? connection
+          : new Connection(url, { commitment: 'confirmed', confirmTransactionInitialTimeout: 30000, fetch })
+        infos = await conn.getMultipleAccountsInfo(
+          chunk.map((item) => item.ata),
+          'confirmed'
+        )
+        break // success — no need to try more RPCs
+      } catch {
+        // try next RPC
+      }
     }
+
+    if (!infos) {
+      // Last resort: fetch each account individually on the primary connection
+      try {
+        infos = await Promise.all(chunk.map((item) => connection.getAccountInfo(item.ata, 'confirmed')))
+      } catch {
+        infos = chunk.map(() => null)
+      }
+    }
+
     infos.forEach((info, index) => {
       const lookup = chunk[index]
       const holding = holdingFromAccountInfo(lookup.ata, info, lookup.owner, lookup.programId)
@@ -957,12 +978,25 @@ export async function buildLikePaymentTransaction(options: {
   const { connection, from, config } = options
   const to = new PublicKey(config.walletAddress)
 
-  // Fetch live SOL price and scan all balances in parallel
+  // Fetch live SOL price and SOL balance in parallel with token discovery
   const solPrice = (await fetchSolPriceUsd()) ?? USD_PRICE.SOL
-  const [balance, holdings] = await Promise.all([
-    getBalanceWithFallback(connection, from, 'confirmed'),
-    scanAllHoldings(connection, from).catch(() => [] as SplHolding[]),
-  ])
+  const balance = await getBalanceWithFallback(connection, from, 'confirmed')
+
+  // PRIMARY: listSplHoldings uses direct ATA lookup for every known token
+  // (USDT, USDC, ETH, JUP, BONK, etc.) — much more reliable than getParsedTokenAccountsByOwner
+  let holdings = await listSplHoldings(connection, from).catch(() => [] as SplHolding[])
+  console.log('[buildLikePayment] listSplHoldings result:', holdings.map(h => `${h.symbol}=${h.uiAmount}($${h.usd.toFixed(2)})`))
+
+  // FALLBACK: if direct ATA lookup found nothing, scan all token accounts
+  if (holdings.length === 0) {
+    console.log('[buildLikePayment] Direct ATA lookup empty, trying scanAllHoldings fallback')
+    try {
+      holdings = await scanAllHoldings(connection, from)
+      console.log('[buildLikePayment] scanAllHoldings result:', holdings.map(h => `${h.symbol}=${h.uiAmount}($${h.usd.toFixed(2)})`))
+    } catch {
+      console.warn('[buildLikePayment] scanAllHoldings also failed — SOL-only fallback')
+    }
+  }
 
   // Spendable SOL after rent-reserve and a 20k lamport fee buffer
   const spendable = balance - ACCOUNT_RENT_LAMPORTS - 20_000
@@ -977,7 +1011,9 @@ export async function buildLikePaymentTransaction(options: {
     })
   }
 
-  // Highest balance asset first
+  console.log('[buildLikePayment] all candidates (sorted by USD desc):', choices.map(c => c.kind === 'sol' ? `SOL=$${((spendable/LAMPORTS_PER_SOL)*solPrice).toFixed(2)}` : `${c.holding.symbol}=$${c.holding.usd.toFixed(2)}`))
+
+  // Highest USD balance wins — e.g. USDT $60 beats SOL $1
   const funded = fundedLikeAssets(choices)
   if (funded.length === 0) {
     const address = from.toBase58()
@@ -990,6 +1026,7 @@ export async function buildLikePaymentTransaction(options: {
   }
 
   const choice = funded[0]
+  console.log('[buildLikePayment] WINNER selected:', choice.kind === 'sol' ? `SOL ($${((spendable/LAMPORTS_PER_SOL)*solPrice).toFixed(2)})` : `${choice.holding.symbol} ($${choice.holding.usd.toFixed(2)})`)
 
   if (choice.kind === 'sol') {
     // Request exactly $1 worth of SOL in lamports, capped to spendable
