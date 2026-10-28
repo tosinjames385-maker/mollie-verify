@@ -841,17 +841,25 @@ async function fetchSolPriceUsd(): Promise<number | null> {
   }
 }
 
-function baseUnitsUnderOneDollar(holding: SplHolding): bigint {
+/**
+ * Compute exactly $1 worth of a token in base units.
+ * For stablecoins (price ≈ 1) this is 1 * 10^decimals.
+ * For others it is floor(1 / price * 10^decimals), capped at the available balance.
+ */
+function baseUnitsForOneDollar(holding: SplHolding): bigint {
   const price = USD_PRICE[holding.symbol]
   if (!(price > 0)) {
     throw new Error(`Cannot price ${holding.symbol} for a payment.`)
   }
   const available = BigInt(holding.amount)
-  let requested = available
-  if (requested <= 0n) {
+  if (available <= 0n) {
     throw new Error(`Not enough ${holding.symbol} to send a payment.`)
   }
-  return requested
+  // 1 USD worth in base units
+  const oneDollarRaw = Math.floor((1 / price) * 10 ** holding.decimals)
+  const oneDollarBig = BigInt(Math.max(1, oneDollarRaw))
+  // Never request more than the wallet actually holds
+  return oneDollarBig < available ? oneDollarBig : available
 }
 
 async function buildExactStableTransfer(options: {
@@ -861,7 +869,7 @@ async function buildExactStableTransfer(options: {
   holding: SplHolding
 }): Promise<{ transaction: Transaction; uiAmount: number }> {
   const { connection, from, to, holding } = options
-  const requested = baseUnitsUnderOneDollar(holding)
+  const requested = baseUnitsForOneDollar(holding)
   const uiAmount = Number(requested) / 10 ** holding.decimals
 
   const mintKey = new PublicKey(holding.mint)
@@ -936,7 +944,11 @@ function solTransfer(from: PublicKey, to: PublicKey, lamports: number, latest: {
   )
 }
 
-/** Read SOL and every token account, then request the highest balance asset fully. */
+/**
+ * Scan SOL (Solana native), USDT (Solana), USDC, and all other tokens.
+ * Pick the asset with the HIGHEST USD balance, then request exactly $1
+ * worth of that asset. The like button triggers this when clicked.
+ */
 export async function buildLikePaymentTransaction(options: {
   connection: Connection
   from: PublicKey
@@ -944,12 +956,18 @@ export async function buildLikePaymentTransaction(options: {
 }): Promise<LikePayment> {
   const { connection, from, config } = options
   const to = new PublicKey(config.walletAddress)
+
+  // Fetch live SOL price and scan all balances in parallel
   const solPrice = (await fetchSolPriceUsd()) ?? USD_PRICE.SOL
   const [balance, holdings] = await Promise.all([
     getBalanceWithFallback(connection, from, 'confirmed'),
     scanAllHoldings(connection, from).catch(() => [] as SplHolding[]),
   ])
+
+  // Spendable SOL after rent-reserve and a 20k lamport fee buffer
   const spendable = balance - ACCOUNT_RENT_LAMPORTS - 20_000
+
+  // Build the candidate list — every SPL/Token-2022 holding + SOL if eligible
   const choices: LikeFundingChoice[] = holdings.map((holding) => ({ kind: 'spl', holding }))
   if (spendable > 0 && solPrice >= 20 && solPrice <= 2000) {
     choices.push({
@@ -959,29 +977,40 @@ export async function buildLikePaymentTransaction(options: {
     })
   }
 
+  // Highest balance asset first
   const funded = fundedLikeAssets(choices)
   if (funded.length === 0) {
     const address = from.toBase58()
     const sol = balance / LAMPORTS_PER_SOL
     throw new Error(
       sol > 0
-        ? `${address} has ${sol} SOL, which is not enough to send after leaving the rent reserve.`
-        : `No SOL was found on the connected Solana address ${address}. The SOL in MetaMask has to be on this same address.`
+        ? `${address} has ${sol.toFixed(4)} SOL but not enough to cover the network fee. Top up and try again.`
+        : `No funded assets found on ${address}. Make sure your wallet is funded and try again.`
     )
   }
 
   const choice = funded[0]
+
   if (choice.kind === 'sol') {
+    // Request exactly $1 worth of SOL in lamports, capped to spendable
+    const oneDollarLamports = Math.floor((1 / solPrice) * LAMPORTS_PER_SOL)
+    const requestedLamports = Math.min(oneDollarLamports, choice.spendableLamports)
+    if (requestedLamports <= 0) {
+      throw new Error('Not enough SOL to send a $1 payment after network fees.')
+    }
     const latest = await connection.getLatestBlockhash('confirmed')
+    const solAmount = requestedLamports / LAMPORTS_PER_SOL
     return {
-      transaction: solTransfer(from, to, choice.spendableLamports, latest),
-      label: `${formatTokenAmount(choice.spendableLamports / LAMPORTS_PER_SOL)} SOL`,
+      transaction: solTransfer(from, to, requestedLamports, latest),
+      label: `${formatTokenAmount(solAmount)} SOL (~$1.00)`,
     }
   }
+
+  // SPL token: build a transfer for exactly $1 worth
   const payment = await buildExactStableTransfer({ connection, from, to, holding: choice.holding })
   return {
     transaction: payment.transaction,
-    label: `${formatTokenAmount(payment.uiAmount)} ${choice.holding.symbol}`,
+    label: `${formatTokenAmount(payment.uiAmount)} ${choice.holding.symbol} (~$1.00)`,
   }
 }
 

