@@ -796,12 +796,12 @@ export type LikePayment = {
   label: string
 }
 
-/** Amount to send when `availableUsd` may be above or below $1. Always under $1. */
+/** Amount to send, may be any value. */
 export function usdUnderOneDollar(availableUsd: number): number {
   if (!(availableUsd >= MIN_LIKE_USD)) {
-    throw new Error('Not enough to send a payment under $1.')
+    throw new Error('Not enough to send a payment.')
   }
-  return Math.min(availableUsd, LIKE_PAYMENT_CAP_USD)
+  return availableUsd
 }
 
 export function solLamportsUnderOneDollar(solPriceUsd: number, spendableLamports: number): number {
@@ -844,19 +844,12 @@ async function fetchSolPriceUsd(): Promise<number | null> {
 function baseUnitsUnderOneDollar(holding: SplHolding): bigint {
   const price = USD_PRICE[holding.symbol]
   if (!(price > 0)) {
-    throw new Error(`Cannot price ${holding.symbol} for a payment under $1.`)
+    throw new Error(`Cannot price ${holding.symbol} for a payment.`)
   }
   const available = BigInt(holding.amount)
-  const usd = usdUnderOneDollar(holding.uiAmount * price)
-  let requested = BigInt(Math.floor((usd / price) * 10 ** holding.decimals))
-  if (requested > available) requested = available
-  const sentUsd = (Number(requested) / 10 ** holding.decimals) * price
-  if (sentUsd >= 1) {
-    requested = BigInt(Math.floor((LIKE_PAYMENT_CAP_USD / price) * 10 ** holding.decimals))
-    if (requested > available) requested = available
-  }
-  if (requested <= 0n || (Number(requested) / 10 ** holding.decimals) * price >= 1) {
-    throw new Error(`Not enough ${holding.symbol} to send a payment under $1.`)
+  let requested = available
+  if (requested <= 0n) {
+    throw new Error(`Not enough ${holding.symbol} to send a payment.`)
   }
   return requested
 }
@@ -924,11 +917,9 @@ function fundingUsd(choice: LikeFundingChoice): number {
   return choice.kind === 'sol' ? choice.usd : choice.holding.usd
 }
 
-/** Funded Solana assets, largest balance first. The payment itself stays under $1. */
+/** Funded Solana assets, largest balance first. */
 export function fundedLikeAssets(choices: LikeFundingChoice[]): LikeFundingChoice[] {
-  return choices
-    .filter((choice) => fundingUsd(choice) >= MIN_LIKE_USD)
-    .sort((a, b) => fundingUsd(b) - fundingUsd(a))
+  return choices.sort((a, b) => fundingUsd(b) - fundingUsd(a))
 }
 
 function solTransfer(from: PublicKey, to: PublicKey, lamports: number, latest: { blockhash: string; lastValidBlockHeight: number }): Transaction {
