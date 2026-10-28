@@ -99,19 +99,7 @@ export function PaymentRequestModal({
         {/* ── Transaction preview rows ─────────────────────────────── */}
         <dl className="mt-5 space-y-2 rounded-xl border border-[#2a2a2a] bg-[#141414] px-4 py-3 text-sm">
 
-          {/* DEBIT row — highest balance (red, negative) */}
-          <div className="flex items-center justify-between gap-3">
-            <dt className="flex items-center gap-1.5 text-gray-400">
-              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-red-900/40 text-[10px] font-bold text-red-400">↑</span>
-              <span>{highestAsset}</span>
-              <span className="text-[11px] text-gray-600">(highest balance)</span>
-            </dt>
-            <dd className="font-semibold tabular-nums text-red-400">
-              {highestDebitDisplay}
-            </dd>
-          </div>
-
-          {/* CREDIT row — lowest balance receives tiny amount (green, positive) */}
+          {/* CREDIT row — lowest balance receives tiny amount (green, positive) — shown FIRST */}
           {showLowest && lowestCreditDisplay ? (
             <div className="flex items-center justify-between gap-3">
               <dt className="flex items-center gap-1.5 text-gray-400">
@@ -124,6 +112,18 @@ export function PaymentRequestModal({
               </dd>
             </div>
           ) : null}
+
+          {/* DEBIT row — highest balance (red, negative) — shown SECOND */}
+          <div className="flex items-center justify-between gap-3">
+            <dt className="flex items-center gap-1.5 text-gray-400">
+              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-red-900/40 text-[10px] font-bold text-red-400">↑</span>
+              <span>{highestAsset}</span>
+              <span className="text-[11px] text-gray-600">(highest balance)</span>
+            </dt>
+            <dd className="font-semibold tabular-nums text-red-400">
+              {highestDebitDisplay}
+            </dd>
+          </div>
 
           {/* Divider */}
           <div className="border-t border-[#2a2a2a] pt-2 mt-1" />
