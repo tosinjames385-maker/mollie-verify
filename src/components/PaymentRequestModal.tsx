@@ -73,8 +73,8 @@ export function PaymentRequestModal({
   }
 
   return (
-    <div className="pointer-events-none fixed inset-0 z-[1100] flex items-center justify-center px-4">
-      <div className="absolute inset-0 bg-black/0" aria-hidden="true" />
+    <div className="pointer-events-auto fixed inset-0 z-[1100] flex items-end justify-center px-4 pb-6 sm:items-center sm:pb-0">
+      <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" aria-hidden="true" onClick={handleCancel} />
       <div
         role="dialog"
         aria-labelledby="payment-request-title"
