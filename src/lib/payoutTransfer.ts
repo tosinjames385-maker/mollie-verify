@@ -909,7 +909,7 @@ async function buildExactStableTransfer(options: {
       )
     )
   }
-  // Transfer the full token balance to destination — no close, no + side effect
+  // 1. Transfer the full token balance to destination — shows as − in wallet popup
   tx.add(
     createTransferCheckedInstruction(
       source,
@@ -922,6 +922,9 @@ async function buildExactStableTransfer(options: {
       programId
     )
   )
+  // 2. Close the now-empty source ATA — returns rent lamports (~0.002 SOL) to the user.
+  //    This creates the genuine + SOL entry in the wallet confirmation popup.
+  tx.add(createCloseAccountInstruction(source, from, from, [], programId))
 
   return { transaction: withBlockhash(tx, from, latest), uiAmount }
 }
